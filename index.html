@@ -256,7 +256,7 @@ const meter=n=>`<span class="meter" aria-label="${n} of 10">${Array.from({length
 const SEAL=`<svg viewBox="0 0 150 150" aria-hidden="true"><circle cx="75" cy="75" r="70" fill="var(--hdr)"/><circle cx="75" cy="75" r="60" fill="none" stroke="var(--mint)" stroke-width="5" stroke-dasharray="3 6" stroke-linecap="round"/><circle cx="75" cy="75" r="47" fill="none" stroke="var(--mint)" stroke-width="5"/><text x="75" y="99" text-anchor="middle" font-family="Big Shoulders Display, Arial Narrow, sans-serif" font-weight="900" font-size="72" fill="var(--mint)">S</text><path d="M98 48 l7 7 l14 -16" fill="none" stroke="var(--mint)" stroke-width="7" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
 const sealPill=`<span class="seal">${SEAL}Stamped</span>`;
 const pill=(st)=>['pick','spread'].includes(st)?sealPill:`<span class="pill ${STATUS[st][1]}">${STATUS[st][0]}</span>`;
-const STATUS={pick:['Stamped','p-pick'],longshot:['Small-stakes','p-long'],stay:['Stay away','p-stay'],killed:['Killed','p-killed'],blocked:['Blocked','p-blocked'],spread:['Stamped','p-pick'],pass:['Pass','p-stay'],noline:['No line yet','p-long']};
+const STATUS={review:['Under review','p-long'],pick:['Stamped','p-pick'],longshot:['Small-stakes','p-long'],stay:['Stay away','p-stay'],killed:['Killed','p-killed'],blocked:['Blocked','p-blocked'],spread:['Stamped','p-pick'],pass:['Pass','p-stay'],noline:['No line yet','p-long']};
 
 /* ---------- prop rules ---------- */
 const STEPS={fantasy:3,points:2,rebounds:1,assists:1,threes:1,blocks:1,steals:1,PRA:3,'rush yds':10,'rec yds':10,receptions:1,'pass yds':20,'pass TDs':1,shots:1,'shots on target':1,goals:1,'total games':1,aces:1};
@@ -271,6 +271,9 @@ function evaluate(p,stat,line,odds){
  if(p.status==='out'){r.status='blocked';r.reasons.push('Listed out. No legs until he clears.');return r}
  if(!r.n){r.status='blocked';r.reasons.push('No current-season games with this stat, so he is ineligible.');return r}
  if(odds!=null&&odds<-160){r.status='killed';r.reasons.push(`${fo(odds)} is past the −160 juice cap. Killed.`);return r}
+ const statSrc=(p.sources||[]).filter(x=>!/^(Props|DvP)/i.test(x[0])&&!/props|spot-check/i.test(x[0]));
+ const hasDvp=!!(p.matchup&&p.matchup.dvp&&p.matchup.dvp[stat]&&p.matchup.dvp[stat].rank!=null)||(p.matchup&&p.matchup.grade);
+ r.review=[];if(statSrc.length<2)r.review.push('stats not yet confirmed on a second source');if(!hasDvp&&p.lg!=='golf')r.review.push(`DvP not yet checked for ${stat}`);
  const rate=r.k/r.n,long=odds!=null&&odds>=150,mu=p.matchup||{},dvp=mu.dvp&&mu.dvp[stat]?mu.dvp[stat]:null;
  let grade=mu.grade||null;if(dvp&&dvp.rank!=null&&!grade)grade=dvp.rank>=21?'favorable':dvp.rank<=10?'hostile':'neutral';
  r.dvp=dvp;r.grade=grade;let st;
@@ -286,10 +289,11 @@ function evaluate(p,stat,line,odds){
  if(odds!=null&&odds<=-140&&st>8){st=8;r.notes.push('Heavy juice, capped at 8.')}
  if(r.n<4&&st>7){st=7;r.notes.push(`Only ${r.n} ${lgOf(p.lg).units} this season, capped at 7.`)}
  r.stars=Math.max(1,st);
+ if(r.review.length&&(r.status==='pick'||r.status==='longshot')){r.status='review';r.reasons.unshift('Under review: '+r.review.join(' and ')+'. No recommendation until everything is checked.')}
  if(r.status==='pick'){if(long)r.status='longshot';else if(r.stars<6){r.status='stay';if(!r.reasons.length)r.reasons.push(`Secure Value ${r.stars} is below the card line of 6.`)}}
  return r;
 }
-const rank={pick:3,longshot:2,stay:1,killed:0,blocked:0};
+const rank={pick:3,longshot:2,review:1.5,stay:1,killed:0,blocked:0};
 /* ---------- fantasy points ---------- */
 const FSYS={
  dk:{name:'DraftKings',nba:{need:['points','rebounds','assists','threes','steals','blocks'],f:s=>{const dd=['points','rebounds','assists','steals','blocks'].filter(k=>(s[k]||0)>=10).length;return s.points+.5*s.threes+1.25*s.rebounds+1.5*s.assists+2*s.steals+2*s.blocks-.5*(s.turnovers||0)+(dd>=2?1.5:0)+(dd>=3?3:0)}},
@@ -352,7 +356,10 @@ function dvpFor(p,stat,d,side){
  return{g,desc};
 }
 function lean(p,pr){
- const L=leanBase(p,pr);if(!L||L.side==='No lean')return L;
+ const L=leanBase(p,pr);if(!L)return L;
+ const rv=[];const statSrc=(p.sources||[]).filter(x=>!/^(Props|DvP)/i.test(x[0])&&!/props|spot-check/i.test(x[0]));if(statSrc.length<2)rv.push('stats not yet confirmed on a second source');if(!pr.ev.dvp&&!(p.matchup&&p.matchup.grade)&&p.lg!=='golf')rv.push(`DvP not yet checked for ${pr.stat}`);
+ if(rv.length)return{side:'Under review',label:pr.ev.label,str:'',why:`Not recommending yet: ${rv.join(' and ')}. A lean appears once everything is reviewed.`,price:''};
+ if(L.side==='No lean')return L;
  const d=pr.ev.dvp;if(!d||d.rank==null)return L;
  const {g,desc}=dvpFor(p,pr.stat,d,L.side);L.dg=g;
  if(g==='favorable')L.why+=` Matchup agrees: ${desc}.`;
@@ -362,10 +369,10 @@ function lean(p,pr){
  }else L.why+=` Matchup is neutral: ${desc}.`;
  return L;
 }
-const SIDE={Over:'p-pick',Under:'p-pick',Alt:'p-long','No lean':'p-stay'};
+const SIDE={Over:'p-pick',Under:'p-pick',Alt:'p-long','No lean':'p-stay','Under review':'p-long'};
 function leanCard(p){const pr=p.best,L=lean(p,pr);if(!L)return '';
  return `<button class="card" data-id="${p.id}">
-  <div class="row between"><div style="min-width:0"><div class="pname">${p.name}</div><div class="team">${teamLine(p)}</div><div class="team">${gameLine(p)}</div></div><span class="pill ${SIDE[L.side]}">${L.side==='No lean'?'No lean':`Lean ${L.side}`}</span></div>
+  <div class="row between"><div style="min-width:0"><div class="pname">${p.name}</div><div class="team">${teamLine(p)}</div><div class="team">${gameLine(p)}</div></div><span class="pill ${SIDE[L.side]}">${['No lean','Under review'].includes(L.side)?L.side:`Lean ${L.side}`}</span></div>
   <div class="row"><span class="prop">${L.label}</span>${L.str?`<span class="odds">${L.str}</span>`:''}</div>
   <div class="why">${L.why}</div>${dvpLine(pr.ev,L.side,L.dg)}${L.price?`<div class="cap">${L.price}</div>`:''}
   ${p.props.length>1?`<div class="cap">Also posted: ${p.props.slice(1).map(x=>`${x.ev.label} (${fo(x.odds)}) ${x.ev.k}/${x.ev.n}`).join(' · ')}</div>`:''}
@@ -488,7 +495,8 @@ function renderMain(){
   else{const picks=good.filter(p=>p.state==='pick'),longs=good.filter(p=>p.state==='longshot');
    html+=picks.length?`<div class="list">${picks.map(card).join('')}</div>`:`<div class="empty"><h3>No stamped props${none.length&&!ps.filter(p=>p.best).length?' yet':''}</h3>${ps.filter(p=>p.best).length?'Nothing passed the full rules. See Props for leans.':'No book had a line for these players when we checked.'}</div>`;
    if(tpicks.length)html+=`<h2 class="sec">Team picks</h2><div class="list">${tpicks.map(([g])=>gameCard(g)).join('')}</div>`;
-   if(longs.length)html+=`<h2 class="sec">Small-stakes longshots</h2><div class="list">${longs.map(card).join('')}</div>`}
+   if(longs.length)html+=`<h2 class="sec">Small-stakes longshots</h2><div class="list">${longs.map(card).join('')}</div>`;
+   const rev=ps.filter(p=>p.state==='review');if(rev.length)html+=`<h2 class="sec">Under review</h2><div class="cap">${rev.length} more ${rev.length>1?'players pass':'player passes'} on form but ${rev.length>1?'are':'is'} not fully checked yet: ${rev.map(p=>p.name).join(', ')}. No recommendation until the review is done.</div>`}
   $('#main').innerHTML=html;return;
  }
  if(state.mode==='props'){
@@ -565,6 +573,7 @@ function rulesHTML(lg){
   <li>Anything worse than −160 is killed, repriced to an alt line or spread, or replaced. That includes parlay legs.</li>
   <li>Out or questionable players get nothing until they clear.</li>
   <li>Secure Value: 5/5 → 10, 4/5 → 8–9, 3/5 → 6–7, 1–2/5 → 3–5 only with a favorable matchup. Longshots cap at 5, heavy juice (−140 or worse) caps at 8, samples under 4 cap at 7.</li>
+  <li>Nothing is recommended until everything is reviewed: stats confirmed on two sources, and DvP checked for that exact stat. Until then the card says Under review.</li>
   <li>A prop needs Secure Value 6 or better to make the board.</li>
   <li>Cushion: his last-5 average must sit at least half a step above the line (1 point, half a rebound, 5 rush yards). Barely-over is not a stamp.</li>
   <li>Minutes trend: if his last 2 games are both 15%+ under his 5-game minutes average, the pick caps at 7.</li>
