@@ -176,6 +176,25 @@ tr.dim td:last-child{text-decoration:none}
 .seal svg{width:22px;height:22px}
 .sealbig{display:flex;align-items:center;gap:10px}
 .sealbig svg{width:44px;height:44px}
+.lugame{gap:8px}
+.lutitle{font-family:var(--f-disp);font-weight:800;font-size:19px}
+.lusplit{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.luth{display:flex;align-items:center;justify-content:space-between;gap:6px;min-width:0}
+.lugrid{display:grid;grid-template-columns:minmax(0,1fr) 38px minmax(0,1fr);gap:5px 4px;align-items:stretch}
+.lucell{display:flex;flex-direction:column;gap:1px;background:var(--chip);border-radius:8px;padding:6px 8px;min-width:0;text-align:left;font:inherit;color:inherit;border:0}
+button.lucell{cursor:pointer}button.lucell:hover{outline:1px solid var(--line)}
+.lucell.h{text-align:right;align-items:flex-end}
+.lucell.empty{color:var(--muted);justify-content:center}
+.lunm{font-weight:600;font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
+.lusub{font-size:11px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
+.lust{color:var(--hit)}.luq{color:var(--warn)}
+.luslot{display:flex;align-items:center;justify-content:center;font-family:var(--f-disp);font-weight:800;font-size:13px;letter-spacing:.04em;color:var(--muted)}
+.luout{display:flex;flex-wrap:wrap;gap:4px;align-content:flex-start}
+.luout .pill{font-size:10px}
+.lucell .tag{align-self:flex-start;margin:0 0 2px}
+.lucell.h .tag{align-self:flex-end}
+.mline{display:flex;align-items:baseline;gap:6px;flex-wrap:wrap}
+.mline .pill{flex:none}
 .chipsrow{display:flex;flex-wrap:wrap;gap:5px}
 .pchip{font-size:12px;background:var(--chip);border-radius:6px;padding:3px 8px;font-family:var(--f-mono)}
 .pchip.good{background:var(--hit-bg);color:var(--hit)}
@@ -210,6 +229,10 @@ tr.dim td:last-child{text-decoration:none}
 fetch('./data.json?v='+Date.now()).then(r=>r.json()).then(DATA=>{
 
 const VETTING=(()=>{try{return location.hash==='#vetting'}catch(e){return false}})();
+const POSN={PG:'point guards',SG:'shooting guards',SF:'small forwards',PF:'power forwards',C:'centers',G:'guards',F:'forwards',QB:'quarterbacks',RB:'running backs',WR:'receivers',TE:'tight ends'};
+const STATN={points:'points',rebounds:'rebounds',assists:'assists',threes:'threes',steals:'steals',blocks:'blocks',PRA:'points + rebounds + assists','rush yds':'rushing yards','rec yds':'receiving yards','pass yds':'passing yards',receptions:'catches','pass TDs':'passing TDs',fantasy:'fantasy points'};
+const GL=g=>g==='favorable'?'Matchup helps':g==='hostile'?'Tough matchup':'Average matchup';
+const GC=g=>g==='favorable'?'p-pick':g==='hostile'?'p-stay':'p-long';
 const P=DATA.players,GAMES=DATA.games,INJ=DATA.injuries;
 const LEAGUES=[
  {id:'nba',name:'NBA',units:'games',u:'g'},
@@ -280,10 +303,10 @@ function evaluate(p,stat,line,odds){
  r.review=[];if(p.status==='questionable')r.review.push('listed questionable; not cleared to play');if(statSrc.length<2)r.review.push('stats not yet confirmed on a second source');if(!hasDvp&&p.lg!=='golf')r.review.push(`DvP not yet checked for ${stat}`);
  const rate=r.k/r.n,long=odds!=null&&odds>=150,mu=p.matchup||{},dvp=mu.dvp&&mu.dvp[stat]?mu.dvp[stat]:null;
  let grade=mu.grade||null;if(dvp&&dvp.rank!=null&&!grade)grade=dvp.rank>=(p.lg==='nfl'?23:21)?'favorable':dvp.rank<=10?'hostile':'neutral';
- r.dvp=dvp;r.grade=grade;r.tot=p.lg==='nfl'?32:30;let st;
+ r.dvp=dvp;r.grade=grade;r.tot=p.lg==='nfl'?32:30;r.opp=(p.opp||'').replace(/^(vs|@) /,'');let st;
  if(rate===1)st=10;else if(rate>=.8)st=grade==='favorable'?9:8;else if(rate>=.6)st=grade==='favorable'?7:6;else if(grade==='favorable')st=4;else{st=3;if(!long){r.status='stay';r.reasons.push(`Only ${r.k} of his last ${r.n}.`)}}
- if(grade==='hostile'){st-=2;r.reasons.push('Hostile matchup: '+(dvp?`${p.opp.replace(/^(vs|@) /,'')} rank ${ordinal(dvp.rank)} against ${dvp.pos||'his position'} in ${stat} (${dvp.value})`:mu.why||'opponent ranks top-10 against this stat.'))}
- else if(grade==='favorable')r.notes.push('Favorable matchup: '+(dvp?`${p.opp.replace(/^(vs|@) /,'')} rank ${ordinal(dvp.rank)} against ${dvp.pos||'his position'} in ${stat} (${dvp.value})`:mu.why||''));
+ if(grade==='hostile'){st-=2;r.reasons.push('Tough matchup: '+(dvp?mDesc((p.opp||'').replace(/^(vs|@) /,''),stat,dvp,p.lg==='nfl'?32:30)+'.':mu.why||''))}
+ else if(grade==='favorable')r.notes.push('Matchup helps: '+(dvp?mDesc((p.opp||'').replace(/^(vs|@) /,''),stat,dvp,p.lg==='nfl'?32:30)+'.':mu.why||''));
  if(!['finish','cut'].includes(stat)&&rate>=.6){const nums=s.map(g=>g.s[stat]),avg=nums.reduce((a,b)=>a+b,0)/nums.length,step=STEPS[stat]||1;r.avg=avg;
   if(avg-line<step*.5){st=Math.min(st,5);r.reasons.push(`His average (${avg.toFixed(1)}) is too close to the ${line} line.`)}}
  const mins=p.games.map(g=>g.min).filter(v=>v!=null);
@@ -334,7 +357,8 @@ P.forEach(p=>setFantasy(p,FSYSSEL));
 const MINLBL={nba:['Minutes','min'],nfl:['Snap share','%'],soccer:['Minutes','min'],tennis:['Match length','min']};
 const minLine=p=>{if(!p.mn)return p.lg==='nfl'?`<div class="cap">Snap share: not found on the sources checked.</div>`:'';const [l,u]=MINLBL[p.lg];return `<div class="cap">${l}: avg ${Math.round(p.mn.avg*10)/10}${u==='%'?'%':' '+u} last ${Math.min(5,p.games.length)} · projected ${p.mn.proj}${u==='%'?'%':' '+u}</div>`};
 const trust=p=>VETTING?`<div class="cap"><span class="ok">✓</span> ${p.sources.filter(s=>!/^Props/.test(s[0])).map(s=>s[0]).join(' + ')} · ${DATA.checked}</div>`:'';
-const dvpLine=(e,side,dg)=>{if(!e||!e.dvp)return '';const g=dg||e.grade;return `<div class="cap"><b>DvP${side==='Under'?' (for the Under)':''}:</b> ${e.dvp.pos?e.dvp.pos+' · ':''}${ordinal(e.dvp.rank)} of ${e.tot||30} · ${e.dvp.value} <span class="pill ${g==='favorable'?'p-pick':g==='hostile'?'p-stay':'p-long'}" style="margin-left:4px">${g}</span></div>`};
+function mDesc(opp,stat,d,tot){const pos=POSN[d.pos]||(d.pos?d.pos+'s':'his position'),st=STATN[stat]||stat;tot=tot||30;return d.rank<=10?`${opp} allow the ${d.rank===1?'':ordinal(d.rank)+'-'}fewest ${st} to ${pos}`:d.rank>=tot-9?`${opp} allow the ${tot+1-d.rank===1?'':ordinal(tot+1-d.rank)+'-'}most ${st} to ${pos}`:`${opp} are about average against ${pos} (${ordinal(d.rank)} of ${tot})`}
+const dvpLine=(e,side,dg)=>{if(!e||!e.dvp)return '';let g=dg||e.grade;if(!dg&&side==='Under')g=g==='favorable'?'hostile':g==='hostile'?'favorable':g;return `<div class="mline"><span class="pill ${GC(g)}">${GL(g)}${side==='Under'?' (Under)':''}</span><span class="cap">${mDesc(e.opp||'Opponent',e.stat,e.dvp,e.tot)}.</span></div>`};
 const why=(p,e)=>`${e.stat==='finish'?`Top ${e.line} in`:e.stat==='cut'?'Made the cut in':'Hit in'} <strong>${e.k} of his last ${e.n}</strong> ${lgOf(p.lg).units} (${e.vals.join(', ')})`;
 
 /* ---------- props leans (over / under / alt) ---------- */
@@ -356,7 +380,7 @@ function leanBase(p,pr){
 function dvpFor(p,stat,d,side){
  const tot=p.lg==='nfl'?32:30,opp=(p.opp||'').replace(/^(vs|@) /,''),pos=d.pos?d.pos+'s':'his position',over=side!=='Under';
  const g=d.rank>=tot-9?(over?'favorable':'hostile'):d.rank<=10?(over?'hostile':'favorable'):'neutral';
- const desc=d.rank<=10?`${opp} allow the ${ordinal(d.rank)}-fewest ${stat} to ${pos}`:d.rank>=tot-9?`${opp} allow the ${ordinal(tot+1-d.rank)}-most ${stat} to ${pos}`:`${opp} are middle of the pack (${ordinal(d.rank)} of ${tot})`;
+ const desc=mDesc(opp,stat,d,tot);
  return{g,desc};
 }
 function scenario(p,pr){
@@ -388,7 +412,7 @@ function scenario(p,pr){
  const str=pick.h>=need(.8)&&dvS>=0?'Strong':'Moderate';
  const tag=pick.k===0?side:`Alt ${side}`;
  const form=`${side==='Over'?'Over':'Under'} ${pick.L} in ${pick.h} of his last ${n} (${list}), averaging ${avg.toFixed(1)}.`;
- const mtx=d?(dvS>0?` Matchup agrees: ${desc}.`:dvS<0?` Matchup works against it: ${desc}.`:` Matchup neutral: ${desc}.`):'';
+ const mtx='';
  return{side:tag,label:`${side} ${pick.L} ${stat}`,str,why:form+mtx+(why2?' '+why2:''),ctx,dg:dvS>0?'favorable':dvS<0?'hostile':'neutral',dside:side,
   price:pick.k===0?(side==='Over'?`${fo(pr.odds)} at ${pr.book}`:'Check the under price in your book.'):'Alt line: check the price in your book.',considered};
 }
@@ -561,16 +585,44 @@ function renderMain(){
  $('#main').innerHTML=html;
 }
 function lineupsHTML(l,ps){
- const teams=(DATA.lineups||[]).filter(t=>t.lg===l.id&&t.start.slice(0,10)===todayET()&&!started(t.start));
- if(!teams.length){const tm=[...new Set(ps.map(p=>p.team))];
-  return tm.length?`<div class="cap">Lineups for today's teams. Starters are confirmed about 20 minutes before tip, so this list is refreshed on every data run and again before each game.</div>`+tm.map(t=>`<div class="inj"><div class="row between"><b>${t}</b><span class="pill p-long">Lineup not posted yet</span></div>${ps.filter(p=>p.team===t).map(p=>`<div class="row between"><span>${p.name}</span><span class="cap">${p.status}</span></div>`).join('')}<div class="cap">Only the players verified so far are listed. The full roster loads with the lineup.</div></div>`).join(''):noSlate(l);}
- return `<div class="cap">Every player on today's teams. Starters are confirmed about 20 minutes before the game; until then they are the expected lineup. Checked ${DATA.lineups_checked||DATA.checked}.</div>`+teams.map(t=>{const st=t.players.filter(x=>x.role==='starter'),bn=t.players.filter(x=>x.role==='bench'),out=t.players.filter(x=>x.role==='out'||x.role==='questionable');
-  return `<div class="inj"><div class="row between"><b>${t.team} <span class="team">· ${t.opp} · ${fmtT(t.start)} ET</span></b><span class="pill ${t.lineup_status==='confirmed'?'p-pick':'p-long'}">${t.lineup_status==='confirmed'?'Confirmed':t.lineup_status==='expected'?'Expected':'Not posted'}</span></div>
-  <div class="cap"><b>Starters</b></div>${st.map(x=>`<div class="row between"><span>${x.name} <span class="cap">${x.pos}${x.num?' · #'+x.num:''}</span></span>${x.note?`<span class="cap">${x.note}</span>`:''}</div>`).join('')||'<div class="mu">Not posted yet</div>'}
-  ${out.length?`<div class="cap" style="margin-top:6px"><b>Out / questionable</b></div>${out.map(x=>`<div class="row between"><span>${x.name} <span class="cap">${x.pos}</span></span><span class="pill ${x.role==='out'?'p-stay':'p-long'}">${x.role}</span></div>`).join('')}`:''}
-  ${bn.length?`<details><summary class="cap" style="cursor:pointer;margin-top:6px"><b>Bench (${bn.length})</b></summary>${bn.map(x=>`<div class="row between"><span>${x.name} <span class="cap">${x.pos}${x.num?' · #'+x.num:''}</span></span></div>`).join('')}</details>`:''}</div>`}).join('');
+ const LU=(DATA.lineups||[]).filter(t=>t.lg===l.id&&t.start.slice(0,10)===todayET()&&!started(t.start));
+ if(!LU.length){const gs=GAMES.filter(g=>g.lg===l.id&&gameOnSlate(g));return gs.length?`<div class="empty"><h3>Lineups not posted yet</h3>Starters show here as soon as they are reported, and are confirmed shortly before each game.</div>`:noSlate(l)+upcomingHTML(l)}
+ const pairs=[];LU.filter(t=>/^vs /.test(t.opp)).forEach(h=>{const a=LU.find(x=>x.team===h.opp.replace(/^vs /,''));pairs.push([a,h])});
+ LU.filter(t=>!pairs.some(([a,h])=>a===t||h===t)).forEach(t=>pairs.push([t,null]));
+ pairs.sort((x,y)=>(x[1]||x[0]).start<(y[1]||y[0]).start?-1:1);
+ return `<div class="cap">Starters are confirmed shortly before each game. Tap a player to see his numbers.${DATA.lineups_checked?` Updated ${DATA.lineups_checked}.`:''}</div><div class="list">${pairs.map(([a,h])=>luGame(l,a,h)).join('')}</div>`;
 }
-function fanDvp(p){const d=p.fan&&p.fan.dvp;if(!d)return '';const g=d.rank>=21?'favorable':d.rank<=10?'hostile':'neutral';return `<span class="cap"><b>DvP:</b> ${d.pos||''} ${ordinal(d.rank)} of 30 · ${d.value}</span> <span class="pill ${g==='favorable'?'p-pick':g==='hostile'?'p-stay':'p-long'}">${g}</span>`}
+const NBASLOTS=['PG','SG','SF','PF','C'],NFLOFF=['QB','RB','WR1','WR2','WR3','TE'];
+function slotOf(x,lg){const n=(x.note||'').replace(/^projected /i,'');if(lg==='nba'){const m=n.match(/\b(PG|SG|SF|PF|C)\b/);return m?m[1]:x.pos}
+ const m=n.match(/^(QB\d?|RB\d?|WR\d|TE\d?|FB|LT|LG|C|RG|RT|[LR]?DE|[LR]?DT|NT|[WMS]LB|[LR]?OLB|[LR]?ILB|MLB|LB|[LR]CB|CB\d?|NB|SS|FS|S\d?|K|P)\b/);let s=m?m[1]:x.pos;if(/^QB\d|^RB\d|^TE\d/.test(s))s=s.replace(/\d$/,'');return s}
+function luPlayer(x,lg,side){const p=P.find(q=>q.name===x.name);const proj=p&&p.fan?p.fan.proj.toFixed(1):null;const st=p&&p.state==='pick';
+ const chg=(DATA.lineup_changes||[]).find(c=>c.player===x.name);
+ return `<${p?`button data-id="${p.id}"`:'div'} class="lucell ${side}">${chg?'<span class="tag t-up">Changed</span>':''}<span class="lunm">${x.name}</span><span class="lusub">${x.pos||''}${proj?` · ${proj} FP`:''}${st?' · <b class="lust">Stamped</b>':''}${x.role==='questionable'?' · <b class="luq">Q</b>':''}</span></${p?'button':'div'}>`}
+function luTeamHead(t){if(!t)return '<div></div>';const c=t.lineup_status==='confirmed';return `<div class="luth"><b>${t.team}</b><span class="pill ${c?'p-pick':'p-long'}">${c?'Confirmed':t.lineup_status==='expected'?'Expected':'Not posted'}</span></div>`}
+const lastName=n=>{const w=n.replace(/\s+(Jr\.?|Sr\.?|II|III|IV|V)$/i,'').split(' ');return w[w.length-1]};
+function luOut(t){if(!t)return '<div></div>';const o=t.players.filter(x=>x.role==='out'),q=t.players.filter(x=>x.role==='questionable'&&!x._starter);
+ const chips=[...o.map(x=>`<span class="pill p-stay">${lastName(x.name)} · Out</span>`),...q.map(x=>`<span class="pill p-long">${lastName(x.name)} · Q</span>`)];
+ return `<div class="luout">${chips.slice(0,4).join('')}${chips.length>4?`<details><summary class="cap" style="cursor:pointer">+${chips.length-4} more</summary><div class="luout">${chips.slice(4).join('')}</div></details>`:''}</div>`}
+function luGame(l,a,h){
+ const g=h||a,lg=l.id,starters=t=>t?t.players.filter(x=>x.role==='starter'||(x.role==='questionable'&&/^projected /i.test(x.note||''))):[];
+ const sa=starters(a),sh=starters(h);sa.forEach(x=>x._starter=1);sh.forEach(x=>x._starter=1);
+ const find=(arr,slot)=>arr.find(x=>slotOf(x,lg)===slot);
+ const rows=(slots,A,H)=>slots.map(sl=>{const pa=find(A,sl),ph=find(H,sl);if(!pa&&!ph)return '';return `${pa?luPlayer(pa,lg,'a'):'<div class="lucell a empty">—</div>'}<div class="luslot">${sl}</div>${ph?luPlayer(ph,lg,'h'):'<div class="lucell h empty">—</div>'}`}).join('');
+ let body='';
+ if(lg==='nba')body=`<div class="lugrid">${rows(NBASLOTS,sa,sh)}</div>`;
+ else{const rest=t=>t?t.players.filter(x=>x._starter&&!NFLOFF.includes(slotOf(x,lg))):[];
+  body=`<div class="cap"><b>Offense</b></div><div class="lugrid">${rows(NFLOFF,sa,sh)}</div>
+  <details><summary class="cap" style="cursor:pointer"><b>Line and defense</b></summary><div class="lusplit">${[a,h].map(t=>t?`<div><div class="cap"><b>${t.team}</b></div>${rest(t).map(x=>`<div class="row between cap"><span>${x.name}</span><span>${slotOf(x,lg)}</span></div>`).join('')}</div>`:'<div></div>').join('')}</div></details>`}
+ const bench=t=>t?t.players.filter(x=>x.role==='bench'):[];
+ return `<div class="inj lugame">
+  <div class="row between"><b class="lutitle">${a?a.team:'?'} at ${h?h.team:'?'}</b><span class="cap">${fmtT(g.start)} ET</span></div>
+  <div class="lusplit">${luTeamHead(a)}${luTeamHead(h)}</div>
+  ${body}
+  <div class="lusplit">${luOut(a)}${luOut(h)}</div>
+  <details><summary class="cap" style="cursor:pointer">Bench</summary><div class="lusplit">${[a,h].map(t=>`<div>${bench(t).map(x=>`<div class="cap">${x.name} · ${x.pos||''}</div>`).join('')}</div>`).join('')}</div></details>
+ </div>`;
+}
+function fanDvp(p){const d=p.fan&&p.fan.dvp;if(!d)return '';const tot=p.lg==='nfl'?32:30,g=d.rank>=tot-9?'favorable':d.rank<=10?'hostile':'neutral';return `<div class="mline"><span class="pill ${GC(g)}">${GL(g)}</span><span class="cap">${mDesc((p.opp||'').replace(/^(vs|@) /,''),'fantasy',d,tot)}.</span></div>`}
 function fanCard(p){const F=p.fan,e=F.ev,st=e?e.status:'noline';
  return `<button class="card" data-id="${p.id}" data-fan="1">
   <div class="row between"><div style="min-width:0"><div class="pname">${p.name}</div><div class="team">${teamLine(p)}</div><div class="team">${gameLine(p)}</div></div>${e?pill(st):'<span class="pill p-long">No line</span>'}</div>
@@ -737,7 +789,7 @@ function playerSheet(p){
  ${fantasyPanel(p)}
  ${p.alts.length?`<div class="panel"><h4>Alt lines</h4>${altTable(p,true)}<div class="cap">Check the alt price in your book before betting.</div></div>`:''}
  ${crowdPanel()}
- <div class="panel"><div class="row between"><h4>Matchup</h4>${p.matchup&&p.matchup.grade?`<span class="pill ${p.matchup.grade==='favorable'?'p-pick':p.matchup.grade==='hostile'?'p-stay':'p-long'}">${p.matchup.grade}</span>`:''}</div><ul class="checks">${CHECKS[p.lg].map(c=>{const v=p.matchup&&p.matchup.checks&&p.matchup.checks[c];if(v==null&&!VETTING)return '';const d=v!=null||(DONE[p.lg]||[]).includes(c);return `<li>${VETTING?`<span class="${d?'ok':'wn'}">${d?'✓':'!'}</span>`:''}<span>${c}${v!=null?` <span class="mu">— ${v}</span>`:d?'':' <span class="mu">— not checked yet</span>'}</span></li>`}).join('')}</ul><div class="cap">${p.matchup&&p.matchup.why?p.matchup.why+' ':''}${p.matchup&&p.matchup.grade?'':''}</div></div>
+ <div class="panel"><div class="row between"><h4>Matchup</h4>${p.matchup&&p.matchup.grade?`<span class="pill ${GC(p.matchup.grade)}">${GL(p.matchup.grade)}</span>`:''}</div><ul class="checks">${CHECKS[p.lg].map(c=>{const v=p.matchup&&p.matchup.checks&&p.matchup.checks[c];if(v==null&&!VETTING)return '';const d=v!=null||(DONE[p.lg]||[]).includes(c);return `<li>${VETTING?`<span class="${d?'ok':'wn'}">${d?'✓':'!'}</span>`:''}<span>${c}${v!=null?` <span class="mu">— ${v}</span>`:d?'':' <span class="mu">— not checked yet</span>'}</span></li>`}).join('')}</ul><div class="cap">${p.matchup&&p.matchup.why?p.matchup.why+' ':''}${p.matchup&&p.matchup.grade?'':''}</div></div>
  ${VETTING?`<div class="panel"><h4>Source cross-check</h4><ul class="checks">${p.sources.map(([s,st,t])=>`<li><span class="${st==='ok'?'ok':'wn'}">${st==='ok'?'✓':'!'}</span><span>${s}${t?` <span class="mu">— ${t}</span>`:''}</span></li>`).join('')}</ul><div class="cap">Checked ${DATA.checked}.</div></div>`:''}`;
 }
 function gameSheet(g){const M=model(g),r=decide(g),c=TEAM_CFG[g.lg],[lab,cls]=STATUS[r.status],fav=M.m>=0?g.home.n:g.away.n;
@@ -752,6 +804,7 @@ function gameSheet(g){const M=model(g),r=decide(g),c=TEAM_CFG[g.lg],[lab,cls]=ST
   <tr><td>Moneyline</td><td class="num">${fo(g.ml.away)}</td>${g.ml.draw!=null?`<td class="num">${fo(g.ml.draw)}</td>`:''}<td class="num">${fo(g.ml.home)}</td></tr>
   ${g.spread.home!=null?`<tr><td>Spread</td><td class="num">${-g.spread.home>0?'+':''}${-g.spread.home}${g.spread.awayOdds!=null?` (${fo(g.spread.awayOdds)})`:''}</td>${g.ml.draw!=null?'<td></td>':''}<td class="num">${g.spread.home>0?'+':''}${g.spread.home}${g.spread.homeOdds!=null?` (${fo(g.spread.homeOdds)})`:''}</td></tr>`:''}</tbody></table>`:'<div class="mu">No price posted yet for this game.</div>'}
   <div class="cap">How to read a price: −150 means you bet $150 to win $100. +130 means a $100 bet wins $130. Prices as of ${DATA.checked}; they move, so confirm in your book.${g.ml.book&&/BC\.Game/.test(g.ml.book)?' This price is from an offshore book listed on an odds site, not DraftKings or Hard Rock.':''}</div></div>
+ ${(()=>{const LU=DATA.lineups||[],a=LU.find(t=>t.team===g.away.n&&t.start===g.when),h=LU.find(t=>t.team===g.home.n&&t.start===g.when);return a||h?`<div class="panel"><h4>Starting lineups</h4>${luGame(lgOf(g.lg),a,h).replace('<div class="inj lugame">','<div class="lugame" style="display:grid;gap:8px">')}</div>`:''})()}
  ${crowdPanel()}
  <div class="panel"><h4>Why the model says this</h4>
   <table><thead><tr><th>Factor</th><th class="num">${g.away.n}</th><th class="num">${g.home.n}</th><th class="num">Moves ${c.u}</th></tr></thead><tbody>
