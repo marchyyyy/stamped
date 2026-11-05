@@ -259,6 +259,7 @@ const pill=(st)=>['pick','spread'].includes(st)?sealPill:`<span class="pill ${ST
 const STATUS={pick:['Stamped','p-pick'],longshot:['Small-stakes','p-long'],stay:['Stay away','p-stay'],killed:['Killed','p-killed'],blocked:['Blocked','p-blocked'],spread:['Stamped','p-pick'],pass:['Pass','p-stay'],noline:['No line yet','p-long']};
 
 /* ---------- prop rules ---------- */
+const STEPS={points:2,rebounds:1,assists:1,threes:1,blocks:1,steals:1,PRA:3,'rush yds':10,'rec yds':10,receptions:1,'pass yds':20,'pass TDs':1,shots:1,'shots on target':1,goals:1,'total games':1,aces:1};
 const sample=(p,stat)=>p.games.filter(g=>g.s[stat]!=null).slice(0,5);
 const propLabel=(stat,line)=>stat==='finish'?`Top ${line} finish`:stat==='cut'?'Make the cut':(line===0.5&&['goals','assists'].includes(stat))?`Anytime ${stat==='goals'?'goal':'assist'}`:`Over ${line} ${stat}`;
 const isHit=(stat,v,line)=>stat==='finish'?v<=line:stat==='cut'?v>=1:v>line;
@@ -270,8 +271,14 @@ function evaluate(p,stat,line,odds){
  if(p.status==='out'){r.status='blocked';r.reasons.push('Listed out. No legs until he clears.');return r}
  if(!r.n){r.status='blocked';r.reasons.push('No current-season games with this stat, so he is ineligible.');return r}
  if(odds!=null&&odds<-160){r.status='killed';r.reasons.push(`${fo(odds)} is past the −160 juice cap. Killed.`);return r}
- const rate=r.k/r.n,long=odds!=null&&odds>=150;let st;
- if(rate===1)st=10;else if(rate>=.8)st=8;else if(rate>=.6)st=6;else{st=3;if(!long){r.status='stay';r.reasons.push(`Only ${r.k} of ${r.n}. Matchup not verified, so no bump.`)}}
+ const rate=r.k/r.n,long=odds!=null&&odds>=150,mu=p.matchup||{},grade=mu.grade||null;let st;
+ if(rate===1)st=10;else if(rate>=.8)st=grade==='favorable'?9:8;else if(rate>=.6)st=grade==='favorable'?7:6;else if(grade==='favorable')st=4;else{st=3;if(!long){r.status='stay';r.reasons.push(`Only ${r.k} of ${r.n}${grade?'':' and the matchup is not verified'}, so no bump.`)}}
+ if(grade==='hostile'){st-=2;r.reasons.push('Hostile matchup: '+(mu.why||'opponent ranks top-10 against this stat.'))}
+ else if(grade==='favorable'&&mu.why)r.notes.push('Favorable matchup: '+mu.why);
+ if(!['finish','cut'].includes(stat)&&rate>=.6){const nums=s.map(g=>g.s[stat]),avg=nums.reduce((a,b)=>a+b,0)/nums.length,step=STEPS[stat]||1;r.avg=avg;
+  if(avg-line<step*.5){st=Math.min(st,5);r.reasons.push(`Average ${avg.toFixed(1)} is within half a step of ${line}. Not enough cushion to stamp.`)}}
+ const mins=p.games.map(g=>g.min).filter(v=>v!=null);
+ if(mins.length>=4&&p.lg!=='nfl'){const a5=mins.slice(0,5).reduce((a,b)=>a+b,0)/Math.min(5,mins.length);if(mins[0]<a5*.85&&mins[1]<a5*.85&&st>7){st=7;r.notes.push(`Minutes are trending down (${mins[0]} and ${mins[1]} vs a ${a5.toFixed(0)} average), capped at 7.`)}}
  if(p.down){st-=p.down.by;r.notes.push('Held down: '+p.down.why)}
  if(long&&st>5){st=5;r.notes.push('Longshot, capped at 5.')}
  if(odds!=null&&odds<=-140&&st>8){st=8;r.notes.push('Heavy juice, capped at 8.')}
@@ -487,7 +494,11 @@ function rulesHTML(lg){
   <li>Out or questionable players get nothing until they clear.</li>
   <li>Secure Value: 5/5 → 10, 4/5 → 8–9, 3/5 → 6–7, 1–2/5 → 3–5 only with a favorable matchup. Longshots cap at 5, heavy juice (−140 or worse) caps at 8, samples under 4 cap at 7.</li>
   <li>A prop needs Secure Value 6 or better to make the board.</li>
-  <li>Every stat is checked on two sources. ESPN is the final word.</li>
+  <li>Cushion: his last-5 average must sit at least half a step above the line (1 point, half a rebound, 5 rush yards). Barely-over is not a stamp.</li>
+  <li>Minutes trend: if his last 2 games are both 15%+ under his 5-game minutes average, the pick caps at 7.</li>
+  <li>Matchup is scored, not assumed: opponent rank against that stat and position this season (bottom-10 = favorable, top-10 = hostile), pace, defensive rating, 3PT defense, head-to-head this season. Favorable is the only way to a 9.</li>
+  <li>Every stat is checked on two sources: ESPN plus the league's own stats site (NBA.com, NFL.com, FBref for soccer, ATP/WTA, PGATOUR.com). ESPN is the final word.</li>
+  <li>Injuries come from the official league report first (NBA injury report, NFL practice reports, Premier League injury list), then ESPN and Rotowire.</li>
   <li>Payouts come from the book's posted price, never from math.</li>
   <li>Current day only. No future picks. Lineups refresh before every game; starters are confirmed about 20 minutes before tip.</li></ul></div>
   <div class="rules"><h3>Props leans <span class="pill p-long">New draft</span></h3><ul>
@@ -499,6 +510,7 @@ function rulesHTML(lg){
   <li>Strong = 4 or 5 of 5. Moderate = 3 of 5.</li></ul></div>
   <div class="rules"><h3>Team picks</h3><ul>
   <li>Current roster and current-season ratings come first. Last season is blended in early and fades to 0.</li>
+  <li>A missing starter is priced from his team's on/off net rating this season (NBA.com), not a guess, whenever that split is available.</li>
   <li>A side needs a 3-point edge over the book's no-vig chance.</li>
   <li>Moneylines past −160 are repriced to the spread, and kept only if the projected margin clears it.</li></ul></div>`;
  const extra={
@@ -605,7 +617,7 @@ function playerSheet(p){
  </div>
  ${p.alts.length?`<div class="panel"><h4>Alt lines</h4>${altTable(p,true)}<div class="cap">Judged on hit rate only. Alt prices were not verified, so check your book. Crossed-out lines fail the hit-rate rule.</div></div>`:''}
  ${crowdPanel()}
- <div class="panel"><h4>Matchup checks</h4><ul class="checks">${CHECKS[p.lg].map(c=>{const d=(DONE[p.lg]||[]).includes(c);return `<li><span class="${d?'ok':'wn'}">${d?'✓':'!'}</span><span>${c}${d?'':' <span class="mu">— not checked yet</span>'}</span></li>`}).join('')}</ul><div class="cap">Unchecked items are why no pick here gets the matchup bump to 9. The full build checks all of these automatically.</div></div>
+ <div class="panel"><div class="row between"><h4>Matchup checks</h4>${p.matchup&&p.matchup.grade?`<span class="pill ${p.matchup.grade==='favorable'?'p-pick':p.matchup.grade==='hostile'?'p-stay':'p-long'}">${p.matchup.grade}</span>`:''}</div><ul class="checks">${CHECKS[p.lg].map(c=>{const v=p.matchup&&p.matchup.checks&&p.matchup.checks[c];const d=v!=null||(DONE[p.lg]||[]).includes(c);return `<li><span class="${d?'ok':'wn'}">${d?'✓':'!'}</span><span>${c}${v!=null?` <span class="mu">— ${v}</span>`:d?'':' <span class="mu">— not checked yet</span>'}</span></li>`}).join('')}</ul><div class="cap">${p.matchup&&p.matchup.why?p.matchup.why+' ':''}${p.matchup&&p.matchup.grade?'A favorable matchup is what lifts a 4-of-5 to a 9.':'Unchecked items mean no matchup bump; the next data run fills them in.'}</div></div>
  <div class="panel"><h4>Source cross-check</h4><ul class="checks">${p.sources.map(([s,st,t])=>`<li><span class="${st==='ok'?'ok':'wn'}">${st==='ok'?'✓':'!'}</span><span>${s}${t?` <span class="mu">— ${t}</span>`:''}</span></li>`).join('')}</ul><div class="cap">Checked ${DATA.checked}. ESPN is the final word.</div></div>`;
 }
 function gameSheet(g){const M=model(g),r=decide(g),c=TEAM_CFG[g.lg],[lab,cls]=STATUS[r.status],fav=M.m>=0?g.home.n:g.away.n;
