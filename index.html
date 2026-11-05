@@ -259,7 +259,7 @@ const pill=(st)=>['pick','spread'].includes(st)?sealPill:`<span class="pill ${ST
 const STATUS={review:['Under review','p-long'],pick:['Stamped','p-pick'],longshot:['Small-stakes','p-long'],stay:['Stay away','p-stay'],killed:['Killed','p-killed'],blocked:['Blocked','p-blocked'],spread:['Stamped','p-pick'],pass:['Pass','p-stay'],noline:['No line yet','p-long']};
 
 /* ---------- prop rules ---------- */
-const STEPS={fantasy:3,points:2,rebounds:1,assists:1,threes:1,blocks:1,steals:1,PRA:3,'rush yds':10,'rec yds':10,receptions:1,'pass yds':20,'pass TDs':1,shots:1,'shots on target':1,goals:1,'total games':1,aces:1};
+const STEPS={fantasy:3,points:2,rebounds:1,assists:1,threes:1,blocks:1,steals:1,PRA:3,'rush yds':5,'rec yds':5,receptions:1,'pass yds':10,'pass TDs':1,shots:1,'shots on target':1,goals:1,'total games':1,aces:1};
 const sample=(p,stat)=>p.games.filter(g=>g.s[stat]!=null).slice(0,5);
 const propLabel=(stat,line)=>stat==='finish'?`Top ${line} finish`:stat==='cut'?'Make the cut':(line===0.5&&['goals','assists'].includes(stat))?`Anytime ${stat==='goals'?'goal':'assist'}`:`Over ${line} ${stat}`;
 const isHit=(stat,v,line)=>stat==='finish'?v<=line:stat==='cut'?v>=1:v>line;
@@ -355,26 +355,52 @@ function dvpFor(p,stat,d,side){
  const desc=d.rank<=10?`${opp} allow the ${ordinal(d.rank)}-fewest ${stat} to ${pos}`:d.rank>=tot-9?`${opp} allow the ${ordinal(tot+1-d.rank)}-most ${stat} to ${pos}`:`${opp} are middle of the pack (${ordinal(d.rank)} of ${tot})`;
  return{g,desc};
 }
-function lean(p,pr){
- const L=leanBase(p,pr);if(!L)return L;
- const rv=[];const statSrc=(p.sources||[]).filter(x=>!/^(Props|DvP)/i.test(x[0])&&!/props|spot-check/i.test(x[0]));if(statSrc.length<2)rv.push('stats not yet confirmed on a second source');if(!pr.ev.dvp&&!(p.matchup&&p.matchup.grade)&&p.lg!=='golf')rv.push(`DvP not yet checked for ${pr.stat}`);
- if(rv.length)return{side:'Under review',label:pr.ev.label,str:'',why:`Not recommending yet: ${rv.join(' and ')}. A lean appears once everything is reviewed.`,price:''};
- if(L.side==='No lean')return L;
- const d=pr.ev.dvp;if(!d||d.rank==null)return L;
- const {g,desc}=dvpFor(p,pr.stat,d,L.side);L.dg=g;
- if(g==='favorable')L.why+=` Matchup agrees: ${desc}.`;
- else if(g==='hostile'){
-  if(L.str==='Strong'){L.str='Moderate';L.why+=` Matchup works against it: ${desc}, so it drops to Moderate.`}
-  else return{side:'No lean',label:pr.ev.label,str:'',dg:g,why:`${L.why} But the matchup works against it: ${desc}. Form and matchup disagree, so no lean.`,price:''};
- }else L.why+=` Matchup is neutral: ${desc}.`;
- return L;
+function scenario(p,pr){
+ const stat=pr.stat,smp=sample(p,stat),n=smp.length;
+ const v=smp.map(g=>g.s[stat]),avg=v.reduce((a,b)=>a+b,0)/n,st=STEPS[stat]||1,d=pr.ev.dvp,tot=p.lg==='nfl'?32:30;
+ const dv=d&&d.rank!=null?(d.rank>=tot-9?1:d.rank<=10?-1:0):0; // +1 favors the over
+ const overs=L=>v.filter(x=>x>L).length,list=v.join(', ');
+ const score=(overs(pr.line)/n-.5)*2+dv*.5+Math.max(-1,Math.min(1,(avg-pr.line)/st))*.5;
+ const side=score>.25?'Over':score<-.25?'Under':null;
+ // context
+ const ctx=[];const out=((INJ||{})[p.lg]||[]).filter(x=>x[1]===p.team&&/^out$/i.test(x[2])&&x[0]!==p.name).map(x=>x[0].replace(/ \(.*\)$/,''));
+ if(out.length)ctx.push(`Teammates out: ${out.slice(0,3).join(', ')}${out.length>3?` +${out.length-3}`:''}.`);
+ const ck=(p.matchup&&p.matchup.checks)||{};
+ if(ck['Back-to-back']&&/^yes/i.test(ck['Back-to-back']))ctx.push('Second night of a back-to-back.');
+ if(ck['Current-season head-to-head'])ctx.push(`Head-to-head this season: ${ck['Current-season head-to-head']}.`);
+ if(!side)return{side:'No lean',label:pr.ev.label,str:'',why:`Split: ${overs(pr.line)} over and ${n-overs(pr.line)} under in his last ${n} (${list}), averaging ${avg.toFixed(1)}${d?`, and the matchup doesn't tip it`:''}. Nothing to recommend.`,ctx,price:'',considered:[]};
+ const dvS=side==='Over'?dv:-dv;
+ const cands=[-2,-1,0,1,2].map(k=>{const L=+(pr.line+k*st).toFixed(1);if(L<.5)return null;const h=side==='Over'?overs(L):n-overs(L);return{k,L,h,pay:side==='Over'?k:-k}}).filter(Boolean);
+ const posted=cands.find(c=>c.k===0),postedOK=!(side==='Over'&&pr.odds!=null&&pr.odds<-160);
+ const need=x=>Math.ceil(x*n);
+ let pick=null,why2='';
+ if(dvS>0){const up=cands.filter(c=>c.pay>0&&c.pay<=(dvS>0?2:1)&&c.h>=need(.8)).sort((a,b)=>b.pay-a.pay)[0];if(up){pick=up;why2=`The matchup favors the ${side.toLowerCase()} and he still clears ${up.L} in ${up.h} of ${n}, so the alt pays more for the same evidence.`}}
+ if(!pick&&postedOK&&posted.h>=need(.6)&&dvS>=0)pick=posted;
+ if(!pick&&posted.h>=need(.6)&&(dvS<0||!postedOK)){const safe=cands.filter(c=>c.pay===-1&&c.h===n)[0];if(safe){pick=safe;why2=dvS<0?`The matchup works against the ${side.toLowerCase()}, so step to the safer ${safe.L}: he cleared it in all ${n}.`:!postedOK?`The posted over is ${fo(pr.odds)}, past the −160 cap; the safer ${safe.L} has cleared in all ${n}.`:''}}
+ if(!pick&&postedOK&&posted.h>=need(.8)&&dvS<0){pick=posted;why2=`The matchup works against it, but he cleared it in ${posted.h} of ${n} anyway.`}
+ const {desc}=d?dvpFor(p,stat,d,side):{desc:''};
+ const considered=cands.filter(c=>c!==pick).map(c=>`${side} ${c.L}: ${c.h}/${n}`);
+ if(!pick)return{side:'No lean',label:pr.ev.label,str:'',why:`Form leans ${side.toLowerCase()} (${list}, averaging ${avg.toFixed(1)}), but no line has enough support${dvS<0?` with the matchup against it (${desc})`:''}. Nothing to recommend.`,ctx,price:'',considered};
+ const str=pick.h>=need(.8)&&dvS>=0?'Strong':'Moderate';
+ const tag=pick.k===0?side:`Alt ${side}`;
+ const form=`${side==='Over'?'Over':'Under'} ${pick.L} in ${pick.h} of his last ${n} (${list}), averaging ${avg.toFixed(1)}.`;
+ const mtx=d?(dvS>0?` Matchup agrees: ${desc}.`:dvS<0?` Matchup works against it: ${desc}.`:` Matchup neutral: ${desc}.`):'';
+ return{side:tag,label:`${side} ${pick.L} ${stat}`,str,why:form+mtx+(why2?' '+why2:''),ctx,dg:dvS>0?'favorable':dvS<0?'hostile':'neutral',dside:side,
+  price:pick.k===0?(side==='Over'?`${fo(pr.odds)} at ${pr.book}`:'Check the under price; it must be −160 or better.'):'Alt line: check the price in your book; it must be −160 or better.',considered};
 }
-const SIDE={Over:'p-pick',Under:'p-pick',Alt:'p-long','No lean':'p-stay','Under review':'p-long'};
+function lean(p,pr){
+ const rv=[];const statSrc=(p.sources||[]).filter(x=>!/^(Props|DvP)/i.test(x[0])&&!/props|spot-check/i.test(x[0]));if(statSrc.length<2)rv.push('stats not yet confirmed on a second source');if(!pr.ev.dvp&&!(p.matchup&&p.matchup.grade)&&p.lg!=='golf')rv.push(`DvP not yet checked for ${pr.stat}`);
+ if(pr.ev.status==='blocked')return null;
+ if(rv.length)return{side:'Under review',label:pr.ev.label,str:'',why:`Not recommending yet: ${rv.join(' and ')}. A lean appears once everything is reviewed.`,price:'',ctx:[],considered:[]};
+ if(['finish','cut'].includes(pr.stat)){const L=leanBase(p,pr);return L&&Object.assign(L,{ctx:[],considered:[]})}
+ return scenario(p,pr);
+}
+const SIDE={Over:'p-pick',Under:'p-pick','Alt Over':'p-pick','Alt Under':'p-pick',Alt:'p-long','No lean':'p-stay','Under review':'p-long'};
 function leanCard(p){const pr=p.best,L=lean(p,pr);if(!L)return '';
  return `<button class="card" data-id="${p.id}">
   <div class="row between"><div style="min-width:0"><div class="pname">${p.name}</div><div class="team">${teamLine(p)}</div><div class="team">${gameLine(p)}</div></div><span class="pill ${SIDE[L.side]}">${['No lean','Under review'].includes(L.side)?L.side:`Lean ${L.side}`}</span></div>
   <div class="row"><span class="prop">${L.label}</span>${L.str?`<span class="odds">${L.str}</span>`:''}</div>
-  <div class="why">${L.why}</div>${dvpLine(pr.ev,L.side,L.dg)}${L.price?`<div class="cap">${L.price}</div>`:''}
+  <div class="why">${L.why}</div>${dvpLine(pr.ev,L.dside,L.dg)}${(L.ctx||[]).length?`<div class="cap">${L.ctx.join(' ')}</div>`:''}${L.price?`<div class="cap">${L.price}</div>`:''}${(L.considered||[]).length?`<div class="cap">Also weighed: ${L.considered.join(' · ')}</div>`:''}
   ${p.props.length>1?`<div class="cap">Also posted: ${p.props.slice(1).map(x=>`${x.ev.label} (${fo(x.odds)}) ${x.ev.k}/${x.ev.n}`).join(' · ')}</div>`:''}
   ${minLine(p)}${trust(p)}${p.pending?`<div class="flag">${p.pending}</div>`:''}
  </button>`}
@@ -447,6 +473,7 @@ function card(p){const b=p.best,e=b&&b.ev,[lab,cls]=STATUS[p.state];
   ${e?`<div class="row"><span class="prop">${e.label}</span><span class="odds">${fo(b.odds)}</span>${spark(p,e)}</div>`:`<div class="mu">No line posted yet. Tap to see his form.</div>`}
   ${e&&(p.state==='pick'||p.state==='longshot')?`<div class="why">${why(p,e)}</div>`:e?e.reasons.map(x=>`<div class="reason">${x}</div>`).join(''):''}
   ${dvpLine(e)}
+  ${(()=>{if(p.state!=='pick'||!e)return '';const L=lean(p,b);return L&&/^Alt/.test(L.side)?`<div class="flag">Best line: ${L.label} (alt). ${L.why.split('. ').slice(-1)[0]}</div>`:''})()}
   ${e?`<div class="cap">${b.book} · <span class="ok">✓</span> verified${p.props.length>1?` · +${p.props.length-1} more line${p.props.length>2?'s':''}`:''}</div>`:''}
   ${p.pending?`<div class="flag">${p.pending}</div>`:''}
   ${e&&e.stars&&(p.state==='pick'||p.state==='longshot')?`<div class="row"><span class="sv">Secure Value <b>${e.stars}</b></span>${meter(e.stars)}</div>`:''}
@@ -589,6 +616,8 @@ function rulesHTML(lg){
   <li>Lean Over: went over the line in 3+ of the last 5 and the price is −160 or better.</li>
   <li>Lean Under: stayed under in 3+ of the last 5 and his average is below the line. The under price must still be −160 or better.</li>
   <li>Lean Alt: the over hits but the price is past −160, so one line up; or the over hit 3 of 5, so one line down. Alt prices are checked in the book.</li>
+  <li>Every prop is played out as scenarios: over and under at the posted line and at alt lines one and two steps each way, weighed on the last 5, the cushion, DvP, teammates out, back-to-backs and this season's head-to-head. The best-supported line wins.</li>
+  <li>A favorable matchup moves us to a higher-paying alt only if he still cleared it in 4 of his last 5. A hostile matchup moves us to a safer alt only if he cleared it in all 5.</li>
   <li>DvP is judged for the side we recommend. A stingy defense (ranked 1st–10th fewest allowed) helps an Under and hurts an Over; a generous one (bottom 10) does the opposite.</li>
   <li>When the matchup agrees with the form, the card says so. When it disagrees, Strong drops to Moderate and Moderate becomes No lean. The matchup never raises a lean above what the last 5 games show.</li>
   <li>Split samples get no lean. Out players go to Stay away.</li>
