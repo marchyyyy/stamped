@@ -271,10 +271,12 @@ function evaluate(p,stat,line,odds){
  if(p.status==='out'){r.status='blocked';r.reasons.push('Listed out. No legs until he clears.');return r}
  if(!r.n){r.status='blocked';r.reasons.push('No current-season games with this stat, so he is ineligible.');return r}
  if(odds!=null&&odds<-160){r.status='killed';r.reasons.push(`${fo(odds)} is past the −160 juice cap. Killed.`);return r}
- const rate=r.k/r.n,long=odds!=null&&odds>=150,mu=p.matchup||{},grade=mu.grade||null;let st;
+ const rate=r.k/r.n,long=odds!=null&&odds>=150,mu=p.matchup||{},dvp=mu.dvp&&mu.dvp[stat]?mu.dvp[stat]:null;
+ let grade=mu.grade||null;if(dvp&&dvp.rank!=null&&!grade)grade=dvp.rank>=21?'favorable':dvp.rank<=10?'hostile':'neutral';
+ r.dvp=dvp;r.grade=grade;let st;
  if(rate===1)st=10;else if(rate>=.8)st=grade==='favorable'?9:8;else if(rate>=.6)st=grade==='favorable'?7:6;else if(grade==='favorable')st=4;else{st=3;if(!long){r.status='stay';r.reasons.push(`Only ${r.k} of ${r.n}${grade?'':' and the matchup is not verified'}, so no bump.`)}}
- if(grade==='hostile'){st-=2;r.reasons.push('Hostile matchup: '+(mu.why||'opponent ranks top-10 against this stat.'))}
- else if(grade==='favorable'&&mu.why)r.notes.push('Favorable matchup: '+mu.why);
+ if(grade==='hostile'){st-=2;r.reasons.push('Hostile matchup: '+(dvp?`${p.opp.replace(/^(vs|@) /,'')} rank ${ordinal(dvp.rank)} against ${dvp.pos||'his position'} in ${stat} (${dvp.value})`:mu.why||'opponent ranks top-10 against this stat.'))}
+ else if(grade==='favorable')r.notes.push('Favorable matchup: '+(dvp?`${p.opp.replace(/^(vs|@) /,'')} rank ${ordinal(dvp.rank)} against ${dvp.pos||'his position'} in ${stat} (${dvp.value})`:mu.why||''));
  if(!['finish','cut'].includes(stat)&&rate>=.6){const nums=s.map(g=>g.s[stat]),avg=nums.reduce((a,b)=>a+b,0)/nums.length,step=STEPS[stat]||1;r.avg=avg;
   if(avg-line<step*.5){st=Math.min(st,5);r.reasons.push(`Average ${avg.toFixed(1)} is within half a step of ${line}. Not enough cushion to stamp.`)}}
  const mins=p.games.map(g=>g.min).filter(v=>v!=null);
@@ -300,6 +302,7 @@ P.forEach(p=>{
 const MINLBL={nba:['Minutes','min'],nfl:['Snap share','%'],soccer:['Minutes','min'],tennis:['Match length','min']};
 const minLine=p=>{if(!p.mn)return p.lg==='nfl'?`<div class="cap">Snap share: not found on the sources checked.</div>`:'';const [l,u]=MINLBL[p.lg];return `<div class="cap">${l}: avg ${Math.round(p.mn.avg*10)/10}${u==='%'?'%':' '+u} last ${Math.min(5,p.games.length)} · projected ${p.mn.proj}${u==='%'?'%':' '+u}</div>`};
 const trust=p=>`<div class="cap"><span class="ok">✓ Real stats</span> · ${p.sources.filter(s=>!/^Props/.test(s[0])).map(s=>s[0]).join(' + ')} · checked ${DATA.checked}</div>`;
+const dvpLine=e=>e&&e.dvp?`<div class="cap"><b>DvP:</b> ${e.dvp.pos?e.dvp.pos+' · ':''}${ordinal(e.dvp.rank)} of 30 · ${e.dvp.value} <span class="pill ${e.grade==='favorable'?'p-pick':e.grade==='hostile'?'p-stay':'p-long'}" style="margin-left:4px">${e.grade}</span></div>`:'';
 const why=(p,e)=>`${e.stat==='finish'?`Top ${e.line} in`:e.stat==='cut'?'Made the cut in':'Hit in'} <strong>${e.k} of his last ${e.n}</strong> ${lgOf(p.lg).units} (${e.vals.join(', ')})`;
 
 /* ---------- props leans (over / under / alt) ---------- */
@@ -323,7 +326,7 @@ function leanCard(p){const pr=p.best,L=lean(p,pr);if(!L)return '';
  return `<button class="card" data-id="${p.id}">
   <div class="row between"><div style="min-width:0"><div class="pname">${p.name}</div><div class="team">${teamLine(p)}</div><div class="team">${gameLine(p)}</div></div><span class="pill ${SIDE[L.side]}">${L.side==='No lean'?'No lean':`Lean ${L.side}`}</span></div>
   <div class="row"><span class="prop">${L.label}</span>${L.str?`<span class="odds">${L.str}</span>`:''}</div>
-  <div class="why">${L.why}</div>${L.price?`<div class="cap">${L.price}</div>`:''}
+  <div class="why">${L.why}</div>${dvpLine(pr.ev)}${L.price?`<div class="cap">${L.price}</div>`:''}
   ${p.props.length>1?`<div class="cap">Also posted: ${p.props.slice(1).map(x=>`${x.ev.label} (${fo(x.odds)}) ${x.ev.k}/${x.ev.n}`).join(' · ')}</div>`:''}
   ${minLine(p)}${trust(p)}${p.pending?`<div class="flag">${p.pending}</div>`:''}
  </button>`}
@@ -395,6 +398,7 @@ function card(p){const b=p.best,e=b&&b.ev,[lab,cls]=STATUS[p.state];
   <div class="row between"><div style="min-width:0"><div class="pname">${p.name}</div><div class="team">${teamLine(p)}</div><div class="team">${gameLine(p)}</div></div>${pill(p.state)}</div>
   ${e?`<div class="row"><span class="prop">${e.label}</span><span class="odds">${fo(b.odds)}</span>${spark(p,e)}</div>`:`<div class="mu">No line posted yet. Tap to see his form.</div>`}
   ${e&&(p.state==='pick'||p.state==='longshot')?`<div class="why">${why(p,e)}</div>`:e?e.reasons.map(x=>`<div class="reason">${x}</div>`).join(''):''}
+  ${dvpLine(e)}
   ${e?`<div class="cap">${b.book} · <span class="ok">✓</span> verified${p.props.length>1?` · +${p.props.length-1} more line${p.props.length>2?'s':''}`:''}</div>`:''}
   ${p.pending?`<div class="flag">${p.pending}</div>`:''}
   ${e&&e.stars&&(p.state==='pick'||p.state==='longshot')?`<div class="row"><span class="sv">Secure Value <b>${e.stars}</b></span>${meter(e.stars)}</div>`:''}
@@ -496,7 +500,8 @@ function rulesHTML(lg){
   <li>A prop needs Secure Value 6 or better to make the board.</li>
   <li>Cushion: his last-5 average must sit at least half a step above the line (1 point, half a rebound, 5 rush yards). Barely-over is not a stamp.</li>
   <li>Minutes trend: if his last 2 games are both 15%+ under his 5-game minutes average, the pick caps at 7.</li>
-  <li>Matchup is scored, not assumed: opponent rank against that stat and position this season (bottom-10 = favorable, top-10 = hostile), pace, defensive rating, 3PT defense, head-to-head this season. Favorable is the only way to a 9.</li>
+  <li>DvP (defense vs position) on every prop: where the opponent ranks, 1 to 30, in that stat allowed to the player's position this season. 21st or worse = favorable, 10th or better = hostile. Favorable is the only way to a 9; hostile takes 2 off.</li>
+  <li>Also checked: pace, defensive rating, 3PT defense, head-to-head this season, minutes restrictions, back-to-backs.</li>
   <li>Every stat is checked on two sources: ESPN plus the league's own stats site (NBA.com, NFL.com, FBref for soccer, ATP/WTA, PGATOUR.com). ESPN is the final word.</li>
   <li>Injuries come from the official league report first (NBA injury report, NFL practice reports, Premier League injury list), then ESPN and Rotowire.</li>
   <li>Payouts come from the book's posted price, never from math.</li>
@@ -603,7 +608,7 @@ function playerSheet(p){
  <div class="panel">
   <div class="row between"><div class="row" style="flex-wrap:wrap">${e?`<span class="prop">${e.label}</span><span class="odds">${fo(b.odds)}</span><span class="cap">${b.book}</span>`:'<span class="mu">No prop line found yet</span>'}</div>${pill(p.state)}</div>
   ${e&&e.stars&&(p.state==='pick'||p.state==='longshot')?`<div class="row"><span class="sv">Secure Value <b>${e.stars}</b></span>${meter(e.stars)}</div>`:''}
-  ${e?`<div class="why">${why(p,e)}</div>`:''}${p.note?`<div class="mu">${p.note}</div>`:''}${trust(p)}
+  ${e?`<div class="why">${why(p,e)}</div>`:''}${dvpLine(e)}${p.note?`<div class="mu">${p.note}</div>`:''}${trust(p)}
   ${e?e.reasons.map(x=>`<div class="reason">${x}</div>`).join('')+e.notes.map(x=>`<div class="mu">• ${x}</div>`).join(''):''}
   ${p.pending?`<div class="flag">${p.pending}</div>`:''}
  </div>
