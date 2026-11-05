@@ -198,7 +198,7 @@ tr.dim td:last-child{text-decoration:none}
     </div>
     <nav class="pad tabs" id="tabs" role="tablist" aria-label="Sports"></nav>
   </header>
-  <div class="pad demo"><b>Real data.</b> Stats, schedules, injuries and prices were checked against the named sources at <span id="checked"></span>. They do not refresh on their own yet. Odds move, so confirm the price in your book.</div>
+  <div class="pad demo"><span class="ok">✓</span> Verified <span id="checked"></span> · prices move, so confirm in your book before betting.</div>
   <main class="pad" id="main"></main>
 </div>
 
@@ -260,10 +260,13 @@ const STATUS={pick:['Stamped','p-pick'],longshot:['Small-stakes','p-long'],stay:
 
 /* ---------- prop rules ---------- */
 const sample=(p,stat)=>p.games.filter(g=>g.s[stat]!=null).slice(0,5);
-const propLabel=(stat,line)=>(line===0.5&&['goals','assists'].includes(stat))?`Anytime ${stat==='goals'?'goal':'assist'}`:`Over ${line} ${stat}`;
+const propLabel=(stat,line)=>stat==='finish'?`Top ${line} finish`:stat==='cut'?'Make the cut':(line===0.5&&['goals','assists'].includes(stat))?`Anytime ${stat==='goals'?'goal':'assist'}`:`Over ${line} ${stat}`;
+const isHit=(stat,v,line)=>stat==='finish'?v<=line:stat==='cut'?v>=1:v>line;
+const fmtV=(stat,v)=>stat==='finish'?(v>=99?'MC':ordinal(v)):stat==='cut'?(v>=1?'Made':'MC'):String(v);
+const ordinal=n=>{const s=['th','st','nd','rd'],v=n%100;return n+(s[(v-20)%10]||s[v]||s[0])};
 function evaluate(p,stat,line,odds){
  const r={stat,line,odds,label:propLabel(stat,line),status:'pick',reasons:[],notes:[],stars:0};
- const s=sample(p,stat);r.n=s.length;r.hits=s.map(g=>g.s[stat]>line);r.k=r.hits.filter(Boolean).length;r.vals=s.map(g=>g.s[stat]);
+ const s=sample(p,stat);r.n=s.length;r.hits=s.map(g=>isHit(stat,g.s[stat],line));r.k=r.hits.filter(Boolean).length;r.vals=s.map(g=>fmtV(stat,g.s[stat]));
  if(p.status==='out'){r.status='blocked';r.reasons.push('Listed out. No legs until he clears.');return r}
  if(!r.n){r.status='blocked';r.reasons.push('No current-season games with this stat, so he is ineligible.');return r}
  if(odds!=null&&odds<-160){r.status='killed';r.reasons.push(`${fo(odds)} is past the −160 juice cap. Killed.`);return r}
@@ -290,7 +293,7 @@ P.forEach(p=>{
 const MINLBL={nba:['Minutes','min'],nfl:['Snap share','%'],soccer:['Minutes','min'],tennis:['Match length','min']};
 const minLine=p=>{if(!p.mn)return p.lg==='nfl'?`<div class="cap">Snap share: not found on the sources checked.</div>`:'';const [l,u]=MINLBL[p.lg];return `<div class="cap">${l}: avg ${Math.round(p.mn.avg*10)/10}${u==='%'?'%':' '+u} last ${Math.min(5,p.games.length)} · projected ${p.mn.proj}${u==='%'?'%':' '+u}</div>`};
 const trust=p=>`<div class="cap"><span class="ok">✓ Real stats</span> · ${p.sources.filter(s=>!/^Props/.test(s[0])).map(s=>s[0]).join(' + ')} · checked ${DATA.checked}</div>`;
-const why=(p,e)=>`Hit in <strong>${e.k} of his last ${e.n}</strong> ${lgOf(p.lg).units} (${e.vals.join(', ')})`;
+const why=(p,e)=>`${e.stat==='finish'?`Top ${e.line} in`:e.stat==='cut'?'Made the cut in':'Hit in'} <strong>${e.k} of his last ${e.n}</strong> ${lgOf(p.lg).units} (${e.vals.join(', ')})`;
 
 /* ---------- props leans (over / under / alt) ---------- */
 const STEP=s=>({points:2,rebounds:1,assists:1,threes:1,blocks:1,steals:1,PRA:3,'rush yds':10,'rec yds':10,receptions:1,'pass yds':20})[s]||1;
@@ -302,6 +305,7 @@ function lean(p,pr){
  if(k/n>=.6&&e.status==='killed'){const L=+(pr.line+st).toFixed(1),e2=evaluate(p,pr.stat,L,null);
   if(e2.k/e2.n<.6)return{side:'No lean',label:e.label,str:'',why:`The posted over is ${fo(pr.odds)}, past the −160 cap, and one line up he hit only ${e2.k} of ${e2.n} (${list}). Nothing to suggest.`,price:''};
   return{side:'Alt',label:propLabel(pr.stat,L),str:e2.k>=4?'Strong':'Moderate',why:`The posted over is ${fo(pr.odds)}, past the −160 cap. One line up he still hit ${e2.k} of ${e2.n} (${list}), averaging ${avg.toFixed(1)}.`,price:'Check the alt price; it must be −160 or better.'}}
+ if(['finish','cut'].includes(pr.stat))return{side:'No lean',label:e.label,str:'',why:`${e.k} of ${n} (${e.vals.join(', ')}). Not strong enough to stamp.`,price:''};
  if(under/n>=.6&&avg<pr.line)return{side:'Under',label:`Under ${pr.line} ${pr.stat}`,str:S(under),why:`Stayed under ${pr.line} in ${under} of his last ${n} (${list}), averaging ${avg.toFixed(1)}.`,price:'Check the under price; it must be −160 or better.'};
  if(k/n>=.6){const L=+(pr.line-st).toFixed(1);if(L>=.5){const e2=evaluate(p,pr.stat,L,null);
   return{side:'Alt',label:propLabel(pr.stat,L),str:e2.k===n?'Strong':'Moderate',why:`Hit the posted ${pr.line} in ${k} of ${n} (${list}), which is not enough for a secure pick. One line down he hit ${e2.k} of ${e2.n}.`,price:'Check the alt price; it must be −160 or better.'}}}
@@ -372,20 +376,19 @@ function decide(g){
 }
 
 /* ---------- state ---------- */
-let state={lg:'nba',view:'board',count:5,mode:'players'};
+let state={lg:'nba',view:'teams',count:5,mode:'today'};
 try{const s=JSON.parse(localStorage.getItem('propsearch')||'{}');if(s.lg&&lgOf(s.lg))state.lg=s.lg;if(s.view)state.view=s.view;if(s.mode)state.mode=s.mode}catch(e){}
 const save=()=>{try{localStorage.setItem('propsearch',JSON.stringify({lg:state.lg,view:state.view,mode:state.mode}))}catch(e){}};
 
 /* ---------- cards ---------- */
-function spark(p,e){const s=[...e.vals].reverse(),hits=[...e.hits].reverse(),mx=Math.max(...s,e.line,1);
+function spark(p,e){const raw=sample(p,e.stat).map(g=>g.s[e.stat]),s=[...raw].reverse().map(v=>e.stat==='finish'?Math.max(1,60-Math.min(v,60)):v),hits=[...e.hits].reverse(),mx=Math.max(...s,e.stat==='finish'?60-e.line:e.line,1);
  return `<span class="spark" aria-hidden="true">${s.map((v,i)=>`<i style="height:${Math.round(Math.max(.12,v/mx)*22)}px;background:var(${hits[i]?'--hit':'--miss'})"></i>`).join('')}</span>`}
 function card(p){const b=p.best,e=b&&b.ev,[lab,cls]=STATUS[p.state];
  return `<button class="card" data-id="${p.id}">
   <div class="row between"><div style="min-width:0"><div class="pname">${p.name}</div><div class="team">${teamLine(p)}</div><div class="team">${gameLine(p)}</div></div>${pill(p.state)}</div>
-  ${e?`<div class="row"><span class="prop">${e.label}</span><span class="odds">${fo(b.odds)}</span>${spark(p,e)}</div><div class="cap">${b.book}</div>`:`<div class="mu">No prop line found on the sources checked. Stats are here so you can see his form.</div>`}
-  ${e&&(p.state==='pick'||p.state==='longshot')?`<div class="why">${why(p,e)}</div>${p.note?`<div class="mu">${p.note}</div>`:''}`:e?e.reasons.map(x=>`<div class="reason">${x}</div>`).join(''):''}
-  ${p.props.length>1?`<div class="chipsrow">${p.props.slice(1).map(x=>`<span class="pchip ${x.ev.status==='pick'?'good':''}">${x.ev.label} ${fo(x.odds)} · ${x.ev.k}/${x.ev.n}${x.ev.status==='pick'||x.ev.status==='longshot'?' · SV '+x.ev.stars:''}</span>`).join('')}</div>`:''}
-  ${minLine(p)}${p.bestAlt?`<div class="cap"><b>Best alt:</b> ${propLabel(b.stat,p.bestAlt.line)} · ${p.bestAlt.ev.k}/${p.bestAlt.ev.n} · SV ${p.bestAlt.ev.stars} · check the price</div>`:''}${trust(p)}
+  ${e?`<div class="row"><span class="prop">${e.label}</span><span class="odds">${fo(b.odds)}</span>${spark(p,e)}</div>`:`<div class="mu">No line posted yet. Tap to see his form.</div>`}
+  ${e&&(p.state==='pick'||p.state==='longshot')?`<div class="why">${why(p,e)}</div>`:e?e.reasons.map(x=>`<div class="reason">${x}</div>`).join(''):''}
+  ${e?`<div class="cap">${b.book} · <span class="ok">✓</span> verified${p.props.length>1?` · +${p.props.length-1} more line${p.props.length>2?'s':''}`:''}</div>`:''}
   ${p.pending?`<div class="flag">${p.pending}</div>`:''}
   ${e&&e.stars&&(p.state==='pick'||p.state==='longshot')?`<div class="row"><span class="sv">Secure Value <b>${e.stars}</b></span>${meter(e.stars)}</div>`:''}
  </button>`}
@@ -403,42 +406,56 @@ function gameCard(g){const r=decide(g),[lab,cls]=STATUS[r.status];
 /* ---------- screens ---------- */
 function slateTitle(l){const d=slateDay(l.id);return d?`${l.name} · ${fmtDay(d)}`:`${l.name} · No games today`}
 function noSlate(l){const d=slateDay(l.id);
- if(l.id==='golf')return `<div class="empty"><h3>Round 1 is under way</h3>${DATA.golf.map(x=>`<div><b>${x.tour}:</b> ${x.event}, ${x.course}.</div>`).join('')}<div style="margin-top:6px">Golf picks are pregame only, so nothing shows once the first tee time has passed. Round-by-round and matchup props come in the full build.</div></div>`;
+ if(l.id==='golf'){const ev=(DATA.golf||[]);return `<div class="empty"><h3>${ev.some(x=>x.started)?'This week\'s events have started':'No golf this week'}</h3>${ev.map(x=>`<div><b>${x.tour}:</b> ${x.event} · ${x.course.split(',')[0]}</div>`).join('')}<div style="margin-top:6px">Golf picks post before the first tee time of round 1 (usually Wednesday night). Next week's card: top-10, top-20, make-the-cut and head-to-head matchups.</div></div>`}
  const nd=nextDay(l.id);
  if(allWhen(l.id).some(w=>w.slice(0,10)===todayET()))return `<div class="empty"><h3>Today's ${l.name} games have started</h3>Picks are pregame only. Tomorrow's slate shows after the next data run.</div>`;
  return `<div class="empty"><h3>No ${l.name} games today</h3>Stamped only shows picks for the current day.${nd?` Next ${l.name} slate: ${fmtDay(nd)}. Those picks appear that morning.`:''}</div>`}
 function renderTabs(){$('#tabs').innerHTML=LEAGUES.map(l=>`<button class="tab" role="tab" data-lg="${l.id}" aria-selected="${l.id===state.lg}">${l.name}</button>`).join('')}
+function upcomingHTML(l){
+ const nd=nextDay(l.id);if(!nd)return '';
+ const gs=GAMES.filter(g=>g.lg===l.id&&g.when.slice(0,10)===nd).sort((a,b)=>a.when<b.when?-1:1),tm=(DATA.tennis_matches||[]).filter(m=>l.id==='tennis'&&m.start&&m.start.slice(0,10)===nd);
+ const ps=P.filter(p=>p.lg===l.id&&p.when&&p.when.slice(0,10)===nd);
+ const rows=[...gs.map(g=>`<div class="row between"><span>${g.away.n} at ${g.home.n}${g.div?` <span class="cap">· ${g.div}</span>`:''}</span><span class="cap">${fmtT(g.when)} ET</span></div>`),
+  ...tm.map(m=>`<div class="row between"><span>${m.p1} vs ${m.p2}<span class="cap"> · ${m.event}</span></span><span class="cap">${fmtT(m.start)} ET</span></div>`)];
+ if(!rows.length&&!ps.length)return '';
+ return `<div class="inj"><div class="row between"><b>Next up · ${fmtDay(nd)}</b><span class="pill p-long">Preview</span></div>${rows.join('')}${!rows.length?ps.map(p=>`<div class="row between"><span>${p.name} <span class="cap">${p.team}</span></span><span class="cap">${p.opp} · ${fmtT(p.when)} ET</span></div>`).join(''):''}<div class="cap">Not picks. Stamped only picks the current day, so these post the morning of the games, once lines and lineups are out.</div></div>`;
+}
 function renderMain(){
  const l=lgOf(state.lg);
- let html=`<div class="mode"><button data-mode="players" aria-pressed="${state.mode==='players'}">Players</button><button data-mode="teams" aria-pressed="${state.mode==='teams'}">Teams</button><button data-mode="parlays" aria-pressed="${state.mode==='parlays'}">Parlays</button><button data-mode="alts" aria-pressed="${state.mode==='alts'}">Alts</button></div>`;
- if(state.mode==='alts'){$('#main').innerHTML=html+altsHTML(l);return}
+ let html=`<div class="mode"><button data-mode="today" aria-pressed="${state.mode==='today'}">Today</button><button data-mode="props" aria-pressed="${state.mode==='props'}">Props</button><button data-mode="parlays" aria-pressed="${state.mode==='parlays'}">Parlays</button><button data-mode="more" aria-pressed="${state.mode==='more'}">More</button></div>`;
  if(state.mode==='parlays'){$('#main').innerHTML=html+parlaysHTML();return}
- if(state.mode==='teams'){
-  const gs=GAMES.filter(g=>g.lg===l.id&&gameOnSlate(g)),rs=gs.map(g=>[g,decide(g)]),picks=rs.filter(([,r])=>r.status!=='pass').sort((a,b)=>b[1].sv-a[1].sv),passes=rs.filter(([,r])=>r.status==='pass');
-  html+=`<div class="slate"><h1>${slateTitle(l)}</h1><p>${gs.length} games left · ${picks.length} picks · ${passes.length} pass</p></div>`;
-  if(l.off)html+=`<div class="empty"><h3>MLB is in the offseason</h3>Team predictions return when the new season has games.</div>`;
-  else if(l.id==='golf'||l.id==='tennis')html+=`<div class="empty"><h3>No teams in ${l.name}</h3>Head-to-head matchups will use this same model in the full build.</div>`;
-  else if(!gs.length)html+=noSlate(l);
-  else{html+=`<div class="list">${picks.map(([g])=>gameCard(g)).join('')}</div>`;if(passes.length)html+=`<h2 class="sec">No edge</h2><div class="list">${passes.map(([g])=>gameCard(g)).join('')}</div>`}
-  $('#main').innerHTML=html;return;
- }
  const ps=P.filter(p=>p.lg===l.id&&onSlate(p));
  const good=ps.filter(p=>['pick','longshot'].includes(p.state)).sort((a,b)=>b.best.ev.stars-a.best.ev.stars);
  const bad=ps.filter(p=>['killed','blocked'].includes(p.state)),none=ps.filter(p=>p.state==='noline');
- const views=[['board','Stamped picks'],['props','Props'],['stay','Stay away'],['lineups','Lineups'],['inj','Injuries'],['rules','Rules']];
- html+=`<div class="slate"><h1>${slateTitle(l)}</h1><p>${ps.length} players · ${good.length} stamped · ${ps.filter(p=>p.best&&p.state!=='blocked').length} with lines · ${none.length} no line</p></div>
- <div class="seg" style="grid-template-columns:repeat(3,1fr)">${views.map(([k,t])=>`<button data-view="${k}" aria-pressed="${state.view===k}">${t}${k==='stay'&&bad.length?` (${bad.length})`:''}</button>`).join('')}</div>`;
- if(state.view==='board'){
-  if(l.off)html+=`<div class="empty"><h3>MLB is in the offseason</h3>No picks until the new season has games, because the app never uses last season's stats for props.</div>`;
-  else if(!ps.length)html+=noSlate(l);
+ const gs=GAMES.filter(g=>g.lg===l.id&&gameOnSlate(g)),rs=gs.map(g=>[g,decide(g)]),tpicks=rs.filter(([,r])=>r.status!=='pass').sort((a,b)=>b[1].sv-a[1].sv),tpass=rs.filter(([,r])=>r.status==='pass');
+ if(state.mode==='today'){
+  html+=`<div class="slate"><h1>${slateTitle(l)}</h1><p>${ps.length||gs.length?`${good.filter(p=>p.state==='pick').length+tpicks.length} stamped · ${ps.length} players · ${gs.length} games`:''}</p></div>`;
+  if(l.off)html+=`<div class="empty"><h3>MLB is in the offseason</h3>Picks return when the new season has games.</div>`;
+  else if(!ps.length&&!gs.length)html+=noSlate(l)+upcomingHTML(l);
   else{const picks=good.filter(p=>p.state==='pick'),longs=good.filter(p=>p.state==='longshot');
-   html+=picks.length?`<div class="list">${picks.map(card).join('')}</div>`:`<div class="empty"><h3>Nothing passes the rules${none.length&&!bad.length?' yet':''}</h3>${bad.length?'The cut players are under Stay away.':''} ${none.length?'No prop lines were found yet for the players below.':'A thin slate gets a thin card.'}</div>`;
-   if(longs.length)html+=`<h2 class="sec">Small-stakes longshots</h2><div class="list">${longs.map(card).join('')}</div>`;
-   if(none.length)html+=`<h2 class="sec">Stats only · no line posted yet</h2><div class="list">${none.map(card).join('')}</div>`}
- }else if(state.view==='props'){
+   html+=picks.length?`<div class="list">${picks.map(card).join('')}</div>`:`<div class="empty"><h3>No stamped props${none.length&&!ps.filter(p=>p.best).length?' yet':''}</h3>${ps.filter(p=>p.best).length?'Nothing passed the full rules. See Props for leans.':'No book had a line for these players when we checked.'}</div>`;
+   if(tpicks.length)html+=`<h2 class="sec">Team picks</h2><div class="list">${tpicks.map(([g])=>gameCard(g)).join('')}</div>`;
+   if(longs.length)html+=`<h2 class="sec">Small-stakes longshots</h2><div class="list">${longs.map(card).join('')}</div>`}
+  $('#main').innerHTML=html;return;
+ }
+ if(state.mode==='props'){
+  html+=`<div class="slate"><h1>${l.name} leans</h1><p>${ps.filter(p=>p.best&&p.state!=='blocked').length} players with lines</p></div>`;
   const withLine=ps.filter(p=>p.best&&p.state!=='blocked');
-  html+=`<div class="cap">Every player on today's slate with a posted line, with a lean and the reason. Stamped picks pass the full rules; these are leans only. Nothing here is a lock.</div>`;
-  html+=withLine.length?`<div class="list">${withLine.map(leanCard).join('')}</div>`:ps.length?`<div class="empty"><h3>No lines posted yet</h3>${none.length} players are on today's slate but no book had a line when we checked.</div>`:noSlate(l);
+  html+=`<div class="cap">Every player on today's slate with a posted line, with a lean and the reason. Leans did not pass the full rules; nothing here is a lock.</div>`;
+  html+=withLine.length?`<div class="list">${withLine.map(leanCard).join('')}</div>`:ps.length?`<div class="empty"><h3>No lines posted yet</h3>${ps.length} players are on today's slate but no book had a line when we checked.</div>`:noSlate(l)+upcomingHTML(l);
+  $('#main').innerHTML=html;return;
+ }
+ const views=[['teams','Teams'],['alts','Alts'],['lineups','Lineups'],['inj','Injuries'],['stay','Stay away'],['rules','Rules']];
+ if(!views.some(v=>v[0]===state.view))state.view='teams';
+ html+=`<div class="seg" style="grid-template-columns:repeat(3,1fr)">${views.map(([k,t])=>`<button data-view="${k}" aria-pressed="${state.view===k}">${t}${k==='stay'&&bad.length?` (${bad.length})`:''}</button>`).join('')}</div>`;
+ if(state.view==='teams'){
+  html+=`<div class="slate"><h1>${l.name} games</h1><p>${gs.length} today · ${tpicks.length} picks</p></div>`;
+  if(l.off)html+=`<div class="empty"><h3>MLB is in the offseason</h3>Team predictions return when the new season has games.</div>`;
+  else if(l.id==='golf'||l.id==='tennis')html+=`<div class="empty"><h3>No teams in ${l.name}</h3>Head-to-head matchups use this same model once lines are posted.</div>`;
+  else if(!gs.length)html+=noSlate(l)+upcomingHTML(l);
+  else{html+=`<div class="list">${tpicks.map(([g])=>gameCard(g)).join('')}</div>`;if(tpass.length)html+=`<h2 class="sec">No edge</h2><div class="list">${tpass.map(([g])=>gameCard(g)).join('')}</div>`}
+ }else if(state.view==='alts'){
+  html+=altsHTML(l);
  }else if(state.view==='lineups'){
   html+=lineupsHTML(l,ps);
  }else if(state.view==='stay'){
@@ -495,7 +512,7 @@ function rulesHTML(lg){
 /* ---------- alts ---------- */
 function altsHTML(l){
  const ps=P.filter(p=>p.lg===l.id&&onSlate(p)&&p.bestAlt).sort((a,b)=>b.bestAlt.ev.stars-a.bestAlt.ev.stars);
- let html=`<div class="slate"><h1>${l.name} alts · ${slateDay(l.id)?fmtDay(slateDay(l.id)):'No games'}</h1><p>${ps.length} players with usable alts</p></div>
+ let html=`<div class="slate"><h1>${l.name} alts</h1><p>${ps.length} players with usable alts</p></div>
  <div class="warnbox"><b>How alts work</b><span>A lower line is easier to hit but pays less. A higher line is harder but pays more. Alts here are judged on real hit rates only. Alt prices were not verified, so check your book: a price worse than −160 fails the rule.</span></div>`;
  if(l.off)return html+`<div class="empty"><h3>MLB is in the offseason</h3>No alts until the season starts.</div>`;
  if(!ps.length)return html+`<div class="empty"><h3>No usable alts</h3>No alt line in ${l.name} has a strong enough hit rate right now.</div>`;
@@ -535,18 +552,19 @@ function parlaysHTML(){
 const MONO='IBM Plex Mono,monospace';
 function chartSVG(p,count){
  const b=p.best,stat=b?b.stat:Object.keys(p.games[0].s).find(k=>p.games.some(g=>g.s[k]!=null)),line=b?b.line:null;
- const rows=p.games.filter(g=>g.s[stat]!=null).slice(0,count),vals=[...rows].reverse();
+ const rows=p.games.filter(g=>g.s[stat]!=null).slice(0,count),vals=[...rows].reverse(),fin=stat==='finish';
  const W=360,H=190,top=22,bot=30,left=4,right=70,ph=H-top-bot,slots=Math.max(vals.length,5),sw=(W-left-right)/slots,bw=Math.min(30,sw*.62);
- const maxv=Math.max(...vals.map(g=>g.s[stat]),line||0,1)*1.18;
+ const sc=v=>fin?Math.max(1,60-Math.min(v,60)):v;
+ const maxv=Math.max(...vals.map(g=>sc(g.s[stat])),line!=null?sc(line):0,1)*1.18;
  let g=`<line x1="${left}" x2="${W-right}" y1="${top+ph}" y2="${top+ph}" stroke="var(--line)"/>`;
- vals.forEach((row,i)=>{const v=row.s[stat],x=left+i*sw+(sw-bw)/2,bh=Math.max(2,v/maxv*ph),y=top+ph-bh,hit=line!=null?v>line:null;
-  const tip=`${fmtD(row.d)} · ${row.res}|${row.vs}|${v} ${stat}${hit==null?'':hit?' · Hit':' · Miss'}${row.min!=null?` · ${row.min}${p.lg==='nfl'?'% snaps':' min'}`:''}`;
+ vals.forEach((row,i)=>{const v=row.s[stat],x=left+i*sw+(sw-bw)/2,bh=Math.max(2,sc(v)/maxv*ph),y=top+ph-bh,hit=line!=null?isHit(stat,v,line):null;
+  const tip=`${fmtD(row.d)} · ${row.res}|${row.vs}|${fmtV(stat,v)}${stat==='finish'||stat==='cut'?'':' '+stat}${hit==null?'':hit?' · Hit':' · Miss'}${row.min!=null?` · ${row.min}${p.lg==='nfl'?'% snaps':' min'}`:''}`;
   g+=`<rect x="${x.toFixed(1)}" y="${y.toFixed(1)}" width="${bw.toFixed(1)}" height="${bh.toFixed(1)}" rx="3" fill="var(${hit==null?'--muted':hit?'--hit':'--miss'})"/>
-  <text x="${(x+bw/2).toFixed(1)}" y="${(y-6).toFixed(1)}" text-anchor="middle" font-family="${MONO}" font-size="11" fill="var(--ink)">${v}</text>
+  <text x="${(x+bw/2).toFixed(1)}" y="${(y-6).toFixed(1)}" text-anchor="middle" font-family="${MONO}" font-size="11" fill="var(--ink)">${fmtV(stat,v)}</text>
   <text x="${(x+bw/2).toFixed(1)}" y="${H-10}" text-anchor="middle" font-size="10" fill="var(--muted)">${md(row.d)}</text>
   <rect class="hitzone" data-tip="${tip}" x="${(left+i*sw).toFixed(1)}" y="0" width="${sw.toFixed(1)}" height="${H}" fill="transparent"/>`});
- if(line!=null){const ly=top+ph-line/maxv*ph;
-  g+=`<line x1="${left}" x2="${W-right+4}" y1="${ly.toFixed(1)}" y2="${ly.toFixed(1)}" stroke="var(--accent)" stroke-width="1.5" stroke-dasharray="5 4"/><text x="${W-right+8}" y="${(ly-4).toFixed(1)}" font-size="10" font-weight="600" fill="var(--accent)">Prediction</text><text x="${W-right+8}" y="${(ly+11).toFixed(1)}" font-family="${MONO}" font-size="11" fill="var(--accent)">${line}</text>`}
+ if(line!=null&&stat!=='cut'){const ly=top+ph-sc(line)/maxv*ph;
+  g+=`<line x1="${left}" x2="${W-right+4}" y1="${ly.toFixed(1)}" y2="${ly.toFixed(1)}" stroke="var(--accent)" stroke-width="1.5" stroke-dasharray="5 4"/><text x="${W-right+8}" y="${(ly-4).toFixed(1)}" font-size="10" font-weight="600" fill="var(--accent)">Prediction</text><text x="${W-right+8}" y="${(ly+11).toFixed(1)}" font-family="${MONO}" font-size="11" fill="var(--accent)">${fin?'Top '+line:line}</text>`}
  return {svg:`<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="${stat} game log">${g}</svg>`,stat,n:rows.length};
 }
 function teamChart(g,side){
@@ -640,8 +658,8 @@ q.addEventListener('input',()=>{const t=q.value.trim().toLowerCase();if(!t){res.
  const mg=GAMES.filter(g=>gameOnSlate(g)&&(g.home.n+' '+g.away.n).toLowerCase().includes(t)).slice(0,4).map(g=>`<button data-g="${g.id}"><span>${g.away.n} at ${g.home.n}<br><small>Team prediction · ${fmtT(g.when)} ET</small></span><small>${lgOf(g.lg).name}</small></button>`);
  const all=[...mg,...mp];res.innerHTML=all.length?all.join(''):'<div class="none">No one by that name plays in the current slate.</div>';res.hidden=false});
 res.addEventListener('click',e=>{const b=e.target.closest('[data-pick]');const bg=e.target.closest('[data-g]');
- if(b){const p=P.find(x=>x.id===b.dataset.pick);state.lg=p.lg;state.mode='players';state.view=['pick','longshot','noline'].includes(p.state)?'board':'stay';render();openSheet(p.id)}
- else if(bg){const g=GAMES.find(x=>x.id===bg.dataset.g);state.lg=g.lg;state.mode='teams';render();openGame(g.id)}
+ if(b){const p=P.find(x=>x.id===b.dataset.pick);state.lg=p.lg;state.mode='today';render();openSheet(p.id)}
+ else if(bg){const g=GAMES.find(x=>x.id===bg.dataset.g);state.lg=g.lg;state.mode='today';render();openGame(g.id)}
  else return;res.hidden=true;q.value=''});
 document.addEventListener('click',e=>{if(!e.target.closest('.search'))res.hidden=true});
 $('#checked').textContent=DATA.checked;
