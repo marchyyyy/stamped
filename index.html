@@ -269,11 +269,13 @@ function evaluate(p,stat,line,odds){
  const r={stat,line,odds,label:propLabel(stat,line),status:'pick',reasons:[],notes:[],stars:0};
  const s=sample(p,stat);r.n=s.length;r.hits=s.map(g=>isHit(stat,g.s[stat],line));r.k=r.hits.filter(Boolean).length;r.vals=s.map(g=>fmtV(stat,g.s[stat]));
  if(p.status==='out'){r.status='blocked';r.reasons.push('Listed out. No legs until he clears.');return r}
+ if(p.status==='blocked'){r.status='blocked';r.reasons.push(p.note||'Blocked by a standing rule.');return r}
+ if(p.status==='questionable'){r.review=r.review||[]}
  if(!r.n){r.status='blocked';r.reasons.push('No current-season games with this stat, so he is ineligible.');return r}
  if(odds!=null&&odds<-160){r.status='killed';r.reasons.push(`${fo(odds)} is past the −160 juice cap. Killed.`);return r}
  const statSrc=(p.sources||[]).filter(x=>!/^(Props|DvP)/i.test(x[0])&&!/props|spot-check/i.test(x[0]));
  const hasDvp=!!(p.matchup&&p.matchup.dvp&&p.matchup.dvp[stat]&&p.matchup.dvp[stat].rank!=null)||(p.matchup&&p.matchup.grade);
- r.review=[];if(statSrc.length<2)r.review.push('stats not yet confirmed on a second source');if(!hasDvp&&p.lg!=='golf')r.review.push(`DvP not yet checked for ${stat}`);
+ r.review=[];if(p.status==='questionable')r.review.push('listed questionable; not cleared to play');if(statSrc.length<2)r.review.push('stats not yet confirmed on a second source');if(!hasDvp&&p.lg!=='golf')r.review.push(`DvP not yet checked for ${stat}`);
  const rate=r.k/r.n,long=odds!=null&&odds>=150,mu=p.matchup||{},dvp=mu.dvp&&mu.dvp[stat]?mu.dvp[stat]:null;
  let grade=mu.grade||null;if(dvp&&dvp.rank!=null&&!grade)grade=dvp.rank>=(p.lg==='nfl'?23:21)?'favorable':dvp.rank<=10?'hostile':'neutral';
  r.dvp=dvp;r.grade=grade;r.tot=p.lg==='nfl'?32:30;let st;
@@ -312,7 +314,7 @@ function setFantasy(p,sys){
  if(p.mn&&m.length===l5.length&&p.mn.proj){const am=avg(m);if(Math.abs(p.mn.proj-am)>=1){proj=proj*p.mn.proj/am;why=`Last-5 average scaled to ${p.mn.proj} projected minutes (from ${am.toFixed(0)}).`}else why='Last-5 average at his usual minutes.'}
  const fp=(p.fprops||[]).find(x=>sys==='ud'?/underdog/i.test(x.book):!/underdog/i.test(x.book))||null;
  const ev=fp?evaluate(p,'fantasy',fp.line,fp.odds):null;
- p.fan={sys,l5:avg(l5),l10:avg(l10),n5:l5.length,n10:l10.length,proj:Math.round(proj*10)/10,why,noTO:!rows.some(g=>g.s.turnovers!=null),prop:fp,ev,dvp:p.matchup&&p.matchup.dvp&&p.matchup.dvp.fantasy||null};
+ p.fan={sys,l5:avg(l5),l10:avg(l10),n5:l5.length,n10:l10.length,proj:Math.round(proj*10)/10,why,noTO:p.lg==='nba'&&!rows.some(g=>g.s.turnovers!=null),prop:fp,ev,dvp:p.matchup&&p.matchup.dvp&&p.matchup.dvp.fantasy||null};
  if(ev&&p.fan.dvp)p.fan.grade=ev.grade;
 }
 P.forEach(p=>{
@@ -573,6 +575,7 @@ function fanCard(p){const F=p.fan,e=F.ev,st=e?e.status:'noline';
   <div class="stats"><div class="stat"><span>Last 5 avg</span><b>${F.l5.toFixed(1)}</b></div><div class="stat"><span>Last ${F.n10} avg</span><b>${F.l10.toFixed(1)}</b></div><div class="stat"><span>Projected</span><b>${F.proj.toFixed(1)}</b></div></div>
   ${e?`<div class="row"><span class="prop">Over ${F.prop.line} fantasy pts</span><span class="odds">${fo(F.prop.odds)}</span></div><div class="${st==='pick'||st==='longshot'?'why':'reason'}">${st==='pick'||st==='longshot'?`Beat ${F.prop.line} in <strong>${e.k} of his last ${e.n}</strong>`:e.reasons[0]||''}</div><div class="cap">${F.prop.book}</div>`:`<div class="cap">No fantasy line posted, so no stamp. Projection only.</div>`}
   <div class="row" style="flex-wrap:wrap">${fanDvp(p)}</div>
+  ${p.status==='blocked'?`<div class="reason">${p.note||'Blocked by a standing rule.'}</div>`:p.status==='questionable'?`<div class="flag">Questionable. No stamp until he is cleared to play.</div>`:''}
   ${e&&e.stars&&(st==='pick'||st==='longshot')?`<div class="row"><span class="sv">Secure Value <b>${e.stars}</b></span>${meter(e.stars)}</div>`:''}
  </button>`}
 function fantasyHTML(l){
