@@ -275,8 +275,8 @@ function evaluate(p,stat,line,odds){
  const hasDvp=!!(p.matchup&&p.matchup.dvp&&p.matchup.dvp[stat]&&p.matchup.dvp[stat].rank!=null)||(p.matchup&&p.matchup.grade);
  r.review=[];if(statSrc.length<2)r.review.push('stats not yet confirmed on a second source');if(!hasDvp&&p.lg!=='golf')r.review.push(`DvP not yet checked for ${stat}`);
  const rate=r.k/r.n,long=odds!=null&&odds>=150,mu=p.matchup||{},dvp=mu.dvp&&mu.dvp[stat]?mu.dvp[stat]:null;
- let grade=mu.grade||null;if(dvp&&dvp.rank!=null&&!grade)grade=dvp.rank>=21?'favorable':dvp.rank<=10?'hostile':'neutral';
- r.dvp=dvp;r.grade=grade;let st;
+ let grade=mu.grade||null;if(dvp&&dvp.rank!=null&&!grade)grade=dvp.rank>=(p.lg==='nfl'?23:21)?'favorable':dvp.rank<=10?'hostile':'neutral';
+ r.dvp=dvp;r.grade=grade;r.tot=p.lg==='nfl'?32:30;let st;
  if(rate===1)st=10;else if(rate>=.8)st=grade==='favorable'?9:8;else if(rate>=.6)st=grade==='favorable'?7:6;else if(grade==='favorable')st=4;else{st=3;if(!long){r.status='stay';r.reasons.push(`Only ${r.k} of ${r.n}${grade?'':' and the matchup is not verified'}, so no bump.`)}}
  if(grade==='hostile'){st-=2;r.reasons.push('Hostile matchup: '+(dvp?`${p.opp.replace(/^(vs|@) /,'')} rank ${ordinal(dvp.rank)} against ${dvp.pos||'his position'} in ${stat} (${dvp.value})`:mu.why||'opponent ranks top-10 against this stat.'))}
  else if(grade==='favorable')r.notes.push('Favorable matchup: '+(dvp?`${p.opp.replace(/^(vs|@) /,'')} rank ${ordinal(dvp.rank)} against ${dvp.pos||'his position'} in ${stat} (${dvp.value})`:mu.why||''));
@@ -330,7 +330,7 @@ P.forEach(p=>setFantasy(p,FSYSSEL));
 const MINLBL={nba:['Minutes','min'],nfl:['Snap share','%'],soccer:['Minutes','min'],tennis:['Match length','min']};
 const minLine=p=>{if(!p.mn)return p.lg==='nfl'?`<div class="cap">Snap share: not found on the sources checked.</div>`:'';const [l,u]=MINLBL[p.lg];return `<div class="cap">${l}: avg ${Math.round(p.mn.avg*10)/10}${u==='%'?'%':' '+u} last ${Math.min(5,p.games.length)} · projected ${p.mn.proj}${u==='%'?'%':' '+u}</div>`};
 const trust=p=>`<div class="cap"><span class="ok">✓ Real stats</span> · ${p.sources.filter(s=>!/^Props/.test(s[0])).map(s=>s[0]).join(' + ')} · checked ${DATA.checked}</div>`;
-const dvpLine=(e,side,dg)=>{if(!e||!e.dvp)return '';const g=dg||e.grade;return `<div class="cap"><b>DvP${side==='Under'?' (for the Under)':''}:</b> ${e.dvp.pos?e.dvp.pos+' · ':''}${ordinal(e.dvp.rank)} of ${e.dvp.tot||30} · ${e.dvp.value} <span class="pill ${g==='favorable'?'p-pick':g==='hostile'?'p-stay':'p-long'}" style="margin-left:4px">${g}</span></div>`};
+const dvpLine=(e,side,dg)=>{if(!e||!e.dvp)return '';const g=dg||e.grade;return `<div class="cap"><b>DvP${side==='Under'?' (for the Under)':''}:</b> ${e.dvp.pos?e.dvp.pos+' · ':''}${ordinal(e.dvp.rank)} of ${e.tot||30} · ${e.dvp.value} <span class="pill ${g==='favorable'?'p-pick':g==='hostile'?'p-stay':'p-long'}" style="margin-left:4px">${g}</span></div>`};
 const why=(p,e)=>`${e.stat==='finish'?`Top ${e.line} in`:e.stat==='cut'?'Made the cut in':'Hit in'} <strong>${e.k} of his last ${e.n}</strong> ${lgOf(p.lg).units} (${e.vals.join(', ')})`;
 
 /* ---------- props leans (over / under / alt) ---------- */
