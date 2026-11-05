@@ -147,8 +147,8 @@ tr.dim td{color:var(--muted);text-decoration:line-through}
 tr.dim td:last-child{text-decoration:none}
 .tag{font-size:10px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;border-radius:4px;padding:1px 5px;margin-left:6px;vertical-align:middle}
 .t-best{background:var(--hit-bg);color:var(--hit)}.t-up{background:var(--warn-bg);color:var(--warn)}.t-main{background:var(--chip);color:var(--muted)}
-.mode{display:grid;grid-template-columns:repeat(4,1fr);border:1px solid var(--line);border-radius:10px;overflow:hidden;background:var(--surface)}
-.mode button{font-family:var(--f-disp);font-weight:800;font-size:16px;letter-spacing:.04em;text-transform:uppercase;padding:9px 2px;color:var(--muted);min-width:0;overflow:hidden}
+.mode{display:grid;grid-template-columns:repeat(5,1fr);border:1px solid var(--line);border-radius:10px;overflow:hidden;background:var(--surface)}
+.mode button{font-family:var(--f-disp);font-weight:800;font-size:14px;letter-spacing:.03em;text-transform:uppercase;padding:9px 2px;color:var(--muted);min-width:0;overflow:hidden}
 .mode button[aria-pressed="true"]{background:var(--ink);color:var(--bg)}
 .chartbox{position:relative}
 .tip{position:absolute;z-index:5;pointer-events:none;background:var(--ink);color:var(--bg);border-radius:8px;padding:7px 10px;font-size:12px;line-height:1.4;white-space:nowrap;transform:translate(-50%,-100%);box-shadow:0 6px 18px rgba(0,0,0,.25)}
@@ -259,7 +259,7 @@ const pill=(st)=>['pick','spread'].includes(st)?sealPill:`<span class="pill ${ST
 const STATUS={pick:['Stamped','p-pick'],longshot:['Small-stakes','p-long'],stay:['Stay away','p-stay'],killed:['Killed','p-killed'],blocked:['Blocked','p-blocked'],spread:['Stamped','p-pick'],pass:['Pass','p-stay'],noline:['No line yet','p-long']};
 
 /* ---------- prop rules ---------- */
-const STEPS={points:2,rebounds:1,assists:1,threes:1,blocks:1,steals:1,PRA:3,'rush yds':10,'rec yds':10,receptions:1,'pass yds':20,'pass TDs':1,shots:1,'shots on target':1,goals:1,'total games':1,aces:1};
+const STEPS={fantasy:3,points:2,rebounds:1,assists:1,threes:1,blocks:1,steals:1,PRA:3,'rush yds':10,'rec yds':10,receptions:1,'pass yds':20,'pass TDs':1,shots:1,'shots on target':1,goals:1,'total games':1,aces:1};
 const sample=(p,stat)=>p.games.filter(g=>g.s[stat]!=null).slice(0,5);
 const propLabel=(stat,line)=>stat==='finish'?`Top ${line} finish`:stat==='cut'?'Make the cut':(line===0.5&&['goals','assists'].includes(stat))?`Anytime ${stat==='goals'?'goal':'assist'}`:`Over ${line} ${stat}`;
 const isHit=(stat,v,line)=>stat==='finish'?v<=line:stat==='cut'?v>=1:v>line;
@@ -290,7 +290,29 @@ function evaluate(p,stat,line,odds){
  return r;
 }
 const rank={pick:3,longshot:2,stay:1,killed:0,blocked:0};
+/* ---------- fantasy points ---------- */
+const FSYS={
+ dk:{name:'DraftKings',nba:{need:['points','rebounds','assists','threes','steals','blocks'],f:s=>{const dd=['points','rebounds','assists','steals','blocks'].filter(k=>(s[k]||0)>=10).length;return s.points+.5*s.threes+1.25*s.rebounds+1.5*s.assists+2*s.steals+2*s.blocks-.5*(s.turnovers||0)+(dd>=2?1.5:0)+(dd>=3?3:0)}},
+     nfl:{need:['pass yds','pass TDs','INT','rush yds','rush TDs','receptions','rec yds','rec TDs'],f:s=>.04*s['pass yds']+4*s['pass TDs']-s.INT+.1*s['rush yds']+6*s['rush TDs']+s.receptions+.1*s['rec yds']+6*s['rec TDs']-(s['fumbles lost']||0)+(s['pass yds']>=300?3:0)+(s['rush yds']>=100?3:0)+(s['rec yds']>=100?3:0)}},
+ ud:{name:'Underdog',nba:{need:['points','rebounds','assists','steals','blocks'],f:s=>s.points+1.2*s.rebounds+1.5*s.assists+3*s.steals+3*s.blocks-(s.turnovers||0)},
+     nfl:{need:['pass yds','pass TDs','INT','rush yds','rush TDs','receptions','rec yds','rec TDs'],f:s=>.04*s['pass yds']+4*s['pass TDs']-s.INT+.1*s['rush yds']+6*s['rush TDs']+.5*s.receptions+.1*s['rec yds']+6*s['rec TDs']-2*(s['fumbles lost']||0)}}};
+function setFantasy(p,sys){
+ const S=FSYS[sys][p.lg];p.fan=null;if(!S)return;
+ const ok=g=>S.need.every(k=>g.s[k]!=null);
+ const rows=p.games.filter(ok);if(!rows.length)return;
+ rows.forEach(g=>g.s.fantasy=Math.round(S.f(g.s)*100)/100);
+ p.games.filter(g=>!ok(g)).forEach(g=>delete g.s.fantasy);
+ const v=rows.map(g=>g.s.fantasy),avg=a=>a.reduce((x,y)=>x+y,0)/a.length;
+ const l5=v.slice(0,5),l10=v.slice(0,10),m=rows.slice(0,5).map(g=>g.min).filter(x=>x!=null);
+ let proj=avg(l5),why='Last-5 average.';
+ if(p.mn&&m.length===l5.length&&p.mn.proj){const am=avg(m);if(Math.abs(p.mn.proj-am)>=1){proj=proj*p.mn.proj/am;why=`Last-5 average scaled to ${p.mn.proj} projected minutes (from ${am.toFixed(0)}).`}else why='Last-5 average at his usual minutes.'}
+ const fp=(p.fprops||[]).find(x=>sys==='ud'?/underdog/i.test(x.book):!/underdog/i.test(x.book))||null;
+ const ev=fp?evaluate(p,'fantasy',fp.line,fp.odds):null;
+ p.fan={sys,l5:avg(l5),l10:avg(l10),n5:l5.length,n10:l10.length,proj:Math.round(proj*10)/10,why,noTO:!rows.some(g=>g.s.turnovers!=null),prop:fp,ev,dvp:p.matchup&&p.matchup.dvp&&p.matchup.dvp.fantasy||null};
+ if(ev&&p.fan.dvp)p.fan.grade=ev.grade;
+}
 P.forEach(p=>{
+ p.fprops=p.props.filter(x=>x.stat==='fantasy');p.props=p.props.filter(x=>x.stat!=='fantasy');
  p.props.forEach(pr=>pr.ev=evaluate(p,pr.stat,pr.line,pr.odds));
  p.props.sort((a,b)=>rank[b.ev.status]-rank[a.ev.status]||b.ev.stars-a.ev.stars);
  p.best=p.props[0]||null;
@@ -299,6 +321,8 @@ P.forEach(p=>{
  p.mn=m.length?{avg:m.slice(0,5).reduce((a,b)=>a+b,0)/Math.min(5,m.length),arr:p.games.map(g=>g.min),proj:null}:null;
  if(p.mn){p.mn.proj=Math.round(p.mn.avg);p.mn.why='Based on his recent average.';if(p.down){p.mn.proj-=p.lg==='nba'?3:0;p.mn.why=p.down.why}}
 });
+let FSYSSEL='dk';try{FSYSSEL=localStorage.getItem('stamped-fsys')||'dk'}catch(e){}
+P.forEach(p=>setFantasy(p,FSYSSEL));
 const MINLBL={nba:['Minutes','min'],nfl:['Snap share','%'],soccer:['Minutes','min'],tennis:['Match length','min']};
 const minLine=p=>{if(!p.mn)return p.lg==='nfl'?`<div class="cap">Snap share: not found on the sources checked.</div>`:'';const [l,u]=MINLBL[p.lg];return `<div class="cap">${l}: avg ${Math.round(p.mn.avg*10)/10}${u==='%'?'%':' '+u} last ${Math.min(5,p.games.length)} · projected ${p.mn.proj}${u==='%'?'%':' '+u}</div>`};
 const trust=p=>`<div class="cap"><span class="ok">✓ Real stats</span> · ${p.sources.filter(s=>!/^Props/.test(s[0])).map(s=>s[0]).join(' + ')} · checked ${DATA.checked}</div>`;
@@ -433,8 +457,9 @@ function upcomingHTML(l){
 }
 function renderMain(){
  const l=lgOf(state.lg);
- let html=`<div class="mode"><button data-mode="today" aria-pressed="${state.mode==='today'}">Today</button><button data-mode="props" aria-pressed="${state.mode==='props'}">Props</button><button data-mode="parlays" aria-pressed="${state.mode==='parlays'}">Parlays</button><button data-mode="more" aria-pressed="${state.mode==='more'}">More</button></div>`;
+ let html=`<div class="mode"><button data-mode="today" aria-pressed="${state.mode==='today'}">Today</button><button data-mode="props" aria-pressed="${state.mode==='props'}">Props</button><button data-mode="fantasy" aria-pressed="${state.mode==='fantasy'}">Fantasy</button><button data-mode="parlays" aria-pressed="${state.mode==='parlays'}">Parlays</button><button data-mode="more" aria-pressed="${state.mode==='more'}">More</button></div>`;
  if(state.mode==='parlays'){$('#main').innerHTML=html+parlaysHTML();return}
+ if(state.mode==='fantasy'){$('#main').innerHTML=html+fantasyHTML(l);return}
  const ps=P.filter(p=>p.lg===l.id&&onSlate(p));
  const good=ps.filter(p=>['pick','longshot'].includes(p.state)).sort((a,b)=>b.best.ev.stars-a.best.ev.stars);
  const bad=ps.filter(p=>['killed','blocked'].includes(p.state)),none=ps.filter(p=>p.state==='noline');
@@ -489,6 +514,32 @@ function lineupsHTML(l,ps){
   ${out.length?`<div class="cap" style="margin-top:6px"><b>Out / questionable</b></div>${out.map(x=>`<div class="row between"><span>${x.name} <span class="cap">${x.pos}</span></span><span class="pill ${x.role==='out'?'p-stay':'p-long'}">${x.role}</span></div>`).join('')}`:''}
   ${bn.length?`<details><summary class="cap" style="cursor:pointer;margin-top:6px"><b>Bench (${bn.length})</b></summary>${bn.map(x=>`<div class="row between"><span>${x.name} <span class="cap">${x.pos}${x.num?' · #'+x.num:''}</span></span></div>`).join('')}</details>`:''}</div>`}).join('');
 }
+function fanDvp(p){const d=p.fan&&p.fan.dvp;if(!d)return `<span class="cap">DvP: not checked yet</span>`;const g=d.rank>=21?'favorable':d.rank<=10?'hostile':'neutral';return `<span class="cap"><b>DvP:</b> ${d.pos||''} ${ordinal(d.rank)} of 30 · ${d.value}</span> <span class="pill ${g==='favorable'?'p-pick':g==='hostile'?'p-stay':'p-long'}">${g}</span>`}
+function fanCard(p){const F=p.fan,e=F.ev,st=e?e.status:'noline';
+ return `<button class="card" data-id="${p.id}" data-fan="1">
+  <div class="row between"><div style="min-width:0"><div class="pname">${p.name}</div><div class="team">${teamLine(p)}</div><div class="team">${gameLine(p)}</div></div>${e?pill(st):'<span class="pill p-long">No line</span>'}</div>
+  <div class="stats"><div class="stat"><span>Last 5 avg</span><b>${F.l5.toFixed(1)}</b></div><div class="stat"><span>Last ${F.n10} avg</span><b>${F.l10.toFixed(1)}</b></div><div class="stat"><span>Projected</span><b>${F.proj.toFixed(1)}</b></div></div>
+  ${e?`<div class="row"><span class="prop">Over ${F.prop.line} fantasy pts</span><span class="odds">${fo(F.prop.odds)}</span></div><div class="${st==='pick'||st==='longshot'?'why':'reason'}">${st==='pick'||st==='longshot'?`Beat ${F.prop.line} in <strong>${e.k} of his last ${e.n}</strong>`:e.reasons[0]||''}</div><div class="cap">${F.prop.book}</div>`:`<div class="cap">No fantasy line posted, so no stamp. Projection only.</div>`}
+  <div class="row" style="flex-wrap:wrap">${fanDvp(p)}</div>
+  ${e&&e.stars&&(st==='pick'||st==='longshot')?`<div class="row"><span class="sv">Secure Value <b>${e.stars}</b></span>${meter(e.stars)}</div>`:''}
+ </button>`}
+function fantasyHTML(l){
+ const sys=FSYS[FSYSSEL],ps=P.filter(p=>p.lg===l.id&&onSlate(p)),withF=ps.filter(p=>p.fan).sort((a,b)=>(rank[(b.fan.ev||{}).status]||0)-(rank[(a.fan.ev||{}).status]||0)||b.fan.proj-a.fan.proj),without=ps.filter(p=>!p.fan);
+ let html=`<div class="slate"><h1>${l.name} fantasy</h1><p>${withF.length} players · ${withF.filter(p=>p.fan.ev&&p.fan.ev.status==='pick').length} stamped</p></div>
+ <div class="row between"><span class="cap">Scoring</span><div class="toggle"><button data-fsys="dk" aria-pressed="${FSYSSEL==='dk'}">DraftKings</button><button data-fsys="ud" aria-pressed="${FSYSSEL==='ud'}">Underdog</button></div></div>`;
+ if(!sys[l.id])return html+`<div class="empty"><h3>Fantasy scoring for ${l.name} comes next</h3>NBA and NFL use DraftKings and Underdog scoring now. ${l.name} scoring is next on the list.</div>`+upcomingHTML(l);
+ if(!ps.length)return html+noSlate(l)+upcomingHTML(l);
+ html+=`<div class="cap">Same rules as props: today's games only, last 5 decides, stamped only when a fantasy line is posted and he beat it in enough of his last 5 with a cushion. Projection is his last-5 average scaled to projected minutes.${withF.some(p=>p.fan.noTO)?' Turnovers are not counted yet; the next data run adds them.':''}</div>`;
+ if(withF.length)html+=`<div class="list">${withF.map(fanCard).join('')}</div>`;
+ if(without.length)html+=`<div class="empty"><h3>${without.length} player${without.length>1?'s':''} waiting on a full stat line</h3>${without.map(p=>p.name).join(', ')}. Fantasy points need every scoring stat (for NFL: passing, rushing and receiving yards, touchdowns, catches, interceptions). The next data run collects them.</div>`;
+ return html;
+}
+function fantasyPanel(p){const F=p.fan;if(!F)return '';const ch=chartSVG(p,Math.min(state.count,p.games.length),'fantasy',F.prop?F.prop.line:F.proj,F.prop?'Line':'Projected');
+ return `<div class="panel"><div class="row between"><h4>Fantasy points · ${FSYS[F.sys].name}</h4><div class="toggle"><button data-count="5" aria-pressed="${state.count===5}">Last 5</button><button data-count="10" aria-pressed="${state.count===10}">Last 10</button></div></div>
+  <div class="chartbox">${ch.svg}<div class="tip" hidden></div></div>
+  <div class="stats"><div class="stat"><span>Last 5 avg</span><b>${F.l5.toFixed(1)}</b></div><div class="stat"><span>Last ${F.n10} avg</span><b>${F.l10.toFixed(1)}</b></div><div class="stat"><span>Projected</span><b>${F.proj.toFixed(1)}</b></div></div>
+  <div class="row" style="flex-wrap:wrap">${fanDvp(p)}</div>
+  <div class="cap">${F.why}${F.prop?` Line: over ${F.prop.line} (${fo(F.prop.odds)}, ${F.prop.book}).`:' No fantasy line posted.'}${F.noTO?' Turnovers not counted yet.':''}</div></div>`}
 function rulesHTML(lg){
  const base=`<div class="rules"><h3>Every sport</h3><ul>
   <li>Current season only. No prior-season, career or preseason stats for props.</li>
@@ -505,6 +556,7 @@ function rulesHTML(lg){
   <li>Every stat is checked on two sources: ESPN plus the league's own stats site (NBA.com, NFL.com, FBref for soccer, ATP/WTA, PGATOUR.com). ESPN is the final word.</li>
   <li>Injuries come from the official league report first (NBA injury report, NFL practice reports, Premier League injury list), then ESPN and Rotowire.</li>
   <li>Payouts come from the book's posted price, never from math.</li>
+  <li>Fantasy points: DraftKings or Underdog scoring, computed from the verified box score. Projection = last-5 average scaled to projected minutes. A fantasy pick is stamped by the same rules as any prop, against a posted fantasy line (Underdog, PrizePicks-style), with DvP on fantasy points allowed to his position.</li>
   <li>Current day only. No future picks. Lineups refresh before every game; starters are confirmed about 20 minutes before tip.</li></ul></div>
   <div class="rules"><h3>Props leans <span class="pill p-long">New draft</span></h3><ul>
   <li>Stamped picks pass the full rules. Props is every player on today's slate with a line, each with a lean and the reason.</li>
@@ -567,8 +619,8 @@ function parlaysHTML(){
 
 /* ---------- charts ---------- */
 const MONO='IBM Plex Mono,monospace';
-function chartSVG(p,count){
- const b=p.best,stat=b?b.stat:Object.keys(p.games[0].s).find(k=>p.games.some(g=>g.s[k]!=null)),line=b?b.line:null;
+function chartSVG(p,count,ostat,oline,olabel){
+ const b=p.best,stat=ostat||(b?b.stat:Object.keys(p.games[0].s).find(k=>p.games.some(g=>g.s[k]!=null))),line=ostat?oline:(b?b.line:null);
  const rows=p.games.filter(g=>g.s[stat]!=null).slice(0,count),vals=[...rows].reverse(),fin=stat==='finish';
  const W=360,H=190,top=22,bot=30,left=4,right=70,ph=H-top-bot,slots=Math.max(vals.length,5),sw=(W-left-right)/slots,bw=Math.min(30,sw*.62);
  const sc=v=>fin?Math.max(1,60-Math.min(v,60)):v;
@@ -581,7 +633,7 @@ function chartSVG(p,count){
   <text x="${(x+bw/2).toFixed(1)}" y="${H-10}" text-anchor="middle" font-size="10" fill="var(--muted)">${md(row.d)}</text>
   <rect class="hitzone" data-tip="${tip}" x="${(left+i*sw).toFixed(1)}" y="0" width="${sw.toFixed(1)}" height="${H}" fill="transparent"/>`});
  if(line!=null&&stat!=='cut'){const ly=top+ph-sc(line)/maxv*ph;
-  g+=`<line x1="${left}" x2="${W-right+4}" y1="${ly.toFixed(1)}" y2="${ly.toFixed(1)}" stroke="var(--accent)" stroke-width="1.5" stroke-dasharray="5 4"/><text x="${W-right+8}" y="${(ly-4).toFixed(1)}" font-size="10" font-weight="600" fill="var(--accent)">Prediction</text><text x="${W-right+8}" y="${(ly+11).toFixed(1)}" font-family="${MONO}" font-size="11" fill="var(--accent)">${fin?'Top '+line:line}</text>`}
+  g+=`<line x1="${left}" x2="${W-right+4}" y1="${ly.toFixed(1)}" y2="${ly.toFixed(1)}" stroke="var(--accent)" stroke-width="1.5" stroke-dasharray="5 4"/><text x="${W-right+8}" y="${(ly-4).toFixed(1)}" font-size="10" font-weight="600" fill="var(--accent)">${olabel||'Prediction'}</text><text x="${W-right+8}" y="${(ly+11).toFixed(1)}" font-family="${MONO}" font-size="11" fill="var(--accent)">${fin?'Top '+line:line}</text>`}
  return {svg:`<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="${stat} game log">${g}</svg>`,stat,n:rows.length};
 }
 function teamChart(g,side){
@@ -620,6 +672,7 @@ function playerSheet(p){
   <div class="stats"><div class="stat"><span>L5 avg</span><b>${avg}</b></div><div class="stat"><span>L5 hit</span><b>${e?`${e.k}/${e.n}`:'—'}</b></div><div class="stat"><span>Season</span><b>${total} ${lg.u}</b></div></div>
   ${p.mn?`<div class="stats" style="grid-template-columns:1fr 1fr"><div class="stat"><span>Avg ${ml.toLowerCase()} (L5)</span><b>${Math.round(p.mn.avg*10)/10}${mu==='%'?'%':' '+mu}</b></div><div class="stat"><span>Projected ${p.lg==='nfl'?'snaps':'tonight'}</span><b>${p.mn.proj}${mu==='%'?'%':' '+mu}</b></div></div><div class="cap">${p.mn.why}</div>`:p.lg==='nfl'?`<div class="cap">Snap share: not found on the sources checked.</div>`:''}
  </div>
+ ${fantasyPanel(p)}
  ${p.alts.length?`<div class="panel"><h4>Alt lines</h4>${altTable(p,true)}<div class="cap">Judged on hit rate only. Alt prices were not verified, so check your book. Crossed-out lines fail the hit-rate rule.</div></div>`:''}
  ${crowdPanel()}
  <div class="panel"><div class="row between"><h4>Matchup checks</h4>${p.matchup&&p.matchup.grade?`<span class="pill ${p.matchup.grade==='favorable'?'p-pick':p.matchup.grade==='hostile'?'p-stay':'p-long'}">${p.matchup.grade}</span>`:''}</div><ul class="checks">${CHECKS[p.lg].map(c=>{const v=p.matchup&&p.matchup.checks&&p.matchup.checks[c];const d=v!=null||(DONE[p.lg]||[]).includes(c);return `<li><span class="${d?'ok':'wn'}">${d?'✓':'!'}</span><span>${c}${v!=null?` <span class="mu">— ${v}</span>`:d?'':' <span class="mu">— not checked yet</span>'}</span></li>`}).join('')}</ul><div class="cap">${p.matchup&&p.matchup.why?p.matchup.why+' ':''}${p.matchup&&p.matchup.grade?'A favorable matchup is what lifts a 4-of-5 to a 9.':'Unchecked items mean no matchup bump; the next data run fills them in.'}</div></div>
@@ -661,7 +714,8 @@ sheet.addEventListener('pointerout',e=>{const z=e.target.closest('[data-tip]');i
 
 function render(){renderTabs();renderMain();save()}
 $('#tabs').addEventListener('click',e=>{const b=e.target.closest('[data-lg]');if(!b)return;state.lg=b.dataset.lg;render()});
-$('#main').addEventListener('click',e=>{const md_=e.target.closest('[data-mode]');if(md_){state.mode=md_.dataset.mode;renderMain();save();return}
+$('#main').addEventListener('click',e=>{const fs=e.target.closest('[data-fsys]');if(fs){FSYSSEL=fs.dataset.fsys;try{localStorage.setItem('stamped-fsys',FSYSSEL)}catch(_){}P.forEach(p=>setFantasy(p,FSYSSEL));renderMain();return}
+ const md_=e.target.closest('[data-mode]');if(md_){state.mode=md_.dataset.mode;renderMain();save();return}
  const v=e.target.closest('[data-view]');if(v){state.view=v.dataset.view;renderMain();save();return}
  const c=e.target.closest('[data-id]');if(c){openSheet(c.dataset.id);return}
  const gm=e.target.closest('[data-game]');if(gm)openGame(gm.dataset.game)});
