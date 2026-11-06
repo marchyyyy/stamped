@@ -54,6 +54,19 @@
 .lv-odds2 span{display:block;font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
 .lv-odds2 div:first-child span{color:var(--hit)}
 .lv-odds2 b{font-family:var(--f-mono);font-size:17px;font-variant-numeric:tabular-nums}
+/* Heartbeat line: Stamped % over time, dashed line = what the price implies. Green rising, red falling. */
+.lv-ekg{--ekg:var(--muted);display:grid;gap:3px}
+.lv-ekg.up{--ekg:var(--hit)}.lv-ekg.dn{--ekg:var(--miss)}
+.lv-ekg-plot{position:relative;height:46px;background:var(--chip);border-radius:8px;overflow:hidden;
+ background-image:linear-gradient(var(--line) 1px,transparent 1px),linear-gradient(90deg,var(--line) 1px,transparent 1px);background-size:100% 11.5px,25px 100%;background-position:0 -1px,-1px 0}
+.lv-ekg-plot svg{position:absolute;inset:0;width:100%;height:100%}
+.lv-ekg-line{fill:none;stroke:var(--ekg);stroke-width:2.2;stroke-linejoin:round;stroke-linecap:round;vector-effect:non-scaling-stroke;filter:drop-shadow(0 0 2px var(--ekg))}
+.lv-ekg-book{stroke:var(--muted);stroke-width:1.2;stroke-dasharray:4 4;vector-effect:non-scaling-stroke}
+.lv-ekg-dot{position:absolute;right:2px;width:8px;height:8px;margin-top:-4px;border-radius:50%;background:var(--ekg);box-shadow:0 0 0 0 var(--ekg);animation:lvbeat 1.4s infinite}
+@keyframes lvbeat{0%{box-shadow:0 0 0 0 var(--ekg)}70%{box-shadow:0 0 0 7px transparent}100%{box-shadow:0 0 0 0 transparent}}
+@media (prefers-reduced-motion:reduce){.lv-ekg-dot{animation:none}}
+.lv-ekg-cap{display:flex;justify-content:space-between;font-size:11px;color:var(--muted);font-family:var(--f-mono)}
+.lv-ekg-cap span:first-child{color:var(--ekg);font-weight:600}
 #lv-toasts{position:fixed;left:50%;bottom:calc(16px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);z-index:60;display:grid;gap:6px;width:min(480px,calc(100vw - 32px))}
 .lv-toast{background:var(--ink);color:var(--bg);border-radius:10px;padding:10px 14px;font-size:13px;box-shadow:0 8px 24px rgba(0,0,0,.3);animation:up .2s ease-out}
 @media (prefers-reduced-motion:reduce){.lv-toast{animation:none}}

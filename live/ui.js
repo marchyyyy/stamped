@@ -19,7 +19,7 @@ const ui={
  paper:load('stamped-live-paper',[]),
  seen:new Set(load('stamped-live-seen',[])),anchor:{},log:[],
  view:{},status:null,accuracy:undefined,open:null,calc:{key:'game',line:'',price:''},data:null,
- secs:load('stamped-live-secs',{})
+ secs:load('stamped-live-secs',{}),trend:load('stamped-live-trend',{})
 };
 let feed=null,root=null,hooks={};
 
@@ -45,6 +45,7 @@ function analyze(g){
  const v={id:g.id,key,st,sim,q,market:g.market||null,opps,proj:sim.mean('game'),players:same?prev.players:null,at:same?prev.at:now,sources:sourcesOf(g)};
  v.props=g.props||null;
  v.propOpps=st.status==='in'&&g.props?E.propOpportunities(st,players(v),g.props,q,now,{minEdge:.03}):[];
+ if(!same&&st.status==='in'){[...opps,...v.propOpps].forEach(o=>track(o,now));saveTrend()}
  const al=E.alertsFor(prev?{state:prev.st,market:prev.market}:null,{state:st,market:v.market,proj:st.status==='in'?v.proj:null,opps:[...opps,...v.propOpps]},{now,anchor:ui.anchor},ui.cfg,ui.seen);
  if(prev||st.status==='in')al.forEach(fire);
  paperLog(v);
@@ -96,11 +97,11 @@ function qtable(v){const c=colsFor(v),st=v.st;
   <tr><td>${esc(st.away.abbr)}</td>${c.map(k=>cell(v,k,'a')).join('')}</tr>
   <tr><td>${esc(st.home.abbr)}</td>${c.map(k=>cell(v,k,'h')).join('')}</tr>
   <tr class="lv-tot"><td>Total</td>${c.map(k=>cell(v,k,'')).join('')}</tr></tbody></table></div>
-  <div class="cap"><span class="lv-act">Bold</span> = final. Grey = the computer's guess.</div>`}
+  <div class="cap"><span class="lv-act">Bold</span> = final. Grey = Stamped's guess.</div>`}
 /* Four columns so the line tables fit a phone; the rule result sits under the bet name. */
 const oppName=o=>o.market==='Prop'?`${esc(o.player)} ${o.target}+ ${esc(o.stat)}`:`${esc(o.side)} ${o.line!=null?(o.market==='Spread'&&o.line>0?'+':'')+o.line:''} ${o.market==='Total'?'total':o.market==='Moneyline'?'to win':''}`;
 function oppRow(o){return `<tr class="${o.qualifies?'':'dim'}"><td>${oppName(o)}<div class="cap">${o.qualifies?'Passes every rule (practice pick)':esc([...o.rule.why,...o.gate.why].join(' '))}</div></td><td class="num">${fo(o.price)}</td><td class="num">${outOf(o.p)}%</td><td class="num ${o.ev>0?'up':'dn'}">${o.ev==null?'—':pc(o.ev)}</td></tr>`}
-const oppHead=()=>`<thead><tr><th>Bet</th><th class="num">Price</th><th class="num">Comp.</th><th class="num">Avg gain</th></tr></thead>`;
+const oppHead=()=>`<thead><tr><th>Bet</th><th class="num">Price</th><th class="num">Stamped</th><th class="num">Avg gain</th></tr></thead>`;
 function marketOk(o){const m=ui.filters.market,k=o.market==='Prop'?'props':o.market.toLowerCase();if(m!=='all'&&m!==k)return false;
  if(ui.filters.book==='yours')return false;
  if(!['all','game'].includes(ui.filters.period))return false;
@@ -117,27 +118,32 @@ function kidAsk(v,o){const st=v.st;
  if(o.market==='Total')return `Will the two teams score ${o.side==='Over'?'more':'fewer'} than ${o.line} points in all?`;
  if(o.market==='Moneyline')return `Will the ${esc(o.side)} win the game?`;
  const n=Math.abs(o.line);return o.line<0?`Will the ${esc(o.side)} win by ${Math.floor(n)+1} or more points?`:`Will the ${esc(o.side)} win, or lose by ${Math.floor(n)} points or less?`}
-function kidNow(v,o){const st=v.st,score=`${esc(st.away.name)} ${st.away.pts}, ${esc(st.home.name)} ${st.home.pts}`;
- if(o.market==='Prop')return `He has <b>${o.now}</b> so far, after ${Math.round((v.st.players.find(p=>p.id===o.playerId)||{}).min||0)} minutes. Score: ${score} (${statusLine(st)}).`;
- return `Score: ${score} (${statusLine(st)}).`}
-function kidGuess(v,o){const sim=v.sim,st=v.st;
- if(o.market==='Prop')return `Our computer guesses he ends with about <b>${Math.round(o.proj.mean)}</b>.`;
- if(o.market==='Total')return `Our computer guesses about <b>${Math.round(sim.mean('game'))}</b> points in all.`;
- const m=sim.mean('game:m'),lead=m>=0?st.home.name:st.away.name;return Math.abs(m)<1?'Our computer guesses a very close finish.':`Our computer guesses the ${esc(lead)} win by about <b>${Math.round(Math.abs(m))}</b>.`}
 function kidLine(v,o){const st=v.st,score=`${esc(st.away.abbr)} ${st.away.pts}–${st.home.pts} ${esc(st.home.abbr)}, ${statusLine(st)}`;
- if(o.market==='Prop')return `Has ${o.now} now · computer guesses ${Math.round(o.proj.mean)} · ${score}`;
- if(o.market==='Total')return `Computer guesses ${Math.round(v.sim.mean('game'))} total · ${score}`;
+ if(o.market==='Prop')return `Has ${o.now} now · Stamped guesses ${Math.round(o.proj.mean)} · ${score}`;
+ if(o.market==='Total')return `Stamped guesses ${Math.round(v.sim.mean('game'))} total · ${score}`;
  return score}
+/* Stamped % history per bet, recorded each time the game state changes, so the card can draw it as a heartbeat line. */
+function track(o,t){const a=ui.trend[o.id]||(ui.trend[o.id]=[]),p=Math.round(o.p*1000)/1000,last=a[a.length-1];
+ if(!last||last[1]!==p)a.push([t,p]);if(a.length>60)a.splice(0,a.length-60)}
+function saveTrend(){const cut=Date.now()-6*3600e3;Object.keys(ui.trend).forEach(k=>{const a=ui.trend[k];if(!a.length||a[a.length-1][0]<cut)delete ui.trend[k]});store('stamped-live-trend',ui.trend)}
+function ekg(o){const W=300,H=46,raw=(ui.trend[o.id]||[]).slice(-40),pts=raw.length?raw:[[Date.now(),o.p]];
+ const ys=[...pts.map(x=>x[1]),o.novig],lo=Math.max(0,Math.min(...ys)-.03),hi=Math.min(1,Math.max(...ys)+.03),Y=p=>(H-5-(p-lo)/((hi-lo)||1)*(H-10)).toFixed(1);
+ /* Heartbeat look: each step holds flat, then jumps to the new value. */
+ let d;if(pts.length<2)d=`M0 ${Y(pts[0][1])} H${W}`;else{const dx=W/(pts.length-1);d=`M0 ${Y(pts[0][1])}`;pts.slice(1).forEach((x,i)=>{const x0=i*dx;d+=` H${(x0+dx*.7).toFixed(1)} L${(x0+dx).toFixed(1)} ${Y(x[1])}`})}
+ const ch=pts.length>1?pts[pts.length-1][1]-pts[0][1]:0,dir=ch>.0005?'up':ch<-.0005?'dn':'flat',mins=pts.length>1?Math.max(1,Math.round((pts[pts.length-1][0]-pts[0][0])/60e3)):0;
+ return `<div class="lv-ekg ${dir}"><div class="lv-ekg-plot"><svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" aria-hidden="true"><line x1="0" x2="${W}" y1="${Y(o.novig)}" y2="${Y(o.novig)}" class="lv-ekg-book"/><path d="${d}" class="lv-ekg-line"/></svg><span class="lv-ekg-dot" style="top:${(Y(pts[pts.length-1][1])/H*100).toFixed(1)}%"></span></div>
+  <div class="lv-ekg-cap"><span>${dir==='flat'?(pts.length>1?`Steady for ${mins} min`:'Tracking started'):`${dir==='up'?'▲':'▼'} ${Math.abs(Math.round(ch*100))||'<1'}% in ${mins} min`}</span><span>- - - Vegas says</span></div></div>`}
 function kidCard(v,o){
  return `<button class="card lv-kid" data-lv-game="${v.id}">
   <div class="lv-ask">${kidAsk(v,o)}</div>
   <div class="cap">${kidLine(v,o)}</div>
-  <div class="lv-odds2"><div><span>Computer</span><b>${outOf(o.p)} in 100</b></div><div><span>Price says</span><b>${outOf(o.novig)} in 100</b></div></div>
+  <div class="lv-odds2"><div><span>Stamped %</span><b>${outOf(o.p)}%</b></div><div><span>Vegas says</span><b>${outOf(o.novig)}%</b></div></div>
+  ${ekg(o)}
   <div class="row between"><span class="why">${usd(10)} at ${fo(o.price)} wins <b>${usd(10*(E.dec(o.price)-1))}</b></span><span class="pill p-long">Practice</span></div>
  </button>`}
 function oppList(vs){
  const qs=vs.flatMap(v=>[...v.opps,...(v.propOpps||[])].filter(o=>o.qualifies&&o.ev>0&&marketOk(o)&&playerOk(o)).map(o=>[v,o])).sort((a,b)=>b[1].ev-a[1].ev);
- return qs.length?`<div class="list">${qs.map(([v,o])=>kidCard(v,o)).join('')}</div><div class="cap">Only bets the computer thinks are priced too generously. It is still learning and can be wrong, so these are practice picks.</div>`
+ return qs.length?`<div class="list">${qs.map(([v,o])=>kidCard(v,o)).join('')}</div><div class="cap">Only bets Stamped thinks are priced too generously. It is still learning and can be wrong, so these are practice picks.</div>`
   :`<div class="empty"><h3>No good bets right now</h3>Every price is fair or worse. Waiting is the right move.</div>`}
 /* Collapsible sections keep their open/closed state across live repaints. */
 const secOpen=(k,title)=>`<details class="lv-sec" data-lv-sec="${k}" ${ui.secs[k]?'open':''}><summary>${title}</summary><div class="lv-secbody">`;
@@ -151,7 +157,7 @@ function playerOk(o){const t=ui.filters.player.trim().toLowerCase();return !t||(
 function playerPanel(vs){const t=ui.filters.player.trim().toLowerCase();if(!t&&ui.filters.market!=='props')return '';
  const rows=vs.flatMap(v=>players(v).filter(p=>!t||p.name.toLowerCase().includes(t)).map(p=>[v,p]));
  return `<h2 class="sec">Player projections</h2>${rows.length?`<div class="panel"><div class="chartbox">${ptable(rows)}</div>${propNote}</div>`:'<div class="empty">No player in an active game matches.</div>'}`}
-const propNote='<div class="cap">Now → the computer\'s guess for the final number.</div>';
+const propNote='<div class="cap">Now → Stamped\'s guess for the final number.</div>';
 /* Stacked rows instead of a wide table: name on top, "now → guess" per stat underneath. Fits a phone without sideways scrolling. */
 function ptable(rows){const ST=[['points','PTS'],['rebounds','REB'],['assists','AST'],['threes','3PM']];
  return `<div class="lv-pls">${rows.map(([v,p])=>`<div class="lv-pl"><div class="row between"><b>${esc(p.name)}</b><span class="cap">${esc(p.team==='home'?v.st.home.abbr:v.st.away.abbr)} · ${Math.round(p.min)}→${p.expMin} min${p.pf?` · ${p.pf} fouls`:''}</span></div>
@@ -162,7 +168,7 @@ function accuracyPanel(){const a=ui.accuracy,ps=paperStats();
    ${a.byCheckpoint.map(c=>`<tr><td>${esc(c.label)}</td><td class="num">${r1(c.maeTotal)}</td><td class="num">${c.maeNextQ!=null?r1(c.maeNextQ):'—'}</td><td class="num">${c.brierWin.toFixed(3)}</td></tr>`).join('')}</tbody></table>
    <div class="cap">"Off by" = average miss in points. Win score: lower is better (0.25 is a coin flip).</div>
    <div class="cap">${a.games} completed games, ${esc(a.range)}, model ${esc(a.modelVersion)}. Replayed from play-by-play using only what was known at each checkpoint. Pregame-only reference: final total MAE ${r1(a.pregameMae)}. ${esc((a.notes||[]).join(' '))}</div>
-   ${a.calibration&&a.calibration.length?`<div class="chartbox"><table class="lv-t"><thead><tr><th>Computer said</th><th class="num">Times</th><th class="num">Avg said</th><th class="num">Came true</th></tr></thead><tbody>${a.calibration.map(c=>`<tr><td>${esc(c.bucket)}</td><td class="num">${c.n}</td><td class="num">${pc(c.predicted)}</td><td class="num">${pc(c.observed)}</td></tr>`).join('')}</tbody></table></div>`:''}`;
+   ${a.calibration&&a.calibration.length?`<div class="chartbox"><table class="lv-t"><thead><tr><th>Stamped said</th><th class="num">Times</th><th class="num">Avg said</th><th class="num">Came true</th></tr></thead><tbody>${a.calibration.map(c=>`<tr><td>${esc(c.bucket)}</td><td class="num">${c.n}</td><td class="num">${pc(c.predicted)}</td><td class="num">${pc(c.observed)}</td></tr>`).join('')}</tbody></table></div>`:''}`;
  return `<h2 class="sec">Historical accuracy</h2><div class="panel">${bt}</div>
  <h2 class="sec">Paper record (this browser)</h2><div class="panel"><div class="stats"><div class="stat"><span>Logged</span><b>${ps.n}</b></div><div class="stat"><span>W-L-P</span><b>${ps.w}-${ps.l}-${ps.p}</b></div><div class="stat"><span>Units</span><b>${ps.u>=0?'+':''}${ps.u.toFixed(2)}</b></div></div>
   <div class="cap">${ps.settled?`ROI ${pc(ps.roi)} per pick · Brier ${ps.brier!=null?ps.brier.toFixed(3):'—'} · `:''}${ps.open} open. Flat 1 unit at the logged price, before latency (prices can move before you can bet). Recommendations stay Paper until a few hundred settled picks show positive results after costs.</div>
@@ -238,7 +244,7 @@ function sheet(id,refresh){const v=ui.view[id];if(!v)return;const st=v.st,R=v.si
   <input data-lv-calc="line" class="lv-num" inputmode="decimal" placeholder="Line" value="${esc(ui.calc.line)}"><input data-lv-calc="price" class="lv-num" inputmode="numeric" placeholder="Price" value="${esc(ui.calc.price)}"></div>
   <div id="lv-calc-out">${calcOut(v)}</div></div></details>
  ${secOpen('s-players','Player projections')}<div class="chartbox">${ptable(players(v).map(p=>[v,p]))}</div>${propNote}</div></details>
- ${secOpen('s-how','How the computer got this')}
+ ${secOpen('s-how','How Stamped got this')}
  <div class="cap">Model ${E.VERSION} · confidence ${cf.level}${cf.why.length?` (${esc(cf.why.join(', '))})`:''} · practice picks only, never places a bet.</div>
  <table><tbody>
   <tr><td>Pregame baseline</td><td>${esc(R.base.src||'none')} → total ${r1(R.base.T)}, ${esc(st.home.abbr)} margin ${R.base.M>=0?'+':''}${r1(R.base.M)}</td></tr>
