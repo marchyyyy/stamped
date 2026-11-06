@@ -72,6 +72,16 @@
 .lv-dffrow{gap:8px;padding:5px 0;border-top:1px solid var(--line);font-size:14px}
 .lv-dffrow>span:first-child{min-width:0}
 .lv-dffrow .mv{flex:none}
+/* NFL this week */
+.tlogo{width:20px;height:20px;object-fit:contain;vertical-align:-5px;margin-right:4px;flex:none}
+.nflw-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.nflw-g{display:grid;gap:2px;justify-items:start;text-align:left;background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:8px 10px;min-width:0}
+.nflw-g .cap{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
+.nflw-m{display:inline-flex;align-items:center;gap:3px;font-family:var(--f-disp);font-weight:800;font-size:17px;letter-spacing:.02em}
+.nflw-m .tlogo{width:22px;height:22px;margin:0}
+.nflw-m .cap{margin:0 1px}
+.nflw-g.sel{border-color:var(--accent);box-shadow:0 0 0 1px var(--accent)}
+.nflw-clear{font-size:12px;font-weight:600;border:1px solid var(--line);border-radius:999px;padding:3px 10px;color:var(--muted)}
 #lv-toasts{position:fixed;left:50%;bottom:calc(16px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);z-index:60;display:grid;gap:6px;width:min(480px,calc(100vw - 32px))}
 .lv-toast{background:var(--ink);color:var(--bg);border-radius:10px;padding:10px 14px;font-size:13px;box-shadow:0 8px 24px rgba(0,0,0,.3);animation:up .2s ease-out}
 @media (prefers-reduced-motion:reduce){.lv-toast{animation:none}}

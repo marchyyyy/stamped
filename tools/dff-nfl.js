@@ -8,7 +8,20 @@ const fs=require('node:fs'),path=require('node:path'),cp=require('node:child_pro
 const ROOT=path.join(__dirname,'..');
 const cfg=JSON.parse(fs.readFileSync(path.join(__dirname,'dff-nfl.json'),'utf8'));
 const arg=k=>{const i=process.argv.indexOf('--'+k);return i>0?process.argv[i+1]:null};
-const URL_=arg('url')||cfg.url,OUT=path.join(ROOT,cfg.out),push=!process.argv.includes('--no-push');
+let URL_=arg('url')||cfg.url;const OUT=path.join(ROOT,cfg.out),push=!process.argv.includes('--no-push');
+const UA={'User-Agent':'StampedProjections/1.0 (personal use; github.com/marchyyyy/stamped)'};
+const ymdET=t=>new Date(t).toLocaleDateString('en-CA',{timeZone:'America/New_York'});
+/* Finds this week's all-games DraftKings slate from the slate list DFF's own page loads (owner approved, 2026-11-06).
+   Picks the non-showdown slate with the most games starting today or later. On Mondays it starts from Sunday, because the
+   Sun-Mon slate (dated Sunday) is the one that still has tonight's game. */
+async function findSlate(){
+ const list=async d=>{const r=await fetch(`https://www.dailyfantasyfuel.com/data/slates/recent/NFL/draftkings?date=${d}&url=`,{headers:UA});return r.ok?r.json():null};
+ const today=ymdET(Date.now()),monday=new Date(today+'T12:00:00Z').getUTCDay()===1,from=monday?ymdET(Date.now()-864e5):today,first=await list(today);if(!first)return null;
+ const days=[...new Set([from,today,...(first.dates||[]).map(x=>x.start_date)])].filter(d=>d>=from).sort().slice(0,4);
+ for(const d of days){const L=d===today?first:await list(d);
+  const best=((L&&L.slates)||[]).filter(s=>!s.showdown_flag&&s.game_count>1).sort((a,b)=>b.game_count-a.game_count)[0];
+  if(best)return{url:`https://www.dailyfantasyfuel.com/nfl/projections/draftkings/${d}?slate=${best.url}`,date:d,name:best.slate_type,games:best.game_count}}
+ return null}
 const log=m=>console.log(`[${new Date().toLocaleString('en-US',{timeZone:'America/New_York'})} ET] ${m}`);
 
 /* DFF's NFL column order (from its download handler). */
@@ -30,12 +43,16 @@ function parse(html){
 function git(args){return cp.execFileSync('git',args,{cwd:ROOT,encoding:'utf8',stdio:['ignore','pipe','pipe']}).trim()}
 
 (async()=>{
+ if(!arg('url')){try{const s=await findSlate();
+  if(s){if(s.url!==cfg.url){cfg.url=s.url;fs.writeFileSync(path.join(__dirname,'dff-nfl.json'),JSON.stringify(cfg,null,1)+'\n')}URL_=s.url;log(`Slate found: ${s.name}, ${s.games} games, ${s.date}.`)}
+  else log('No all-games slate found in the slate list; using the saved link.')}
+  catch(e){log('Slate lookup failed ('+(e.message||e)+'); using the saved link.')}}
  const date=(URL_.match(/(\d{4}-\d{2}-\d{2})/)||[])[1];
  const today=new Date().toLocaleDateString('en-CA',{timeZone:'America/New_York'});
  if(date&&date<new Date(Date.now()-864e5*2).toLocaleDateString('en-CA',{timeZone:'America/New_York'})){
   log(`Slate in tools/dff-nfl.json is for ${date}, which has passed. Not overwriting. Put this week's all-games slate link in tools/dff-nfl.json.`);process.exit(2)}
  log(`Fetching ${URL_}`);
- const r=await fetch(URL_,{headers:{'User-Agent':'StampedProjections/1.0 (personal use; github.com/marchyyyy/stamped)'}});
+ const r=await fetch(URL_,{headers:UA});
  if(!r.ok){log(`HTTP ${r.status}. Keeping the previous file.`);process.exit(1)}
  const p=parse(await r.text());
  /* Never replace good data with a broken page: a real all-games slate has hundreds of players. */
@@ -47,8 +64,8 @@ function git(args){return cp.execFileSync('git',args,{cwd:ROOT,encoding:'utf8',s
  if(!push)return;
  try{
   git(['pull','-q','--rebase','--autostash']);
-  git(['add',cfg.out]);
-  if(!git(['status','--porcelain','--',cfg.out])){log('No change since the last pull; nothing to push.');return}
+  git(['add',cfg.out,'tools/dff-nfl.json']);
+  if(!git(['status','--porcelain','--',cfg.out,'tools/dff-nfl.json'])){log('No change since the last pull; nothing to push.');return}
   git(['commit','-q','-m',`DFF NFL projections refresh (${p.rows.length} players, ${today} ${new Date().toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit',timeZone:'America/New_York'})} ET)`]);
   git(['push','-q','origin','main']);log('Pushed to GitHub.');
  }catch(e){log('Git step failed: '+String(e.stderr||e.message).trim());process.exit(1)}

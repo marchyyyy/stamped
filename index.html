@@ -201,7 +201,7 @@ button.lucell{cursor:pointer}button.lucell:hover{outline:1px solid var(--line)}
 .srcs{font-size:12px;color:var(--muted);word-break:break-all;display:grid;gap:3px}
 .srcs a{color:var(--muted)}
 </style>
-<link rel="stylesheet" href="live/live.css?v=20261106b">
+<link rel="stylesheet" href="live/live.css?v=20261106c">
 </head>
 <body>
 
@@ -230,7 +230,8 @@ button.lucell{cursor:pointer}button.lucell:hover{outline:1px solid var(--line)}
 <script src="live/engine.js?v=20261106a"></script>
 <script src="live/espn.js?v=20261106a"></script>
 <script src="live/ui.js?v=20261106b"></script>
-<script src="live/dff.js?v=20261106b"></script>
+<script src="live/dff.js?v=20261106c"></script>
+<script src="live/nflweek.js?v=20261106c"></script>
 <script>
 fetch('./data.json?v='+Date.now()).then(r=>r.json()).then(DATA=>{
 
@@ -554,19 +555,21 @@ function renderMain(){
  if(state.mode==='today'){
   html+=`<div class="slate"><h1>${slateTitle(l)}</h1><p>${ps.length||gs.length?`${good.filter(p=>p.state==='pick').length+tpicks.length} stamped · ${ps.length} players · ${gs.length} games`:''}</p></div>`;
   if(l.off)html+=`<div class="empty"><h3>MLB is in the offseason</h3>Picks return when the new season has games.</div>`;
-  else if(!ps.length&&!gs.length)html+=noSlate(l)+upcomingHTML(l);
+  else if(!ps.length&&!gs.length)html+=(l.id==='nfl'&&window.NFLW&&NFLW.weekHTML())||noSlate(l)+upcomingHTML(l);
   else{const picks=good.filter(p=>p.state==='pick'),longs=good.filter(p=>p.state==='longshot');
    html+=picks.length?`<div class="list">${picks.map(card).join('')}</div>`:`<div class="empty"><h3>No stamped props${none.length&&!ps.filter(p=>p.best).length?' yet':''}</h3>${ps.filter(p=>p.best).length?'Nothing earned a stamp today. See Props for leans.':'No book had a line for these players when we checked.'}</div>`;
    if(tpicks.length)html+=`<h2 class="sec">Team picks</h2><div class="list">${tpicks.map(([g])=>gameCard(g)).join('')}</div>`;
    if(longs.length)html+=`<h2 class="sec">Small-stakes longshots</h2><div class="list">${longs.map(card).join('')}</div>`;
-   const rev=ps.filter(p=>p.state==='review');if(rev.length)html+=`<h2 class="sec">Under review</h2><div class="cap">${rev.map(p=>p.name).join(', ')}. Check back closer to game time.</div>`}
+   const rev=ps.filter(p=>p.state==='review');if(rev.length)html+=`<h2 class="sec">Under review</h2><div class="cap">${rev.map(p=>p.name).join(', ')}. Check back closer to game time.</div>`;
+   if(l.id==='nfl'&&window.NFLW)html+=NFLW.moreHTML(P.filter(p=>p.lg==='nfl').map(p=>p.name))}
   $('#main').innerHTML=html;return;
  }
  if(state.mode==='props'){
   html+=`<div class="slate"><h1>${l.name} leans</h1><p>${ps.filter(p=>p.best&&p.state!=='blocked').length} players with lines</p></div>`;
   const withLine=ps.filter(p=>p.best&&p.state!=='blocked');
   html+=`<div class="cap">Every player on today's slate with a posted line, with a lean and the reason. Leans are not stamped picks; nothing here is a lock.</div>`;
-  html+=withLine.length?`<div class="list">${withLine.map(leanCard).join('')}</div>`:ps.length?`<div class="empty"><h3>No lines posted yet</h3>${ps.length} players are on today's slate but no book had a line when we checked.</div>`:noSlate(l)+upcomingHTML(l);
+  html+=withLine.length?`<div class="list">${withLine.map(leanCard).join('')}</div>`:ps.length?`<div class="empty"><h3>No lines posted yet</h3>${ps.length} players are on today's slate but no book had a line when we checked.</div>`:(l.id==='nfl'&&window.NFLW&&NFLW.weekHTML())||noSlate(l)+upcomingHTML(l);
+  if(l.id==='nfl'&&window.NFLW&&ps.length)html+=NFLW.moreHTML(P.filter(p=>p.lg==='nfl').map(p=>p.name));
   $('#main').innerHTML=html;return;
  }
  const views=[['teams','Teams'],['alts','Alts'],['lineups','Lineups'],['inj','Injuries'],['stay','Stay away'],...(VETTING?[['rules','Rules']]:[])];
@@ -861,7 +864,11 @@ $('#checked').textContent=DATA.checked;
 render();
 setInterval(()=>{if(state.mode!=='live')renderMain()},60000);
 if(window.LiveUI)LiveUI.start(DATA,{showSheet});
-if(window.DFF)DFF.load().then(()=>{if(state.mode==='fantasy')renderMain()});
+if(window.DFF){DFF.load().then(()=>{if(state.mode==='fantasy')renderMain()});setInterval(()=>DFF.load().then(()=>{if(state.mode==='fantasy'&&$('#scrim').hidden)renderMain()}),5*60e3)}
+if(window.NFLW)NFLW.start({showSheet,onChange:()=>{if(state.lg==='nfl'&&state.mode!=='live'&&$('#scrim').hidden)renderMain()}});
+/* New data from the daily pipeline: reload so every rule reruns on it, but never while a sheet is open or someone is typing. */
+setInterval(()=>fetch('./data.json?v='+Date.now()).then(r=>r.json()).then(d=>{if(d.checked===DATA.checked&&d.lineups_checked===DATA.lineups_checked&&d.dvp_checked===DATA.dvp_checked)return;
+ const go=()=>{if($('#scrim').hidden&&!/INPUT|SELECT|TEXTAREA/.test((document.activeElement||{}).tagName||''))location.reload()};go();setInterval(go,15e3)}).catch(()=>{}),5*60e3);
 
 }).catch(e=>{document.getElementById('main').innerHTML='<div class="empty"><h3>Could not load today\'s data</h3>Check your connection and pull to refresh.</div>'});
 </script>
