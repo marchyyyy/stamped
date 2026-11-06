@@ -239,6 +239,40 @@ function explain(sim,c){
  return w;
 }
 
+/* ---------- live player props (DraftKings "X+" milestones via ESPN) ----------
+   Only one-sided milestone bets are used: ESPN's over/under prop pairs carry no side label, and guessing it is not safe. */
+const STATV={points:p=>p.pts,rebounds:p=>p.reb,assists:p=>p.ast,threes:p=>p.tpm,PRA:p=>p.pts+p.reb+p.ast};
+function propOpportunities(st,projs,props,q,now,cfg){
+ if(!props||!(props.items||[]).length)return[];
+ const base=[];
+ if(st.status!=='in')base.push('Live props only run while the game is on.');
+ if(props.fetched==null||(now-props.fetched)/1000>RULES.live.maxOddsAgeSec)base.push('Prop odds are stale (over 90 s old).');
+ if(props.frozen)base.push('Prop prices have not moved in 3 minutes; the feed may be stuck.');
+ if(q.stale)base.push('Game feed is stale.');if(q.conflict)base.push('Score sources disagree.');
+ if(st.period>=4&&st.clock<RULES.live.noPickLastSec)base.push('Inside the last 2:00.');
+ if(st.status==='in'&&elapsedMin(st.period,st.clock)<6)base.push('Too early in the game.');
+ /* A milestone he has already reached that is still on the board means the book's prices for him are older than the box score.
+    Any "edge" on him would just be the model seeing a basket the price has not caught up with, so all his props are blocked. */
+ const lag={};props.items.forEach(m=>{const pl=(st.players||[]).find(x=>x.id===m.athleteId);if(pl&&STATV[m.stat]&&STATV[m.stat](pl)>=m.target)lag[pl.id]=`${m.target}+ ${m.stat} is still offered at ${m.price>0?'+':''}${m.price} though he already has ${STATV[m.stat](pl)}`});
+ const out=[];
+ props.items.forEach(m=>{const pp=projs.find(x=>x.id===m.athleteId),pl=(st.players||[]).find(x=>x.id===m.athleteId);if(!pp||!pl||!STATV[m.stat])return;
+  const why=[...base];
+  if(lag[pl.id])why.push(`His prices are behind the score (${lag[pl.id]}).`);
+  if(!pp.hist)why.push('No recent games on file for him, so the model would be guessing.');
+  if(pl.pf>=6||pl.dnp||pl.out||pl.ejected)why.push('Not playing.');
+  if(pl.injuryNote)why.push('Possible injury.');
+  const cur=STATV[m.stat](pl),p=cur>=m.target?1:pp.probOver(m.stat,m.target-.5);
+  const c={market:'Prop',stat:m.stat,target:m.target,line:m.target,side:pl.name,player:pl.name,playerId:pl.id,team:pl.team,price:m.price,book:props.book,
+   p,novig:imp(m.price),edge:p-imp(m.price),ev:p*(dec(m.price)-1)-(1-p),fair:fair(p),now:cur,proj:pp.stats[m.stat],expMin:pp.expMin};
+  c.rule=grade(c,cfg);c.gate={ok:!why.length,why};c.qualifies=c.rule.ok&&c.gate.ok;c.paper=true;c.modelVersion=VERSION;c.confidence=pp.hist?'Medium':'Low';
+  c.id=[st.id,'Prop',pl.id,m.stat,m.target].join('|');
+  c.alert=`${st.away.abbr} @ ${st.home.abbr}: Paper pick ${pl.name} ${m.target}+ ${m.stat} at ${m.price>0?'+':''}${m.price}, edge ${(c.edge*100).toFixed(1)} pts.`;
+  c.why=[`${pl.name} has ${cur} ${m.stat} after ${pl.min} minutes; projected ${pp.stats[m.stat].mean.toFixed(1)} (80% range ${pp.stats[m.stat].lo}–${pp.stats[m.stat].hi}) over about ${pp.expMin} minutes.`,
+   `Model ${pctTxt(p)} to reach ${m.target}+ vs ${pctTxt(imp(m.price))} implied by ${m.price>0?'+':''}${m.price} (vig included).`];
+  out.push(c)});
+ return out.sort((a,b)=>(b.qualifies-a.qualifies)||(b.ev-a.ev));
+}
+
 /* ---------- data quality ---------- */
 /* Stale: the game is in progress but neither the clock nor the score has moved for staleSec of wall time (timeouts and reviews can do this too). */
 function freshness(prev,next,now,staleSec){
@@ -271,7 +305,7 @@ function alertsFor(prev,next,ctx,cfg,seen){
   if(a.total!=null&&b.total!=null&&Math.abs(b.total-a.total)>=cfg.lineDelta)push(`${id}|tot|${b.total}`,'line',`${nm}: live total ${a.total} → ${b.total} (${b.book}).`);
   if(a.homeSpread!=null&&b.homeSpread!=null&&Math.abs(b.homeSpread-a.homeSpread)>=cfg.lineDelta)push(`${id}|spr|${b.homeSpread}`,'line',`${nm}: ${st.home.abbr} spread ${a.homeSpread} → ${b.homeSpread}.`);
   if(!a.suspended&&b.suspended)push(`${id}|susp|${st.period}|${Math.round(st.clock)}`,'line',`${nm}: live market suspended.`)}
- if(cfg.opportunity)(next.opps||[]).filter(o=>o.qualifies).forEach(o=>push(`${id}|opp|${o.market}|${o.side}|${o.line}`,'opportunity',`${nm}: Paper pick ${o.side} ${o.line!=null?o.line:''} ${o.market} at ${o.price>0?'+':''}${o.price}, edge ${(o.edge*100).toFixed(1)} pts.`));
+ if(cfg.opportunity)(next.opps||[]).filter(o=>o.qualifies).forEach(o=>push(`${id}|opp|${o.market}|${o.side}|${o.stat||''}|${o.line}`,'opportunity',o.alert||`${nm}: Paper pick ${o.side} ${o.line!=null?o.line:''} ${o.market} at ${o.price>0?'+':''}${o.price}, edge ${(o.edge*100).toFixed(1)} pts.`));
  if(cfg.player){(st.players||[]).forEach(pl=>{
   if(pl.pf>=6)push(`${id}|fo|${pl.id}`,'player',`${nm}: ${pl.name} fouled out.`);
   else if(st.period<=4&&pl.pf>=FOUL_TROUBLE[st.period]&&pl.starter)push(`${id}|ft|${pl.id}|${pl.pf}`,'player',`${nm}: ${pl.name} in foul trouble (${pl.pf} fouls, ${periodName(st.period)}).`);
@@ -282,13 +316,15 @@ function alertsFor(prev,next,ctx,cfg,seen){
 /* ---------- paper trading ---------- */
 function settle(rec,st){
  if(st.status!=='post')return null;const h=st.home.pts,a=st.away.pts,m=h-a,t=h+a;let res;
- if(rec.market==='Total')res=t===rec.line?'push':(rec.side==='Over')===(t>rec.line)?'win':'loss';
+ if(rec.market==='Prop'){const pl=(st.players||[]).find(x=>x.id===rec.playerId);if(!pl||!STATV[rec.stat])return{result:'void',units:0};
+  res=STATV[rec.stat](pl)>=rec.target?'win':'loss'}
+ else if(rec.market==='Total')res=t===rec.line?'push':(rec.side==='Over')===(t>rec.line)?'win':'loss';
  else if(rec.market==='Spread'){const isH=rec.side===st.home.name,v=(isH?m:-m)+rec.line;res=v===0?'push':v>0?'win':'loss'}
  else{const isH=rec.side===st.home.name;res=(isH?m>0:m<0)?'win':'loss'}
  return{result:res,units:res==='win'?dec(rec.price)-1:res==='push'?0:-1};
 }
 
 const api={VERSION,NBA,RULES,ALERT_DEFAULTS,MKEYS,parseClock,elapsedMin,remainingRegMin,periodName,periodLen,mulberry32,hashStr,imp,dec,fair,noVig,
- possOf,baseline,rates,simulate,projectPlayer,playerHistory,confidence,grade,liveGate,priceSide,opportunities,freshness,reconcile,alertsFor,settle};
+ possOf,baseline,rates,simulate,projectPlayer,playerHistory,confidence,grade,liveGate,priceSide,opportunities,propOpportunities,freshness,reconcile,alertsFor,settle};
 if(typeof module!=='undefined'&&module.exports)module.exports=api;else root.LiveEngine=api;
 })(typeof globalThis!=='undefined'?globalThis:this);

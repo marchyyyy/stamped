@@ -173,6 +173,39 @@ test('ESPN adapter: box score, live odds sign and play-by-play without look-ahea
  assert.equal(cut.home.pts,2,'the 5:00 layup is after the cut');assert.equal(cut.away.pts,3);assert.equal(cut.away.tov,1);assert.equal(cut.home.fga,1);assert.deepEqual(cut.home.q,[2,0]);
 });
 
+test('live props: milestones parse, only priced edges qualify, rules and player status block the rest',()=>{
+ const raw={items:[
+  {type:{name:'Points Milestones'},athlete:{$ref:'http://x/athletes/7?lang=en'},odds:{american:{value:'+150'}},current:{target:{value:25}}},
+  {type:{name:'Points Milestones'},athlete:{$ref:'http://x/athletes/7?lang=en'},odds:{american:{value:'-3500'}},current:{target:{value:10}}},
+  {type:{name:'Total Points'},athlete:{$ref:'http://x/athletes/7?lang=en'},odds:{american:{value:'-110'}},current:{target:{value:24.5}}},
+  {type:{name:'Points Milestones - 1st Quarter'},athlete:{$ref:'http://x/athletes/7'},odds:{american:{value:'+200'}},current:{target:{value:8}}}]};
+ const P=S.fromProps(raw,1e6);
+ assert.equal(P.items.length,2,'only full-game milestones; unlabeled over/under pairs skipped');assert.deepEqual(P.items[0],{athleteId:'7',stat:'points',target:25,price:150});
+ const pl={id:'7',name:'Star Guy',team:'home',starter:true,min:24,pts:16,reb:4,ast:3,tpm:2,pf:1};
+ const data={players:[{lg:'nba',name:'Star Guy',id:'s',games:[{min:36,s:{points:28,rebounds:6,assists:5,threes:3}},{min:35,s:{points:26,rebounds:5,assists:6,threes:2}}]}]};
+ const st=game({period:3,clock:720,players:[pl]}),q={stale:false,conflict:false};
+ const pp=[E.projectPlayer(pl,st,data,{n:3000})];
+ const ops=E.propOpportunities(st,pp,P,q,1e6);
+ const m25=ops.find(o=>o.target===25),m10=ops.find(o=>o.target===10);
+ assert.ok(m25.p>.3&&m25.p<.9,`P(25+) ${m25.p}`);assert.ok(Math.abs(m25.ev-(m25.p*2.5-1))<1e-9,'EV uses the posted price');
+ assert.equal(m10.p,1,'already reached');assert.equal(m10.qualifies,false);assert.ok(m10.rule.why.some(w=>/−160/.test(w)));
+ assert.equal(m25.qualifies,false,'an already-reached milestone still on the board blocks his other props');assert.ok(m25.gate.why.some(w=>/behind the score/.test(w)));
+ P.items=P.items.filter(m=>m.target!==10);
+ const fouled=E.propOpportunities(game({period:3,clock:720,players:[{...pl,pf:6}]}),[E.projectPlayer({...pl,pf:6},st,data,{n:500})],P,q,1e6);
+ assert.ok(fouled.every(o=>!o.qualifies));assert.ok(fouled[0].gate.why.includes('Not playing.'));
+ const stale=E.propOpportunities(st,pp,{...P,fetched:0},q,200e3);assert.ok(stale.every(o=>!o.qualifies&&o.gate.why.some(w=>/stale/.test(w))));
+ const frozen=E.propOpportunities(st,pp,{...P,frozen:true},q,1e6);assert.ok(frozen.every(o=>!o.qualifies));
+ const noHist=E.propOpportunities(st,[E.projectPlayer(pl,st,null,{n:500})],P,q,1e6);assert.ok(noHist.every(o=>!o.qualifies));
+ const late=E.propOpportunities(game({period:4,clock:60,players:[pl]}),pp,P,q,1e6);assert.ok(late.every(o=>!o.qualifies));
+ /* With a fair-ish price the 25+ bet qualifies only when its edge sits between 3 and 10 points. */
+ const at=price=>E.propOpportunities(st,pp,{...P,items:[{athleteId:'7',stat:'points',target:25,price}]},q,1e6)[0];
+ for(let pr=100;pr<=400;pr+=5){const o=at(pr);if(o.qualifies){assert.ok(o.edge>=.03&&o.edge<=.10&&o.ev>0&&pr<300)}}
+ const fin=game({status:'post',period:4,clock:0,players:[{...pl,pts:27}]});
+ assert.equal(E.settle({market:'Prop',playerId:'7',stat:'points',target:25,price:150},fin).result,'win');
+ assert.equal(E.settle({market:'Prop',playerId:'7',stat:'points',target:30,price:150},fin).result,'loss');
+ assert.equal(E.settle({market:'Prop',playerId:'99',stat:'points',target:30,price:150},fin).result,'void');
+});
+
 test('existing betting rules in index.html are unchanged since the pre-live rollback point',()=>{
  const root=path.join(__dirname,'..','..');let old;
  try{old=cp.execSync('git show pre-live-v1:index.html',{cwd:root,encoding:'utf8',maxBuffer:1<<26})}catch(e){test.skip?.('rollback tag not available');return}

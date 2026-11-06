@@ -9,7 +9,8 @@ const CORE='https://sports.core.api.espn.com/v2/sports/basketball/leagues/nba';
 const URLS={
  scoreboard:d=>`${BASE}/scoreboard${d?`?dates=${d}`:''}`,
  summary:id=>`${BASE}/summary?event=${id}`,
- odds:id=>`${CORE}/events/${id}/competitions/${id}/odds`
+ odds:id=>`${CORE}/events/${id}/competitions/${id}/odds`,
+ props:id=>`${CORE}/events/${id}/competitions/${id}/odds/200/propBets?lang=en&region=us&limit=1000` // provider 200 = DraftKings live
 };
 const num=v=>v==null||v===''?null:+v;
 const made=s=>{const m=String(s||'').match(/^(\d+)-(\d+)$/);return m?[+m[1],+m[2]]:[0,0]};
@@ -65,6 +66,15 @@ function fromOdds(o,st,fetched){
  return m;
 }
 
+/* DraftKings live player props -> one-sided "X+" milestones. Quarter-only milestones and unlabeled over/under pairs are skipped. */
+const PROP_TYPES={'Points Milestones':'points','Rebounds Milestones':'rebounds','Assists Milestones':'assists','3-Point Field Goals Milestones':'threes','Points + Assists + Rebounds Milestones':'PRA'};
+function fromProps(o,fetched){const items=[];let sig='';
+ ((o&&o.items)||[]).forEach(x=>{const stat=PROP_TYPES[x.type&&x.type.name];if(!stat)return;
+  const id=(String((x.athlete&&x.athlete.$ref)||'').match(/athletes\/(\d+)/)||[])[1];
+  const target=num(x.current&&x.current.target&&x.current.target.value),price=num(x.odds&&x.odds.american&&x.odds.american.value);
+  if(!id||target==null||price==null||!isFinite(price))return;items.push({athleteId:id,stat,target,price});sig+=`${id}${stat}${target}:${price};`});
+ return{book:'DraftKings (live)',items,sig,fetched}}
+
 /* Play-by-play replay for the backtester: state using only plays strictly before the cut (no look-ahead). */
 function fromPlays(sum,cut){
  const comp=sum.header.competitions[0],h=comp.competitors.find(x=>x.homeAway==='home'),a=comp.competitors.find(x=>x.homeAway==='away');
@@ -116,13 +126,17 @@ class LiveFeed{
     const dup=p&&p.lastSeq===s.lastSeq&&p.status===s.status&&p.clock===s.clock&&p.home.pts===s.home.pts&&p.away.pts===s.away.pts;
     const fr=E.freshness(p,s,t);s.stillSince=fr.since;g.fresh=fr;g.prevSummary=p||null;g.summary=s;g.dup=dup;g.raw=d}
    catch(e){g.error=String(e.message||e)}
-   if(g.summary&&g.summary.status==='in'||(g.board&&g.board.status==='in')){try{const o=await this.get(URLS.odds(g.id)),t=this.now();g.prevMarket=g.market||null;g.market=fromOdds(o,g.summary||g.board,t)}catch(e){g.market=g.market?Object.assign({},g.market,{stale:true}):null;g.oddsError=String(e.message||e)}}
+   if(g.summary&&g.summary.status==='in'||(g.board&&g.board.status==='in')){try{const o=await this.get(URLS.odds(g.id)),t=this.now();g.prevMarket=g.market||null;g.market=fromOdds(o,g.summary||g.board,t)}catch(e){g.market=g.market?Object.assign({},g.market,{stale:true}):null;g.oddsError=String(e.message||e)}
+    /* Live prices tick constantly; a full prop board that has not changed for 3 minutes of play is treated as frozen. */
+    try{const pr=await this.get(URLS.props(g.id)),t=this.now(),P=fromProps(pr,t),prev=g.props;
+     P.since=prev&&prev.sig===P.sig?prev.since:t;P.frozen=!!(P.items.length&&(t-P.since)/1000>180&&g.summary&&g.summary.clock>0);g.props=P}
+    catch(e){g.propsError=String(e.message||e)}}
    g.updated=this.now();this.onUpdate(this,g);
    const st=g.summary&&g.summary.status;if(st==='post'||(st==='pre'&&g.board&&Date.parse(g.board.start)-this.now()>15*60e3)){g.loopOn=false;return}
    this.later(once,this.hidden()?this.every.hidden:this.every.summary)};
   once()}
 }
 
-const api={URLS,fromScoreboard,fromSummary,fromOdds,fromPlays,finalOf,pregameOf,LiveFeed};
+const api={URLS,fromScoreboard,fromSummary,fromOdds,fromProps,fromPlays,finalOf,pregameOf,LiveFeed};
 if(typeof module!=='undefined'&&module.exports)module.exports=api;else root.LiveESPN=api;
 })(typeof globalThis!=='undefined'?globalThis:this);

@@ -39,7 +39,9 @@ function analyze(g){
  const q={stale:!!fr.stale||!!(g.market&&g.market.stale),conflict:rc.conflict,why:[fr.why,rc.why].filter(Boolean)};
  const opps=st.status==='in'?E.opportunities(sim,mk,q,now,{minEdge:.03}):[];
  const v={id:g.id,key,st,sim,q,market:g.market||null,opps,proj:sim.mean('game'),players:same?prev.players:null,at:same?prev.at:now,sources:sourcesOf(g)};
- const al=E.alertsFor(prev?{state:prev.st,market:prev.market}:null,{state:st,market:v.market,proj:st.status==='in'?v.proj:null,opps},{now,anchor:ui.anchor},ui.cfg,ui.seen);
+ v.props=g.props||null;
+ v.propOpps=st.status==='in'&&g.props?E.propOpportunities(st,players(v),g.props,q,now,{minEdge:.03}):[];
+ const al=E.alertsFor(prev?{state:prev.st,market:prev.market}:null,{state:st,market:v.market,proj:st.status==='in'?v.proj:null,opps:[...opps,...v.propOpps]},{now,anchor:ui.anchor},ui.cfg,ui.seen);
  if(prev||st.status==='in')al.forEach(fire);
  paperLog(v);
  ui.view[g.id]=v;return v;
@@ -48,6 +50,7 @@ function sourcesOf(g){const o=[];
  if(g.summary)o.push(['ESPN box score + play-by-play',S.URLS.summary(g.id),g.summary.fetched]);
  if(g.board)o.push(['ESPN scoreboard',S.URLS.scoreboard(),g.board.fetched]);
  if(g.market)o.push([g.market.available?'DraftKings live odds (via ESPN)':'DraftKings live odds: not posted',S.URLS.odds(g.id),g.market.fetched]);
+ if(g.props)o.push([`DraftKings live player props (via ESPN), ${g.props.items.length} milestones${g.props.frozen?' — not moving':''}`,S.URLS.props(g.id),g.props.fetched]);
  if(g.summary&&g.summary.pregame)o.push(['Pregame baseline: '+g.summary.pregame.src,S.URLS.summary(g.id),g.summary.fetched]);
  return o}
 function players(v){if(v.players)return v.players;
@@ -55,8 +58,8 @@ function players(v){if(v.players)return v.players;
 
 /* ---------- paper trading (per browser; see README limitations) ---------- */
 function paperLog(v){let ch=false;
- v.opps.filter(o=>o.qualifies).forEach(o=>{if(ui.paper.some(x=>x.id===o.id))return;
-  ui.paper.push({id:o.id,game:v.id,name:`${v.st.away.abbr} @ ${v.st.home.abbr}`,market:o.market,side:o.side,line:o.line,price:o.price,book:o.book,p:o.p,edge:o.edge,ev:o.ev,
+ [...v.opps,...(v.propOpps||[])].filter(o=>o.qualifies).forEach(o=>{if(ui.paper.some(x=>x.id===o.id))return;
+  ui.paper.push({id:o.id,game:v.id,name:`${v.st.away.abbr} @ ${v.st.home.abbr}`,market:o.market,side:o.side,line:o.line,stat:o.stat,target:o.target,playerId:o.playerId,price:o.price,book:o.book,p:o.p,edge:o.edge,ev:o.ev,
    at:Date.now(),when:`${E.periodName(v.st.period)} ${clk(v.st.clock)}`,score:`${v.st.away.pts}-${v.st.home.pts}`,model:o.modelVersion,why:o.why,sources:v.sources.map(s=>[s[0],s[2]])});ch=true});
  if(v.st.status==='post')ui.paper.filter(x=>x.game===v.id&&!x.result).forEach(x=>{const r=E.settle(x,v.st);if(r){Object.assign(x,r,{final:`${v.st.away.pts}-${v.st.home.pts}`});ch=true}});
  if(ch)store('stamped-live-paper',ui.paper.slice(-500))}
@@ -92,7 +95,7 @@ function qtable(v){const c=colsFor(v),st=v.st;
   <div class="cap"><span class="lv-act">Bold</span> = actual (completed). Others = projected mean with 80% range. Q4 excludes overtime; 2H and Game include it.${v.st.status!=='post'&&v.sim.otRate()>.01?` Overtime chance ${pc(v.sim.otRate())}.`:''}</div>`}
 function oppRow(o,full){return `<tr class="${o.qualifies?'':'dim'}"><td>${esc(o.side)} ${o.line!=null?(o.market==='Spread'&&o.line>0?'+':'')+o.line:''} <span class="cap">${o.market}</span></td><td class="num">${fo(o.price)}</td><td class="num">${pc(o.p)}</td><td class="num">${pc(o.novig)}</td><td class="num ${o.edge>0?'up':'dn'}">${pts(o.edge)}</td><td class="num ${o.ev>0?'up':'dn'}">${o.ev==null?'—':pc(o.ev)}</td>${full?`<td class="cap">${o.qualifies?'Qualifies (Paper)':esc([...o.rule.why,...o.gate.why].join(' '))}</td>`:''}</tr>`}
 const oppHead=full=>`<thead><tr><th>Market</th><th class="num">Price</th><th class="num">Model</th><th class="num">No-vig</th><th class="num">Edge</th><th class="num">EV</th>${full?'<th>Rules</th>':''}</tr></thead>`;
-function marketOk(o){const m=ui.filters.market;if(m!=='all'&&m!==o.market.toLowerCase())return false;
+function marketOk(o){const m=ui.filters.market,k=o.market==='Prop'?'props':o.market.toLowerCase();if(m!=='all'&&m!==k)return false;
  if(ui.filters.book==='yours')return false;
  if(!['all','game'].includes(ui.filters.period))return false;
  if(o.edge==null||o.edge*100<(+ui.filters.minEdge||0))return false;
@@ -100,21 +103,47 @@ function marketOk(o){const m=ui.filters.market;if(m!=='all'&&m!==o.market.toLowe
 function teamOk(v){const t=ui.filters.team;return !t||v.st.home.abbr===t||v.st.away.abbr===t}
 function freshBadge(v){const a=v.q;return a.stale||a.conflict?`<span class="pill p-stay" title="${esc(a.why.join(' '))}">${a.conflict?'Conflict':'Stale'}</span>`:v.st.status==='in'?'<span class="live">Live</span>':''}
 function gameCard(v){const st=v.st,mk=v.market;
- const show=o=>marketOk(o);
+ const show=o=>o.ev>0&&marketOk(o);
  return `<div class="card lv-card">
   <div class="row between"><div style="min-width:0"><div class="pname">${esc(st.away.name)} at ${esc(st.home.name)}</div><div class="team">${statusLine(st)} · updated ${tm(v.at)}</div></div>${freshBadge(v)}</div>
   <div class="lv-score"><span>${esc(st.away.abbr)} <b>${st.away.pts}</b></span><span>${esc(st.home.abbr)} <b>${st.home.pts}</b></span></div>
   ${qtable(v)}
-  ${st.status==='in'?(mk&&mk.available&&!mk.suspended?`<div class="chartbox"><table>${oppHead(false)}<tbody>${v.opps.filter(show).map(o=>oppRow(o,false)).join('')||'<tr><td colspan="6" class="cap">No market matches the filters.</td></tr>'}</tbody></table></div><div class="cap">${esc(mk.book)} · odds ${tm(mk.fetched)}. Dimmed rows do not pass the rules.</div>`
+  ${st.status==='in'?(mk&&mk.available&&!mk.suspended?`<div class="chartbox"><table>${oppHead(false)}<tbody>${v.opps.filter(show).map(o=>oppRow(o,false)).join('')||'<tr><td colspan="6" class="cap">No line here pays more than it should.</td></tr>'}</tbody></table></div><div class="cap">${esc(mk.book)} · odds ${tm(mk.fetched)}. Only lines with positive expected value are listed; dimmed ones still fail a rule. ${(v.propOpps||[]).length} live player milestones checked.</div>`
    :`<div class="flag">${esc(mk&&mk.why||'Live odds not posted yet.')} Projections only; no edge without a price.</div>`):''}
   ${v.q.why.length?`<div class="cap">${esc(v.q.why.join(' '))}</div>`:''}
   <button class="btn" data-lv-game="${v.id}">Open live analysis</button>
  </div>`}
-function oppList(vs){const qs=vs.flatMap(v=>v.opps.filter(o=>o.qualifies&&marketOk(o)).map(o=>[v,o])).sort((a,b)=>b[1].ev-a[1].ev);
- return qs.length?`<div class="list">${qs.map(([v,o])=>`<button class="card" data-lv-game="${v.id}"><div class="row between"><div><div class="pname">${esc(o.side)} ${o.line!=null?(o.market==='Spread'&&o.line>0?'+':'')+o.line:''} ${o.market==='Total'?'total':o.market.toLowerCase()}</div><div class="team">${esc(v.st.away.abbr)} @ ${esc(v.st.home.abbr)} · ${statusLine(v.st)}</div></div><span class="pill p-long">Paper</span></div>
-  <div class="row"><span class="odds">${fo(o.price)} ${esc(o.book)}</span><span class="cap">Model ${pc(o.p)} · edge ${pts(o.edge)} pts · EV ${pc(o.ev)} · ${o.confidence} confidence</span></div>
-  <div class="why">${o.why.map(esc).join(' ')}</div></button>`).join('')}</div>`
-  :`<div class="empty"><h3>No qualifying live opportunities</h3>Nothing passes every rule right now. That is the expected state most of the time.</div>`}
+/* "Good bets right now": only picks with positive expected value that pass every rule, written in plain words. */
+const KSTAT={points:'points',rebounds:'rebounds',assists:'assists',threes:'three-pointers',PRA:'points, rebounds and assists added together'};
+const outOf=p=>Math.max(1,Math.min(99,Math.round(p*100)));
+const usd=x=>'$'+x.toFixed(2).replace(/\.00$/,'');
+function kidAsk(v,o){const st=v.st;
+ if(o.market==='Prop')return `Will ${esc(o.player)} get ${o.target} or more ${KSTAT[o.stat]}?`;
+ if(o.market==='Total')return `Will the two teams score ${o.side==='Over'?'more':'fewer'} than ${o.line} points in all?`;
+ if(o.market==='Moneyline')return `Will the ${esc(o.side)} win the game?`;
+ const n=Math.abs(o.line);return o.line<0?`Will the ${esc(o.side)} win by ${Math.floor(n)+1} or more points?`:`Will the ${esc(o.side)} win, or lose by ${Math.floor(n)} points or less?`}
+function kidNow(v,o){const st=v.st,score=`${esc(st.away.name)} ${st.away.pts}, ${esc(st.home.name)} ${st.home.pts}`;
+ if(o.market==='Prop')return `He has <b>${o.now}</b> so far, after ${Math.round((v.st.players.find(p=>p.id===o.playerId)||{}).min||0)} minutes. Score: ${score} (${statusLine(st)}).`;
+ return `Score: ${score} (${statusLine(st)}).`}
+function kidGuess(v,o){const sim=v.sim,st=v.st;
+ if(o.market==='Prop')return `Our computer guesses he ends with about <b>${Math.round(o.proj.mean)}</b>.`;
+ if(o.market==='Total')return `Our computer guesses about <b>${Math.round(sim.mean('game'))}</b> points in all.`;
+ const m=sim.mean('game:m'),lead=m>=0?st.home.name:st.away.name;return Math.abs(m)<1?'Our computer guesses a very close finish.':`Our computer guesses the ${esc(lead)} win by about <b>${Math.round(Math.abs(m))}</b>.`}
+function kidCard(v,o){const back=10*E.dec(o.price),avg=10*o.ev;
+ return `<button class="card lv-kid" data-lv-game="${v.id}">
+  <div class="row between"><div class="lv-ask">${kidAsk(v,o)}</div><span class="pill p-long">Practice pick</span></div>
+  <div class="why">${kidNow(v,o)}</div>
+  <div class="why">${kidGuess(v,o)}</div>
+  <div class="lv-odds2"><div><span>Our computer says</span><b>${outOf(o.p)} out of 100</b></div><div><span>The price acts like</span><b>${outOf(o.novig)} out of 100</b></div></div>
+  <div class="why">Bet ${usd(10)} at ${fo(o.price)} on ${esc(String(o.book||'').replace(/\s*\(live\)/,''))}: if it happens you get <b>${usd(back)}</b> back. If not, you lose the ${usd(10)}.</div>
+  <div class="cap">If you made lots of bets just like this, each ${usd(10)} would earn about <b>${usd(avg)}</b> on average. That is the computer's math, not a promise. This one can still lose.</div>
+ </button>`}
+function oppList(vs){
+ const qs=vs.flatMap(v=>[...v.opps,...(v.propOpps||[])].filter(o=>o.qualifies&&o.ev>0&&marketOk(o)&&playerOk(o)).map(o=>[v,o])).sort((a,b)=>b[1].ev-a[1].ev);
+ const intro=`<div class="cap">These are the only bets right now where our computer thinks the sportsbook's price is better than it should be. The computer is still learning, so these are practice picks: we keep score to find out if it is really right. Never bet money you can't afford to lose.</div>`;
+ return intro+(qs.length?`<div class="list">${qs.map(([v,o])=>kidCard(v,o)).join('')}</div>`
+  :`<div class="empty"><h3>No good bets right now</h3>Right now every price is fair or worse, so the smart move is to wait. Most of the time this is what you will see.</div>`)}
+function playerOk(o){const t=ui.filters.player.trim().toLowerCase();return !t||(o.market==='Prop'&&o.player.toLowerCase().includes(t))}
 function playerPanel(vs){const t=ui.filters.player.trim().toLowerCase();if(!t&&ui.filters.market!=='props')return '';
  const rows=vs.flatMap(v=>players(v).filter(p=>!t||p.name.toLowerCase().includes(t)).map(p=>[v,p]));
  return `<h2 class="sec">Player projections</h2>${rows.length?`<div class="panel"><div class="chartbox">${ptable(rows)}</div>${propNote}</div>`:'<div class="empty">No player in an active game matches.</div>'}`}
@@ -132,7 +161,7 @@ function accuracyPanel(){const a=ui.accuracy,ps=paperStats();
  return `<h2 class="sec">Historical accuracy</h2><div class="panel">${bt}</div>
  <h2 class="sec">Paper record (this browser)</h2><div class="panel"><div class="stats"><div class="stat"><span>Logged</span><b>${ps.n}</b></div><div class="stat"><span>W-L-P</span><b>${ps.w}-${ps.l}-${ps.p}</b></div><div class="stat"><span>Units</span><b>${ps.u>=0?'+':''}${ps.u.toFixed(2)}</b></div></div>
   <div class="cap">${ps.settled?`ROI ${pc(ps.roi)} per pick · Brier ${ps.brier!=null?ps.brier.toFixed(3):'—'} · `:''}${ps.open} open. Flat 1 unit at the logged price, before latency (prices can move before you can bet). Recommendations stay Paper until a few hundred settled picks show positive results after costs.</div>
-  ${ui.paper.length?`<div class="chartbox"><table><thead><tr><th>Pick</th><th>When</th><th class="num">Price</th><th class="num">Edge</th><th>Result</th></tr></thead><tbody>${ui.paper.slice(-15).reverse().map(x=>`<tr><td>${esc(x.name)} · ${esc(x.side)} ${x.line!=null?x.line:''} ${esc(x.market)}</td><td class="cap">${esc(x.when)} (${esc(x.score)})</td><td class="num">${fo(x.price)}</td><td class="num">${pts(x.edge)}</td><td>${x.result?`${x.result} ${x.final?`(${esc(x.final)})`:''}`:'open'}</td></tr>`).join('')}</tbody></table></div>`:''}</div>`}
+  ${ui.paper.length?`<div class="chartbox"><table><thead><tr><th>Pick</th><th>When</th><th class="num">Price</th><th class="num">Edge</th><th>Result</th></tr></thead><tbody>${ui.paper.slice(-15).reverse().map(x=>`<tr><td>${esc(x.name)} · ${x.market==='Prop'?`${esc(x.side)} ${x.target}+ ${esc(x.stat)}`:`${esc(x.side)} ${x.line!=null?x.line:''} ${esc(x.market)}`}</td><td class="cap">${esc(x.when)} (${esc(x.score)})</td><td class="num">${fo(x.price)}</td><td class="num">${pts(x.edge)}</td><td>${x.result?`${x.result} ${x.final?`(${esc(x.final)})`:''}`:'open'}</td></tr>`).join('')}</tbody></table></div>`:''}</div>`}
 function alertsPanel(){const c=ui.cfg,ck=(k,t)=>`<label class="lv-ck"><input type="checkbox" data-lv-cfg="${k}" ${c[k]?'checked':''}> ${t}</label>`;
  const perm='Notification' in window?Notification.permission:'unsupported';
  return `<h2 class="sec">Alerts</h2><div class="panel">
@@ -164,7 +193,7 @@ function body(){
  const ts=root.querySelector('[data-lv-f="team"]'),teams=[...new Set(vs.flatMap(v=>[v.st.away.abbr,v.st.home.abbr]))].sort();
  if(ts&&ts.options.length-1!==teams.length)ts.innerHTML=`<option value="">All teams</option>`+teams.map(t=>`<option value="${esc(t)}" ${ui.filters.team===t?'selected':''}>${esc(t)}</option>`).join('');
  let h='';
- h+=`<h2 class="sec">Live opportunities</h2>${oppList(live)}`;
+ h+=`<h2 class="sec">Good bets right now</h2>${oppList(live)}`;
  h+=playerPanel([...live,...pre]);
  if(live.length)h+=`<h2 class="sec">Live now</h2><div class="list">${live.map(gameCard).join('')}</div>`;
  else h+=`<div class="empty"><h3>No NBA games live right now</h3>${pre.length?`Next tip: ${esc(pre[0].st.away.name)} at ${esc(pre[0].st.home.name)}, ${statusLine(pre[0].st)}. This page starts tracking automatically.`:'No more games on today\'s ESPN scoreboard.'}</div>`;
@@ -196,6 +225,10 @@ function sheet(id,refresh){const v=ui.view[id];if(!v)return;const st=v.st,R=v.si
  <div class="warnbox"><b>Paper only.</b><span>Model ${E.VERSION}. Confidence: ${cf.level}${cf.why.length?` (${esc(cf.why.join(', '))})`:''}.</span></div>
  <div class="panel"><h4>Scoring by period</h4>${qtable(v)}</div>
  <div class="panel"><h4>Live markets</h4>${st.status!=='in'?'<div class="cap">Live recommendations only run while the game is in progress.</div>':v.opps.length?`<div class="chartbox"><table>${oppHead(true)}<tbody>${v.opps.map(o=>oppRow(o,true)).join('')}</tbody></table></div><div class="cap">Edge = model chance minus the book's no-vig chance. Existing Stamped rules apply: −160 or worse is killed, +300 or longer is too long, 3-point minimum edge. Live rules: odds under 90 s old, feed not stale, no conflict, not inside the last 2:00, confidence Medium or better, and no edge above 10 points (a gap that big against a live market usually means the model is missing something).</div>${v.opps.filter(o=>o.qualifies).map(o=>`<div class="why"><b>${esc(o.side)} ${o.line!=null?o.line:''} ${o.market}:</b> ${o.why.map(esc).join(' ')}</div>`).join('')}`:`<div class="flag">${esc(v.market&&v.market.why||'No live market posted.')}</div>`}</div>
+ ${(()=>{const good=[...v.opps,...(v.propOpps||[])].filter(o=>o.qualifies&&o.ev>0);return good.length?`<div class="panel"><h4>Good bets in this game</h4><div class="list">${good.map(o=>kidCard(v,o)).join('')}</div></div>`:''})()}
+ <div class="panel"><h4>Live player props</h4>${st.status!=='in'?'<div class="cap">Live props only run while the game is in progress.</div>':!v.props?'<div class="cap">No live player props posted.</div>':(()=>{const pos=(v.propOpps||[]).filter(o=>o.ev>0);
+  return `${pos.length?`<div class="chartbox"><table><thead><tr><th>Bet</th><th class="num">Price</th><th class="num">Model</th><th class="num">Implied</th><th class="num">EV</th><th>Rules</th></tr></thead><tbody>${pos.map(o=>`<tr class="${o.qualifies?'':'dim'}"><td>${esc(o.player)} ${o.target}+ ${esc(o.stat)} <span class="cap">now ${o.now}, proj ${r1(o.proj.mean)}</span></td><td class="num">${fo(o.price)}</td><td class="num">${pc(o.p)}</td><td class="num">${pc(o.novig)}</td><td class="num up">${pc(o.ev)}</td><td class="cap">${o.qualifies?'Qualifies (Paper)':esc([...o.rule.why,...o.gate.why].join(' '))}</td></tr>`).join('')}</tbody></table></div>`:'<div class="cap">No live prop pays more than the model thinks it should.</div>'}
+  <div class="cap">${v.propOpps.length} DraftKings "X or more" milestones checked · ${tm(v.props.fetched)}${v.props.frozen?' · prices not moving':''}. Only bets with positive expected value are listed. Over/under prop pairs are skipped because the feed does not label which side is which. Implied includes the book's margin.</div>`})()}</div>
  <div class="panel"><h4>Check a line from your book</h4>
   <div class="row lv-calc"><select data-lv-calc="key">${CALC_KEYS.map(([k,t])=>`<option value="${k}" ${ui.calc.key===k?'selected':''}>${t}</option>`).join('')}</select>
   <input data-lv-calc="line" class="lv-num" inputmode="decimal" placeholder="Line" value="${esc(ui.calc.line)}"><input data-lv-calc="price" class="lv-num" inputmode="numeric" placeholder="Price" value="${esc(ui.calc.price)}"></div>
