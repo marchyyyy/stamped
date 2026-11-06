@@ -201,7 +201,7 @@ button.lucell{cursor:pointer}button.lucell:hover{outline:1px solid var(--line)}
 .srcs{font-size:12px;color:var(--muted);word-break:break-all;display:grid;gap:3px}
 .srcs a{color:var(--muted)}
 </style>
-<link rel="stylesheet" href="live/live.css?v=20261106k">
+<link rel="stylesheet" href="live/live.css?v=20261106l">
 </head>
 <body>
 
@@ -231,7 +231,7 @@ button.lucell{cursor:pointer}button.lucell:hover{outline:1px solid var(--line)}
 <script src="live/espn.js?v=20261106a"></script>
 <script src="live/ui.js?v=20261106l"></script>
 <script src="live/dff.js?v=20261106i"></script>
-<script src="live/props-preview.js?v=20261106t"></script>
+<script src="live/props-preview.js?v=20261106u"></script>
 <script>
 fetch('./data.json?v='+Date.now()).then(r=>r.json()).then(DATA=>{
 
@@ -824,7 +824,9 @@ function teamChart(g,side){
 }
 
 /* ---------- sheets ---------- */
-const crowdPanel=()=>`<div class="panel"><h4>What other bettors are doing</h4><div class="mu">Not available yet. This needs a betting-splits feed (number of bets and dollars on each side). It is in the build plan. Nothing here is guessed.</div></div>`;
+/* What other bettors are doing: Kalshi traders' win chances over time (NFL and NBA, live/props-preview.js). Other sports and
+   games Kalshi does not list keep the note. */
+const crowdPanel=g=>{const h=g&&window.PREV&&PREV.crowd?PREV.crowd(g.lg,g):'';return h?`<div class="panel">${h}</div>`:`<div class="panel"><h4>What other bettors are doing</h4><div class="mu">Not available for this game. It shows Kalshi traders' chance of each team winning for NFL and NBA games Kalshi lists. Nothing here is guessed.</div></div>`};
 function playerSheet(p){
  const b=p.best,e=b&&b.ev,lg=lgOf(p.lg),[lab,cls]=STATUS[p.state],total=p.games.length,ch=chartSVG(p,Math.min(state.count,total));
  const l5=p.games.filter(g=>g.s[ch.stat]!=null).slice(0,5).map(g=>g.s[ch.stat]),avg=l5.length?(l5.reduce((a,b)=>a+b,0)/l5.length).toFixed(1):'—';
@@ -848,7 +850,7 @@ function playerSheet(p){
  </div>
  ${fantasyPanel(p)}
  ${p.alts.length?`<div class="panel"><h4>Alt lines</h4>${altTable(p,true)}<div class="cap">Check the alt price in your book before betting.</div></div>`:''}
- ${crowdPanel()}
+ ${crowdPanel(GAMES.find(x=>x.lg===p.lg&&(x.home.n===p.team||x.away.n===p.team)&&x.when===p.when))}
  <div class="panel"><div class="row between"><h4>Matchup</h4>${p.matchup&&p.matchup.grade?`<span class="pill ${GC(p.matchup.grade)}">${GL(p.matchup.grade)}</span>`:''}</div><ul class="checks">${CHECKS[p.lg].map(c=>{const v=p.matchup&&p.matchup.checks&&p.matchup.checks[c];if(v==null&&!VETTING)return '';const d=v!=null||(DONE[p.lg]||[]).includes(c);return `<li>${VETTING?`<span class="${d?'ok':'wn'}">${d?'✓':'!'}</span>`:''}<span>${c}${v!=null?` <span class="mu">— ${v}</span>`:d?'':' <span class="mu">— not checked yet</span>'}</span></li>`}).join('')}</ul><div class="cap">${p.matchup&&p.matchup.why?p.matchup.why+' ':''}${p.matchup&&p.matchup.grade?'':''}</div></div>
  ${VETTING?`<div class="panel"><h4>Source cross-check</h4><ul class="checks">${p.sources.map(([s,st,t])=>`<li><span class="${st==='ok'?'ok':'wn'}">${st==='ok'?'✓':'!'}</span><span>${s}${t?` <span class="mu">— ${t}</span>`:''}</span></li>`).join('')}</ul><div class="cap">Checked ${DATA.checked}.</div></div>`:''}`;
 }
@@ -865,7 +867,7 @@ function gameSheet(g){const M=model(g),r=decide(g),c=TEAM_CFG[g.lg],[lab,cls]=ST
   ${g.spread.home!=null?`<tr><td>Spread</td><td class="num">${-g.spread.home>0?'+':''}${-g.spread.home}${g.spread.awayOdds!=null?` (${fo(g.spread.awayOdds)})`:''}</td>${g.ml.draw!=null?'<td></td>':''}<td class="num">${g.spread.home>0?'+':''}${g.spread.home}${g.spread.homeOdds!=null?` (${fo(g.spread.homeOdds)})`:''}</td></tr>`:''}</tbody></table>`:'<div class="mu">No price posted yet for this game.</div>'}
   <div class="cap">How to read a price: −150 means you bet $150 to win $100. +130 means a $100 bet wins $130. Prices as of ${DATA.checked}; they move, so confirm in your book.${g.ml.book&&/BC\.Game/.test(g.ml.book)?' This price is from an offshore book listed on an odds site, not DraftKings or Hard Rock.':''}</div></div>
  ${(()=>{const LU=DATA.lineups||[],a=LU.find(t=>t.team===g.away.n&&t.start===g.when),h=LU.find(t=>t.team===g.home.n&&t.start===g.when);return a||h?`<div class="panel"><h4>Starting lineups</h4>${luGame(lgOf(g.lg),a,h).replace('<div class="inj lugame">','<div class="lugame" style="display:grid;gap:8px">')}</div>`:''})()}
- ${crowdPanel()}
+ ${crowdPanel(g)}
  <div class="panel"><h4>Why the model says this</h4>
   <table><thead><tr><th>Factor</th><th class="num">${g.away.n}</th><th class="num">${g.home.n}</th><th class="num">Moves ${c.u}</th></tr></thead><tbody>
   ${M.parts.map(([f,a,b,v])=>`<tr><td>${f}</td><td class="num">${a}</td><td class="num">${b}</td><td class="num ${v>0?'up':v<0?'dn':''}">${v>0?'+':''}${v.toFixed(g.lg==='soccer'?2:1)}</td></tr>`).join('')}

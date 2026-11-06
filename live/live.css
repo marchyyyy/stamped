@@ -101,3 +101,10 @@
 .cs-what small{display:block;white-space:normal;overflow-wrap:anywhere;font-size:11px;color:var(--muted);margin-top:2px}
 .cs-k{font-family:var(--f-mono);font-weight:700;font-variant-numeric:tabular-nums;white-space:nowrap}
 .cs-none{padding:10px 14px}
+/* "What other bettors are doing" (Kalshi game chart). */
+.kc{display:grid;gap:6px;margin:4px 0 10px}
+.kc-svg{width:100%;height:auto;display:block;overflow:visible}
+.kc-svg text{font-family:var(--f-disp)}
+.kc-rs{display:flex;gap:2px}
+.kc-r{font:inherit;font-size:11px;font-weight:700;color:var(--muted);background:none;border:0;border-radius:6px;padding:3px 7px;cursor:pointer}
+.kc-r[aria-pressed="true"]{color:var(--ink);background:var(--chip)}

@@ -2,7 +2,8 @@
      node tools/refresh.js --sport nba|nfl   full refresh: DFF projections, then games, injuries, lines, prices and checks
      node tools/refresh.js --props           3-hour refresh for both sports: games, injuries, lines and prices (DFF untouched)
      node tools/refresh.js --pregame         every 15 min: any game starting in about an hour gets a full refresh of its
-                                             sport, once per start time (owner rule: freshest info 1 hour before each game)
+                                             sport, once per start time (owner rule: freshest info 1 hour before each game);
+                                             also refreshes the Kalshi game chart for sports with games within 36 hours
    Log: %LOCALAPPDATA%\Stamped\refresh.log (written by run.cmd). */
 'use strict';
 const fs=require('node:fs'),path=require('node:path'),cp=require('node:child_process'),os=require('node:os');
@@ -12,7 +13,12 @@ const log=m=>console.log(`[${new Date().toLocaleString('en-US',{timeZone:'Americ
 const SPORTS={nba:'basketball/nba',nfl:'football/nfl'};
 const run=args=>{log('node '+args.join(' '));const r=cp.spawnSync(process.execPath,args,{cwd:ROOT,stdio:'inherit'});return r.status===0};
 /* Kalshi runs after the props builder, which it reads to match games. Soccer has no props builder, so it rides along. */
-const kalshi=s=>run(['tools/kalshi.js','--sport',s]);
+const kalshi=s=>run(['tools/kalshi.js','--sport',s])&&(s==='soccer'||run(['tools/kalshi.js','--sport',s,'--games']));
+/* "What other bettors are doing" chart (Kalshi game prices, small file): every 15-minute check refreshes it for a sport
+   with a game starting in the next 36 hours or started in the last 4 (the 3-hour and full refreshes cover the rest). */
+function chartTick(now){for(const s of Object.keys(SPORTS)){let D;try{D=JSON.parse(fs.readFileSync(path.join(ROOT,s==='nfl'?'data/nfl_week.json':'data/nba_today.json'),'utf8'))}catch(e){continue}
+ const near=(D.games||[]).some(g=>{const t=Date.parse(g.when+':00-05:00');return g.status!=='post'&&t<now+36*36e5&&t>now-4*36e5});
+ if(near)run(['tools/kalshi.js','--sport',s,'--games'])}}
 /* NBA team practice picks: refresh the game history (new results), then rebuild today's signals and grade the log. */
 const practice=s=>{if(s!=='nba')return true;return run(['tools/hist.js','--sport',s])&&run(['tools/tune.js','--sport',s,'--today'])};
 const full=s=>{const a=run(['tools/dff.js','--sport',s]),b=run(['tools/props.js','--sport',s]),c=kalshi(s),d=practice(s);if(s==='nfl'||s==='nba')kalshi('soccer');return a&&b&&c&&d};
@@ -36,6 +42,7 @@ async function pregame(){
   if(dry)continue;full(s);due.forEach(([w,t])=>st[`${s}|${w}|${t}`]=t);
  }
  if(dry)return;fs.mkdirSync(path.dirname(STATE),{recursive:true});fs.writeFileSync(STATE,JSON.stringify(st));
+ chartTick(now);
 }
 
 (async()=>{

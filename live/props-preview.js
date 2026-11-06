@@ -116,17 +116,17 @@ function injHTML(g){const I=g.injuries;if(!I)return '';
  return ['away','home'].map(s=>{const L=I[s]||[],t=g[s];
   return sub(`${g.id}|inj|${s}`,`${logo(t.logo)}${esc(t.n)} injuries (${L.length})`,L.length?L.map(x=>`<div class="lv-dffrow"><div class="row between"><span><b>${esc(x.name)}</b> <span class="cap">${esc(x.pos||'')}</span></span><span class="${/out|reserve/i.test(x.status)?'dn':'wn'}">${esc(x.status)}</span></div>${x.why||x.ret?`<div class="cap">${esc(x.why||'Reason not given')}${x.ret?` · expected back ${esc(x.ret.slice(5).replace('-','/'))}`:''}</div>`:''}</div>`).join(''):'<div class="cap">No injuries reported.</div>')}).join('')}
 const mlTxt=g=>g.ml&&(g.ml.away!=null||g.ml.home!=null)?` · ML ${esc(g.away.abbr)} ${g.ml.away!=null?fo(g.ml.away):'—'} / ${esc(g.home.abbr)} ${g.ml.home!=null?fo(g.ml.home):'—'}`:'';
-function gameSec(g,players){const {good,rest}=checks(players),isOpen=open.has(g.id);
+function gameSec(g,players,lg){const {good,rest}=checks(players),isOpen=open.has(g.id);
  return `<details class="lv-sec nflw-sec" data-prev-sec="${esc(g.id)}" ${isOpen?'open':''}><summary>
   <span class="nflw-h"><span class="nflw-m">${logo(g.away.logo)}<b>${esc(g.away.abbr)}</b><span class="cap">@</span>${logo(g.home.logo)}<b>${esc(g.home.abbr)}</b></span>
   <span class="cap">${when(g.when)}${g.details?` · ${esc(g.details)}`:''}${g.total?` · O/U ${g.total}`:''}</span>${mlTxt(g)?`<span class="cap">${mlTxt(g).slice(3)}</span>`:''}</span>
   <span class="pill ${good.length?'p-pick':'p-stay'}">${good.length?`${good.length} lean${good.length>1?'s':''}`:players.length?'No leans':'No lines yet'}</span></summary>
-  <div class="lv-secbody">${isOpen?`${injHTML(g)}${good.length?`<div class="list">${good.map(card).join('')}</div>`:`<div class="cap">${players.length?"None of this game's lines has enough support yet.":'DraftKings has not posted player props for this game yet.'}</div>`}
+  <div class="lv-secbody">${isOpen?`${crowd(lg,g)}${injHTML(g)}${good.length?`<div class="list">${good.map(card).join('')}</div>`:`<div class="cap">${players.length?"None of this game's lines has enough support yet.":'DraftKings has not posted player props for this game yet.'}</div>`}
    ${rest.length?sub(`${g.id}|rest`,`No lean or under review (${rest.length})`,`<div class="list">${rest.map(card).join('')}</div>`):''}`:''}</div></details>`}
 /* exclude: names already covered by Stamped's daily data (their own cards keep the full rules). */
 function gamesHTML(lg,exclude){const D=S[lg]&&S[lg].data;if(!D)return '';const ex=new Set((exclude||[]).map(s=>s.toLowerCase())),now=Date.now();
  const up=D.games.filter(g=>et(g.when).getTime()>now&&g.status!=='post');if(!up.length)return '';
- return `<div class="list">${up.map(g=>gameSec(g,D.players.filter(p=>p.gameId===g.id&&!ex.has(p.name.toLowerCase())))).join('')}</div>`}
+ return `<div class="list">${up.map(g=>gameSec(g,D.players.filter(p=>p.gameId===g.id&&!ex.has(p.name.toLowerCase())),lg)).join('')}</div>`}
 const note=lg=>`Each lean uses his last 5 games, the matchup and DailyFantasyFuel's projection.${lg==='nfl'?" NFL prop prices aren't available, so check the price in your book.":' Prices are DraftKings via ESPN. Stamped % is the fair chance from the price. Tested on 12,339 past NBA props, last-5 leans won 52.5% and lost about 5% at the posted prices, so treat them as practice.'}`;
 /* Before Stamped's daily picks are out: every upcoming game for the league. */
 function weekHTML(lg){const h=gamesHTML(lg,[]);if(!h)return '';
@@ -230,6 +230,36 @@ function teamEKG(lg,g,r){const D=K[lg];if(!D||!r||!r.M)return '';
  return `${e.svg}<div class="lv-ekg-cap"><span>${e.dir==='flat'?`Steady ${e.hrs?`for ${e.hrs} h`:''}`:`${e.dir==='up'?'▲':'▼'} ${Math.abs(Math.round(e.ch*100))||'<1'}% in ${e.hrs} h`}</span><span>- - - ${sigl?'Model':'Stamped'} ${Math.round(model*100)}%</span></div>
   <div class="cap">Kalshi market: ${esc(t.n)} ${now}% to win now (${q.yb!=null?Math.round(q.yb*100):'—'}–${q.ya!=null?Math.round(q.ya*100):'—'}¢, ≈ ${q.ya!=null?fo(kAm(q.ya)):'—'} incl. fee) · ${esc(D.checked)}</div></div>`}
 
+/* "What other bettors are doing": Kalshi traders' chance of each team winning over time, one line per team, from
+   data/kalshi_<sport>_games.json (tools/kalshi.js --games, refreshed every 15 minutes when games are near). */
+const KG={};let CR='ALL';
+const hex=c=>/^[0-9a-f]{6}$/i.test(c||'')?'#'+c:null;
+/* Team colors, lightened when too dark to see on the dark theme. */
+function vis(c,fb){c=hex(c);if(!c)return fb;const n=parseInt(c.slice(1),16),r=n>>16,g=n>>8&255,b=n&255,L=(.299*r+.587*g+.114*b)/255;
+ if(L>=.3)return c;const m=x=>Math.round(x+(255-x)*.45);return `rgb(${m(r)},${m(g)},${m(b)})`}
+function crowdHTML(lg,g){const D=KG[lg];if(!D)return '';const G=Object.values(D.games).find(x=>x.names[0]===g.away.n&&x.names[1]===g.home.n);
+ if(!G||!G.away||!G.home||!G.away.h||!G.home.h)return '';
+ const span={'1D':24,'1W':168,ALL:1e9}[CR],ser=s=>{const h=G[s].h,pts=h.v.map((v,i)=>[h.t0+i*36e5,v]);return pts.slice(-Math.min(pts.length,span))};
+ const A=ser('away'),H=ser('home');if(A.length<2||H.length<2)return '';
+ const all=A.concat(H).map(x=>x[1]),lo=Math.max(0,Math.min(...all)-5),hi=Math.min(100,Math.max(...all)+5),t0=Math.min(A[0][0],H[0][0]),t1=Math.max(A[A.length-1][0],H[H.length-1][0]);
+ const W=300,Ht=130,x=t=>8+(t-t0)/Math.max(1,t1-t0)*(W-70),y=v=>8+(hi-v)/Math.max(1,hi-lo)*(Ht-16);
+ const path=P=>P.map((p,i)=>i?`H${x(p[0]).toFixed(1)}V${y(p[1]).toFixed(1)}`:`M${x(p[0]).toFixed(1)} ${y(p[1]).toFixed(1)}`).join('');
+ /* Now: the middle of the quote when it is tight, otherwise the last hourly value. */
+ const nowP=s=>{const q=G[s],P=s==='away'?A:H;return q.yb!=null&&q.ya!=null&&q.ya-q.yb<=.1?Math.round((q.yb+q.ya)*50):P[P.length-1][1]};
+ const ca=vis(g.away.color,'var(--accent)'),ch0=vis(g.home.color,'var(--warn)'),ch=ch0===ca?vis(g.home.alt,'var(--warn)'):ch0;
+ const lab=(s,c,P)=>{const v=nowP(s),yy=y(P[P.length-1][1]);return `<text x="${W-56}" y="${(yy-4).toFixed(1)}" fill="${c}" font-size="10" font-weight="700">${esc(g[s].abbr||g[s].n)}</text><text x="${W-56}" y="${(yy+12).toFixed(1)}" fill="${c}" font-size="16" font-weight="800">${v}%</text>`};
+ const grid=[25,50,75].filter(v=>v>lo&&v<hi).map(v=>`<line x1="0" x2="${W}" y1="${y(v).toFixed(1)}" y2="${y(v).toFixed(1)}" stroke="var(--line)" stroke-dasharray="2 4"/>`).join('');
+ const vol=(G.away.vol||0)+(G.home.vol||0),v24=(G.away.vol24||0)+(G.home.vol24||0),k=n=>n>=1e6?(n/1e6).toFixed(1)+'M':n>=1e3?Math.round(n/1e3)+'k':String(Math.round(n));
+ const btn=r=>`<button class="kc-r" data-kc-range="${r}" aria-pressed="${CR===r}">${r==='ALL'?'All':r}</button>`;
+ return `<div class="kc"><div class="row between"><b>What other bettors are doing</b><span class="kc-rs">${btn('1D')}${btn('1W')}${btn('ALL')}</span></div>
+  <svg viewBox="0 0 ${W} ${Ht}" class="kc-svg" role="img" aria-label="${esc(g.away.n)} ${nowP('away')}%, ${esc(g.home.n)} ${nowP('home')}% on Kalshi">${grid}
+   <path d="${path(A)}" fill="none" stroke="${ca}" stroke-width="2"/><path d="${path(H)}" fill="none" stroke="${ch}" stroke-width="2"/>
+   <circle cx="${x(A[A.length-1][0]).toFixed(1)}" cy="${y(A[A.length-1][1]).toFixed(1)}" r="3" fill="${ca}"/><circle cx="${x(H[H.length-1][0]).toFixed(1)}" cy="${y(H[H.length-1][1]).toFixed(1)}" r="3" fill="${ch}"/>
+   ${lab('away',ca,A)}${lab('home',ch,H)}</svg>
+  <div class="cap">Kalshi traders' chance of each team winning, by the hour. ${k(vol)} contracts traded${v24?`, ${k(v24)} in the last 24 h`:''} · ${esc(D.checked)}</div></div>`}
+/* Wrapped so the range buttons can redraw every chart on screen. */
+const GL={};
+function crowd(lg,g){const h=crowdHTML(lg,g);if(!h)return '';const id=String(g.id);GL[id]=g;return `<div data-kc-for="${esc(lg+'|'+id)}">${h}</div>`}
 function sheetHTML(key){const [lg,id]=key.split('|'),D=S[lg]&&S[lg].data,p=D&&D.players.find(x=>x.id===id);if(!p)return '';const stats=[...new Set(p.props.map(x=>x.stat))];
  return `<div class="grab"></div>
  <div class="shead"><div style="min-width:0"><div class="pname">${esc(p.name)}</div><div class="team">${logo(p.logo)}${esc(p.team)} · ${esc(p.pos)} · ${when(p.when)} · ${esc(p.opp)}</div></div><button class="x" id="close" aria-label="Close">×</button></div>
@@ -242,13 +272,15 @@ function load(lg){return fetch(LG[lg].file+'?v='+Date.now()).then(r=>r.ok?r.json
 function loadK(lg){return fetch(`data/kalshi_${lg}.json?v=`+Date.now()).then(r=>r.ok?r.json():null).then(d=>{if(d&&(!K[lg]||K[lg].generated!==d.generated)){K[lg]=d;if(onChange)onChange(lg)}}).catch(()=>{})}
 function loadJ(file,box,lg){return fetch(`${file}?v=`+Date.now()).then(r=>r.ok?r.json():null).then(d=>{const sig=d&&(d.generated||d.updated);if(d&&(!box[lg]||(box[lg].generated||box[lg].updated)!==sig)){box[lg]=d;if(onChange)onChange(lg)}}).catch(()=>{})}
 function start(h){h=h||{};onChange=h.onChange;const all=()=>{Object.keys(LG).forEach(load);['nfl','nba','soccer'].forEach(loadK);
-  loadJ('data/team_signals_nba.json',TS,'nba');loadJ('data/practice_nba_teams.json',PL,'nba')};all();setInterval(all,5*60e3);
+  ['nfl','nba'].forEach(lg=>loadJ(`data/kalshi_${lg}_games.json`,KG,lg));loadJ('data/team_signals_nba.json',TS,'nba');loadJ('data/practice_nba_teams.json',PL,'nba')};all();setInterval(all,5*60e3);
  /* Opening a game fills in its cards (they are only built for open games, which keeps the page light). */
  document.addEventListener('toggle',e=>{const s=e.target&&e.target.dataset&&e.target.dataset.prevSec;if(!s||open.has(s)===e.target.open)return;
   if(e.target.open)open.add(s);else open.delete(s);if(e.target.open&&onChange)onChange()},true);
+ /* Chart range buttons work in the page and in the game sheet. */
+ document.addEventListener('click',e=>{const b=e.target.closest('[data-kc-range]');if(!b)return;e.stopPropagation();CR=b.dataset.kcRange;document.querySelectorAll('[data-kc-for]').forEach(el=>{const [lg,id]=el.dataset.kcFor.split('|');const g=GL[id];if(g)el.innerHTML=crowdHTML(lg,g)})},true);
  document.getElementById('main').addEventListener('click',e=>{const c=e.target.closest('[data-prev-p]');if(c&&h.showSheet){document.getElementById('sheet').innerHTML=sheetHTML(c.dataset.prevP);h.showSheet()}})}
 const norm=s=>String(s||'').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'').replace(/\b(jr|sr|ii|iii|iv|v)\b\.?/g,'').replace(/[^a-z]/g,'');
 /* A player's ESPN game log from this week's file, by name (used by the fantasy preview board). */
 function player(lg,name){const D=S[lg]&&S[lg].data;if(!D)return null;const k=norm(name);return D.players.find(p=>norm(p.name)===k)||(D.logs||[]).find(p=>norm(p.name)===k)||null}
-window.PREV={start,load,weekHTML,moreHTML,parlaysHTML,cheatHTML,teamsHTML,injuriesHTML,next,player,teamEKG,teamRating,teamSignal,teamSignalChecked,practiceHTML,ready:lg=>!!(S[lg]&&S[lg].data),_lean:lean,_checks:checks};
+window.PREV={start,load,weekHTML,moreHTML,parlaysHTML,cheatHTML,teamsHTML,injuriesHTML,next,player,teamEKG,crowd,teamRating,teamSignal,teamSignalChecked,practiceHTML,ready:lg=>!!(S[lg]&&S[lg].data),_lean:lean,_checks:checks};
 })();

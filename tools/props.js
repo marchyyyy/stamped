@@ -63,7 +63,7 @@ function git(a){return cp.execFileSync('git',a,{cwd:ROOT,encoding:'utf8',stdio:[
  const byName={};dff.forEach(r=>{if(r.position!=='DST'){const k=norm(r.first_name+' '+r.last_name);(byName[k]=byName[k]||[]).push(r)}});
  const games=[],players=[],injuries={};let boardItems=0;
  for(const d of dates){const sb=await get(`${SITE}/scoreboard?dates=${d.replace(/-/g,'')}`);
-  for(const ev of (sb&&sb.events)||[]){const c=ev.competitions[0],T=x=>{const t=c.competitors.find(k=>k.homeAway===x).team;return{id:t.id,abbr:t.abbreviation,n:t.name||t.shortDisplayName,city:t.location,logo:t.logo}};
+  for(const ev of (sb&&sb.events)||[]){const c=ev.competitions[0],T=x=>{const t=c.competitors.find(k=>k.homeAway===x).team;return{id:t.id,abbr:t.abbreviation,n:t.name||t.shortDisplayName,city:t.location,logo:t.logo,color:t.color||null,alt:t.alternateColor||null}};
    const o=(c.odds||[])[0]||{},mlv=s=>{const x=o.moneyline&&o.moneyline[s];return x?num((x.close&&x.close.odds)||(x.open&&x.open.odds)):null};
    games.push({id:ev.id,when:et(ev.date),status:c.status&&c.status.type&&c.status.type.state,away:T('away'),home:T('home'),details:o.details||null,total:o.overUnder!=null?o.overUnder:null,
     ml:{away:mlv('away'),home:mlv('home')},book:o.provider&&o.provider.name||null,injuries:{away:[],home:[]}})}}
