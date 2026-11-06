@@ -1,13 +1,13 @@
 /* Prop checks by game for NFL and NBA (preview, pending owner approval), in Stamped's card style with team logos.
    Reads data/nfl_week.json and data/nba_today.json (tools/props.js: ESPN games, injuries, DraftKings lines via ESPN,
-   ESPN game logs, DFF) and re-checks them every 5 minutes. NBA Over lines carry DraftKings' "X or more" price; NFL props
+   ESPN game logs and box scores) and re-checks them every 5 minutes. NBA Over lines carry DraftKings' "X or more" price; NFL props
    have no prices on ESPN, so those are leans on the line. */
 (function(){
 'use strict';
 /* Cushion steps and matchup thresholds match Stamped's prop rules for each league. */
 const LG={
  nfl:{file:'data/nfl_week.json',tot:32,fav:23,bad:10,label:'This week',
-  STEP:{'rush yds':5,'rec yds':5,receptions:1,'pass yds':10,'pass TDs':1},POSN:{QB:'quarterbacks',RB:'running backs',WR:'receivers',TE:'tight ends'}},
+  STEP:{'rush yds':5,'rec yds':5,receptions:1,'pass yds':10,'pass TDs':1},POSN:{QB:'quarterbacks',RB:'running backs',WR:'wide receivers',TE:'tight ends'}},
  nba:{file:'data/nba_today.json',tot:30,fav:21,bad:10,label:'Tonight',
   STEP:{points:2,rebounds:1,assists:1,threes:1,PRA:3},POSN:{PG:'point guards',SG:'shooting guards',SF:'small forwards',PF:'power forwards',C:'centers',G:'guards',F:'forwards'}}};
 const S={nfl:{data:null,sig:null},nba:{data:null,sig:null}},open=new Set();let onChange=null;
@@ -51,22 +51,24 @@ function lean(p,pr){const C=LG[p.lg];
  const v=smp.map(g=>g.s[pr.stat]),avg=v.reduce((a,b)=>a+b,0)/n,L=pr.line,half=(C.STEP[pr.stat]||1)*.5;
  const over=v.filter(x=>x>L).length,under=v.filter(x=>x<L).length;
  let side=null;if(over/n>=.6&&avg-L>=half)side='Over';else if(under/n>=.6&&L-avg>=half)side='Under';
- const d=p.dff,ratio=d&&(d.l5||d.szn)?d.proj/(d.l5||d.szn):null,dffSide=ratio==null?null:ratio>=1.05?'Over':ratio<=.95?'Under':null;
- const rank=d&&d.dvp,grade=rank==null?null:rank>=C.fav?'favorable':rank<=C.bad?'hostile':'neutral';
- const r={p,pr,v,n,avg,over,under,ratio,dffSide,grade,rank,side,str:'',why:'',hits:v.map(x=>side==='Under'?x<L:x>L)};
+ /* Matchup = the opponent's real stats allowed to his position (props.js, ESPN box scores; owner 2026-11-06: props use real
+    stats, fantasy points stay on the Fantasy tab, so DFF's fantasy projection no longer enters the lean). */
+ const vs=pr.vs;
+ const rank=vs&&vs.rank,grade=rank==null?null:rank>=vs.of-(C.tot-C.fav)?'favorable':rank<=C.bad?'hostile':'neutral';
+ const r={p,pr,v,n,avg,over,under,vs,grade,rank,side,str:'',why:'',hits:v.map(x=>side==='Under'?x<L:x>L)};
  if(p.status==='questionable'){r.review='Questionable. No lean until he is cleared to play.';return r}
- /* Stamped's rule: nothing is recommended until the matchup is checked. DFF supplies it, so games off the DFF slate wait. */
- if(rank==null){r.review='Matchup not checked yet: this game is not on the DailyFantasyFuel slate.';return r}
+ /* Stamped's rule: nothing is recommended until the matchup is checked. */
+ if(rank==null){r.review='Matchup not checked yet: not enough recent games for this defense.';return r}
  if(!side){r.why=`Split: ${over} over and ${under} under ${L} in his last ${n} (${v.join(', ')}), averaging ${avg.toFixed(1)}. Nothing to suggest.`;return r}
  /* The side's price (DraftKings or Kalshi). No price cap: the -160 rule was removed (owner, 2026-11-06). */
  r.price=priceFor(p,pr,side);
- const k=side==='Over'?over:under,against=(grade&&((side==='Over'&&grade==='hostile')||(side==='Under'&&grade==='favorable'))?1:0)+(dffSide&&dffSide!==side?1:0);
+ const k=side==='Over'?over:under,against=(grade&&((side==='Over'&&grade==='hostile')||(side==='Under'&&grade==='favorable'))?1:0);
  /* Internal levels (not shown on cards since the owner dropped the Strong/Moderate label, 2026-11-06): disagreement drops a
     4-of-5 lean to a 3-of-5 level and a 3-of-5 lean to no lean; longshots (+150 or longer) cap at the lower level. */
  let lvl=(k>=4?2:1)-against;const long=!!(r.price&&r.price.odds>=150);if(long)lvl=Math.min(lvl,1);
- r.str=lvl>=2?'Strong':lvl===1?'Moderate':'';if(!r.str){r.side=null;r.why=`${side} ${L} in ${k} of ${n}, but the matchup${dffSide&&dffSide!==side?' and DFF':''} point the other way. No lean.`;return r}
+ r.str=lvl>=2?'Strong':lvl===1?'Moderate':'';if(!r.str){r.side=null;r.why=`${side} ${L} in ${k} of ${n}, but the matchup points the other way. No lean.`;return r}
  r.k=k;r.long=long;r.why=`${side} ${L} in ${k} of his last ${n} (${v.join(', ')}), averaging ${avg.toFixed(1)}.${long?' Longshot price: small stakes only.':''}`;
- const agree=(dffSide===side?1:0)+((side==='Over'&&grade==='favorable')||(side==='Under'&&grade==='hostile')?1:0);
+ const agree=((side==='Over'&&grade==='favorable')||(side==='Under'&&grade==='hostile')?1:0);
  r.score=lvl*10+agree*3+k/n+Math.abs(avg-L)/(C.STEP[pr.stat]||1)/10;return r;
 }
 /* Best alt line for a lean. Overs use DraftKings' "X or more" ladder (NBA rungs are priced; NFL rungs list the line only);
@@ -88,11 +90,11 @@ function alt(r){if(!r||!r.side||r.review)return null;const p=r.pr,v=r.v,n=r.n,st
 const leansFor=players=>{const out=[];players.forEach(p=>(p.props||[]).forEach(pr=>{const r=lean(p,pr);if(r)out.push(r)}));return out};
 function mline(r){if(r.grade==null)return '';const C=LG[r.p.lg],g=r.side==='Under'?(r.grade==='favorable'?'hostile':r.grade==='hostile'?'favorable':r.grade):r.grade;
  const lab=g==='favorable'?'Matchup helps':g==='hostile'?'Tough matchup':'Average matchup',cls=g==='favorable'?'p-pick':g==='hostile'?'p-stay':'p-long';
- const opp=(r.p.opp||'').replace(/^(vs|@) /,''),pos=C.POSN[r.p.pos]||'his position',T=C.tot;
- const desc=r.rank>=C.fav?`${opp} allow the ${T+1-r.rank===1?'':ord(T+1-r.rank)+'-'}most fantasy points to ${pos}`:r.rank<=C.bad?`${opp} allow the ${r.rank===1?'':ord(r.rank)+'-'}fewest fantasy points to ${pos}`:`${opp} are about average against ${pos} (${ord(r.rank)} of ${T})`;
- return `<div class="mline"><span class="pill ${cls}">${lab}${r.side==='Under'?' (Under)':''}</span><span class="cap">${esc(desc)}, last 5 (DFF).</span></div>`}
-function dffLine(r){const d=r.p.dff;if(!d)return '';const t=r.ratio>=1.05?'above':r.ratio<=.95?'below':'in line with';
- return `<div class="cap"><span class="pill p-long">DFF</span> Projects ${d.proj.toFixed(1)} DK pts, ${t} his recent ${(d.l5||d.szn).toFixed(1)}${r.side&&r.dffSide?(r.dffSide===r.side?' · agrees':' · disagrees'):''}</div>`}
+ const opp=(r.p.opp||'').replace(/^(vs|@) /,''),V=r.vs,pos=C.POSN[V.pos]||'his position',st=STATW[r.pr.stat]||r.pr.stat,T=V.of;
+ const where=r.rank>=T-(C.tot-C.fav)?`, the ${T+1-r.rank===1?'':ord(T+1-r.rank)+'-'}most`:r.rank<=C.bad?`, the ${r.rank===1?'':ord(r.rank)+'-'}fewest`:` (${ord(r.rank)} of ${T})`;
+ return `<div class="mline"><span class="pill ${cls}">${lab}${r.side==='Under'?' (Under)':''}</span><span class="cap">${esc(opp)} allow ${V.avg} ${st} a game to ${pos}${V.pos==="QB"?"":" combined"}${where}. League average ${V.lg}, last ${V.n} games.</span></div>`}
+/* Readable stat names for the matchup line. */
+const STATW={points:'points',rebounds:'rebounds',assists:'assists',threes:'3-pointers',PRA:'points + rebounds + assists','rush yds':'rushing yards','rec yds':'receiving yards',receptions:'catches','pass yds':'passing yards','pass TDs':'passing TDs'};
 function spark(r){const mx=Math.max(...r.v,r.pr.line,1),s=[...r.v].reverse(),h=[...r.hits].reverse();
  return `<span class="spark" aria-hidden="true">${s.map((x,i)=>`<i style="height:${Math.round(Math.max(.12,x/mx)*22)}px;background:var(${h[i]?'--hit':'--miss'})"></i>`).join('')}</span>`}
 /* inGame: the card sits in its game's section, which already shows the start time and the price source. */
@@ -103,7 +105,7 @@ function card(r,inGame){const p=r.p,pill=r.review?'<span class="pill p-long">Und
   <div class="row"><span class="prop">${r.side||'Over'} ${r.pr.line} ${esc(r.pr.stat)}</span>${price}${spark(r)}</div>
   ${pct!=null?`<div class="cap"><b>Stamped ${pct}%</b> chance · Vegas says ${fo(pz?pz.odds:r.pr.odds)}</div>`:''}
   <div class="${r.side?'why':'reason'}">${esc(r.review||r.why)}</div>
-  ${mline(r)}${dffLine(r)}
+  ${mline(r)}
   ${(a=>a?`<div class="cap"><span class="pill p-long">Alt</span> ${a.side} ${a.line}${a.rung?` (${a.rung})`:''} ${esc(r.pr.stat)}${a.odds!=null?` at <b>${fo(a.odds)}</b> ${esc(a.src||'')}`:''} · ${a.k} of ${a.n} · ${a.kind.toLowerCase()}${a.odds==null?' · check the alt price':''}</div>`:'')(alt(r))}
   ${p.injury&&p.status!=='active'?`<div class="flag">${esc(p.status[0].toUpperCase()+p.status.slice(1))}${p.injury.detail?`: ${esc(p.injury.detail)}`:''}</div>`:''}
   ${inGame&&pz?'':`<div class="cap">${pz?esc(pz.book):'DraftKings line via ESPN · price not posted'} · Preview</div>`}
@@ -128,7 +130,7 @@ function gameSec(g,players,lg){const {good,rest}=checks(players),isOpen=open.has
 function gamesHTML(lg,exclude){const D=S[lg]&&S[lg].data;if(!D)return '';const ex=new Set((exclude||[]).map(s=>s.toLowerCase())),now=Date.now();
  const up=D.games.filter(g=>et(g.when).getTime()>now&&g.status!=='post');if(!up.length)return '';
  return `<div class="list">${up.map(g=>gameSec(g,D.players.filter(p=>p.gameId===g.id&&!ex.has(p.name.toLowerCase())),lg)).join('')}</div>`}
-const note=lg=>`Each lean uses his last 5 games, the matchup and DailyFantasyFuel's projection.${lg==='nfl'?" NFL prop prices aren't available, so check the price in your book.":' Prices are DraftKings via ESPN. Stamped % is the fair chance from the price. Tested on 12,339 past NBA props, last-5 leans won 52.5% and lost about 5% at the posted prices, so treat them as practice.'}`;
+const note=lg=>`Each lean uses his last 5 games and the matchup: what this defense allowed to his position in real stats (ESPN box scores).${lg==='nfl'?" NFL prop prices aren't available, so check the price in your book.":' Prices are DraftKings via ESPN. Stamped % is the fair chance from the price. Tested on 12,339 past NBA props, last-5 leans won 52.5% and lost about 5% at the posted prices, so treat them as practice.'}`;
 /* Before Stamped's daily picks are out: every upcoming game for the league. */
 function weekHTML(lg){const h=gamesHTML(lg,[]);if(!h)return '';
  return `<div class="cap">${LG[lg].label}'s prop checks by game, updated ${esc(S[lg].data.checked)}. Preview: stamps still post under the usual rules. ${note(lg)}</div><h2 class="sec">${LG[lg].label}</h2>${h}`}

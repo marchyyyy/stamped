@@ -54,6 +54,40 @@ const PREV_SEASON=(()=>{const d=new Date(),y=d.getFullYear(),m=d.getMonth()+1;re
 function ladder(a,line){a=a.sort((x,y)=>x.t-y.t);if(!a.length||a.some(x=>x.odds==null))return a;
  const ip=o=>o>0?100/(o+100):-o/(-o+100);const i=a.reduce((b,x,j)=>Math.abs(x.t-line-.5)<Math.abs(a[b].t-line-.5)?j:b,0);let lo=i,hi=i;
  while(lo>0&&ip(a[lo-1].odds)>ip(a[lo].odds))lo--;while(hi<a.length-1&&ip(a[hi+1].odds)<ip(a[hi].odds))hi++;return a.slice(lo,hi+1)}
+/* Real-stat matchup (owner, 2026-11-06: props use real stats; fantasy points stay on the Fantasy tab). What each defense
+   allowed per game to each position over its last games (NBA 10, NFL 5), from ESPN box scores, ranked across the league:
+   1 = fewest allowed. NBA positions come from the box score (G/F/C); NFL from team rosters (QB/RB/WR/TE). Box scores
+   are cached in live/.cache (shared with tools/hist.js). */
+const DEF_N=SPORT==='nba'?10:5,posKey=p=>{p=String(p||'').toUpperCase();return SPORT==='nba'?(p==='C'?'C':/G/.test(p)?'G':'F'):p==='FB'?'RB':p};
+async function cached(u,key){const f=path.join(ROOT,'live','.cache',key+'.json');if(fs.existsSync(f))return JSON.parse(fs.readFileSync(f,'utf8'));
+ const j=await get(u);await sleep(80);if(j&&j.boxscore){fs.mkdirSync(path.dirname(f),{recursive:true});fs.writeFileSync(f,JSON.stringify(j))}return j}
+async function defense(){
+ /* Each team's finished regular-season games (team schedules), newest first. */
+ const TL=await get(`${SITE}/teams`),T=(((TL&&TL.sports&&TL.sports[0].leagues[0].teams)||[]).map(x=>x.team.id)),ev={};
+ for(const id of T){const s=await get(`${SITE}/teams/${id}/schedule?seasontype=2`);await sleep(80);
+  ((s&&s.events)||[]).filter(e=>{const c=e.competitions&&e.competitions[0];return c&&c.status&&c.status.type&&c.status.type.completed}).forEach(e=>ev[e.id]=e)}
+ const done=Object.values(ev).sort((a,b)=>a.date<b.date?1:-1);
+ let pos={};if(SPORT==='nfl'){
+  for(const id of T){const R=await get(`${SITE}/teams/${id}/roster`);await sleep(80);((R&&R.athletes)||[]).flatMap(x=>x.items?x.items:[x]).forEach(a=>{pos[a.id]=posKey(a.position&&a.position.abbreviation)})}}
+ const per={};/* per[team] = [{G:{points..},F:{..}}, ...] newest first, one entry per game, what the team allowed */
+ for(const e of done){const ids=e.competitions[0].competitors.map(c=>c.team.id);if(ids.every(t=>(per[t]||[]).length>=DEF_N))continue;
+  const s=await cached(`${SITE}/summary?event=${e.id}`,`${SPORT}-${e.id}`),B=(s&&s.boxscore&&s.boxscore.players)||[];if(B.length!==2)continue;
+  B.forEach((t,i)=>{const def=B[1-i].team.id,A={},add=(p,k,v)=>{if(!p||isNaN(v))return;(A[p]=A[p]||{})[k]=(A[p][k]||0)+v};
+   (t.statistics||[]).forEach(c=>{const K=c.keys||[],ix=k=>K.indexOf(k);
+    (c.athletes||[]).forEach(a=>{const v=k=>{const x=String((a.stats||[])[ix(k)]||'');return parseFloat(/[-\/]/.test(k)?x.split(/[-\/]/)[0]:x)};
+     if(SPORT==='nba'){if(!(v('minutes')>0))return;const p=posKey(a.athlete.position&&a.athlete.position.abbreviation),pts=v('points'),reb=v('rebounds'),ast=v('assists');
+      add(p,'points',pts);add(p,'rebounds',reb);add(p,'assists',ast);add(p,'threes',v('threePointFieldGoalsMade-threePointFieldGoalsAttempted'));add(p,'PRA',pts+reb+ast)}
+     else{const p=pos[a.athlete.id];
+      if(c.name==='passing'){add('QB','pass yds',v('passingYards'));add('QB','pass TDs',v('passingTouchdowns'))}
+      if(c.name==='rushing')add(p,'rush yds',v('rushingYards'));
+      if(c.name==='receiving'){add(p,'rec yds',v('receivingYards'));add(p,'receptions',v('receptions'))}}})});
+   if((per[def]=per[def]||[]).length<DEF_N)per[def].push(A)})}
+ /* Per-game average per team/position/stat, then league rank and average. */
+ const out={},vals={};Object.entries(per).forEach(([t,L])=>{if(L.length<(SPORT==='nba'?5:3))return;const T=out[t]={};
+  L.forEach(A=>Object.entries(A).forEach(([p,S])=>Object.entries(S).forEach(([k,v])=>{((T[p]=T[p]||{})[k]=T[p][k]||{avg:0,n:L.length}).avg+=v/L.length})))});
+ Object.values(out).forEach(T=>Object.entries(T).forEach(([p,S])=>Object.entries(S).forEach(([k,o])=>(vals[p+'|'+k]=vals[p+'|'+k]||[]).push(o))));
+ Object.entries(vals).forEach(([pk,a])=>{a.sort((x,y)=>x.avg-y.avg);const lg=a.reduce((s,o)=>s+o.avg,0)/a.length;a.forEach((o,i)=>{o.rank=i+1;o.of=a.length;o.lg=Math.round(lg*10)/10;o.avg=Math.round(o.avg*10)/10})});
+ log(`Defense vs position: ${Object.keys(out).length} teams, last ${DEF_N} games each (ESPN box scores).`);return out}
 function git(a){return cp.execFileSync('git',a,{cwd:ROOT,encoding:'utf8',stdio:['ignore','pipe','pipe']}).trim()}
 
 (async()=>{
@@ -80,6 +114,7 @@ function git(a){return cp.execFileSync('git',a,{cwd:ROOT,encoding:'utf8',stdio:[
   const codes=[t.abbr,...(ALIAS[t.abbr]||[])],rows=dff.filter(r=>codes.includes(r.team)&&!['DST','K'].includes(r.position)&&+r.ppg_projection>0&&r.L5_dvp_rank!=='');
   const w=rows.reduce((a,r)=>a+ +r.ppg_projection,0);
   t.dvp=w?{s:Math.round(rows.reduce((a,r)=>a+ +r.ppg_projection*Math.max(-1,Math.min(1,(+r.L5_dvp_rank-mid)/(mid-1))),0)/w*1000)/1000,n:rows.length}:null}
+ const DEF=await defense().catch(e=>{log('Defense table failed: '+e.message);return{}});
  for(const g of games){if(g.status==='post'&&!TEST)continue;
   const sum=await get(`${SITE}/summary?event=${g.id}`);await sleep(150);
   /* Injury report by team, with the reason: status, body part (and side/detail when given) and expected return. */
@@ -122,7 +157,9 @@ function git(a){return cp.execFileSync('git',a,{cwd:ROOT,encoding:'utf8',stdio:[
        whole number above the line (over 22.5 = 23+). */
     props:Object.entries(L).map(([stat,line])=>{const q=ou[aid]&&ou[aid][stat],op_=q?q.o:M[stat]&&M[stat][Math.floor(line)+1];
      return{stat,line,odds:op_!=null?op_:null,under:q?q.u:null,book:q?'DraftKings (via ESPN)':op_!=null?`DraftKings (${Math.floor(line)+1}+ via ESPN)`:'DraftKings (line via ESPN)',
-      alts:ladder(Object.entries(M[stat]||{}).map(([t,o])=>({t:+t,odds:o})),line)}}),
+      alts:ladder(Object.entries(M[stat]||{}).map(([t,o])=>({t:+t,odds:o})),line),
+      /* Opponent's real-stat defense for his position: per-game allowed, league rank (1 = fewest), league average. */
+      vs:(o=>o?{pos:posKey(pos),avg:o.avg,rank:o.rank,of:o.of,lg:o.lg,n:o.n}:null)(op&&DEF[op.id]&&DEF[op.id][posKey(pos)]&&DEF[op.id][posKey(pos)][stat])}}),
     dff:d?{proj:+d.ppg_projection,l5:+d.L5_fppg_avg,l10:+d.L10_fppg_avg,szn:+d.szn_fppg_avg,dvp:d.L5_dvp_rank!==''?+d.L5_dvp_rank:null,salary:+d.salary,value:+d.value_projection,inj:d.injury_status||''}:null,
     sources:[['ESPN game log','ok',`${gl.length} games`],['DraftKings line (via ESPN)','ok',Object.keys(L).join(', ')],...(d?[['DailyFantasyFuel','ok','projection']]:[])]});
   }
