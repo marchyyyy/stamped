@@ -96,7 +96,15 @@ function mline(r){if(r.grade==null)return '';const C=LG[r.p.lg],g=r.side==='Unde
     last-5 average and set against tonight's line, plus his own games against this team. */
  const f=V.lg?V.avg/V.lg:1,pc=Math.round((f-1)*100),adj=r.avg*f,L=r.pr.line,dp=(C.STEP[r.pr.stat]||1)>=5?0:1;
  const vsTxt=Math.abs(pc)<3?`${esc(opp)} are about average at stopping ${st} by ${pos}`:`${esc(opp)} allow ${Math.abs(pc)}% ${pc>0?'more':'fewer'} ${st} than average to ${pos}`;
- return `<div class="mline"><span class="pill ${cls}">${lab}${r.side==='Under'?' (Under)':''}</span><span class="cap">${vsTxt} (${where}, last ${V.n} games). His ${r.avg.toFixed(dp)} average adjusts to about <b>${adj.toFixed(dp)}</b> tonight, ${adj>L?'over':adj<L?'under':'right at'} the ${L} line.</span></div>${h2h(r)}`}
+ /* Players like him (same position, season average near this line) against this defense: the most direct read on the bet. */
+ const S=r.pr.sim,sd=r.side||'Over';
+ const rd=L>=8?0:1,simTxt=S&&S.n>=3?`${pos[0].toUpperCase()+pos.slice(1)} who usually get ${S.lo.toFixed(rd)}–${S.hi.toFixed(rd)} ${st}, against ${esc(opp)} in its last ${V.n} games: <b>${sd==='Under'?S.under:S.over} of ${S.n}</b> ${sd==='Under'?'stayed under':'went over'} ${L} (${Math.abs(S.diff)<.05?'right at':`${Math.abs(S.diff).toFixed(dp)} ${S.diff>0?'above':'below'}`} their usual). ${esc(opp)}: ${where} ${st} to ${pos}.`:'';
+ return `<div class="mline"><span class="pill ${cls}">${lab}${r.side==='Under'?' (Under)':''}</span><span class="cap">${simTxt||`${vsTxt} (${where}, last ${V.n} games). His ${r.avg.toFixed(dp)} average adjusts to about <b>${adj.toFixed(dp)}</b> tonight, ${adj>L?'over':adj<L?'under':'right at'} the ${L} line.`}</span></div>${h2h(r)}`}
+/* Big chart sheet: the players like him, game by game against this defense. */
+function simHTML(r){const S=r&&r.pr.sim;if(!S||!S.ex.length)return '';const L=r.pr.line,sd=r.side||'Over',hit=v=>sd==='Under'?v<L:v>L;
+ return `<div class="panel"><h4>Players like him vs ${esc((r.p.opp||'').replace(/^(vs|@) /,''))}</h4><table class="lv-t"><thead><tr><th>Player</th><th>Date</th><th class="num">${esc(r.pr.stat)}</th><th class="num">His avg</th></tr></thead><tbody>
+  ${S.ex.map(x=>`<tr><td>${logo(tlogo(r.p.lg,x.team))}${esc(x.name)}</td><td>${esc(x.d.slice(5).replace('-','/'))}</td><td class="num ${hit(x.v)?'up':'dn'}"><b>${x.v}</b></td><td class="num">${x.avg}</td></tr>`).join('')}</tbody></table>
+  <div class="cap">Same position, season average ${S.lo}–${S.hi} (near tonight's ${L}). Green cleared ${sd} ${L}. ${sd==='Under'?S.under:S.over} of ${S.n} did in all.</div></div>`}
 /* His games against tonight's opponent, this season and last (newest first, up to 4). */
 function h2h(r){const p=r.p,ab=p.oppAbbr;if(!ab)return '';const st=r.pr.stat,L=r.pr.line,sd=r.side||'Over',hit=x=>sd==='Under'?x<L:x>L;
  const G=[...(p.games||[]),...(p.past||[])].filter(g=>g.vs&&g.vs.replace(/^(vs|@) /,'')===ab&&g.s&&g.s[st]!=null).slice(0,4);if(!G.length)return '';
@@ -293,7 +301,7 @@ function chartSheetHTML(key){const [lg,id,stat,side]=key.split('|'),D=S[lg]&&S[l
    ${bars}<line x1="0" x2="${PW}" y1="${ly}" y2="${ly}" class="pc-line"/><text x="${PW+4}" y="${(+ly+4).toFixed(1)}" class="pc-l">${L}</text></svg>
   <div class="pc-x" style="grid-template-columns:repeat(${G.length},1fr);margin-right:${(36/W*100).toFixed(1)}%">${G.map(g=>{const ab=g.vs.replace(/^(vs|@) /,'');return `<div><img src="${esc(tlogo(lg,ab))}" alt="" width="22" height="22" loading="lazy"><b>${esc(g.vs)}</b><span>${esc(g.d.slice(5).replace('-','/'))}</span><span class="${/^W/.test(g.res)?'up':/^L/.test(g.res)?'dn':''}">${esc(g.res||'')}</span>${g.min!=null?`<span>${g.min} min</span>`:''}</div>`}).join('')}</div>
   <div class="cap">${sd} ${L} in ${k} of ${G.length}, averaging ${avg.toFixed(1)}. Green cleared the ${sd}, red did not. Dashed line = tonight's line.</div>
-  ${r?mline(r):''}</div>
+  ${r?mline(r):''}</div>${simHTML(r)}
  <button class="card" data-prev-back="${esc(lg+'|'+id)}"><span class="prop">All his props and game log →</span></button>`}
 function sheetHTML(key){const [lg,id]=key.split('|'),D=S[lg]&&S[lg].data,p=D&&D.players.find(x=>x.id===id);if(!p)return '';const stats=[...new Set(p.props.map(x=>x.stat))];
  return `<div class="grab"></div>
