@@ -180,11 +180,11 @@ function cheatRow(r){const pz=priceFor(r.p,r.pr,r.side,r.L),pct=r.L===r.pr.line?
   <small>${esc(r.p.opp)} · ${when(r.p.when)}${pz?` · ${fo(pz.odds)} ${esc(pz.src)}`:''}${pct!=null?` · Stamped ${pct}%`:''}</small></span><span class="cs-k">${r.k}/${r.n}</span></button>`}
 function cheatHTML(lg){const R=cheatRows(lg);if(!R)return '<div class="empty"><h3>Loading</h3>Prop lines are loading.</div>';const D=S[lg].data,MAX=8;
  const box=(icon,title,sub,a)=>`<div class="cs-box"><div class="cs-h"><span aria-hidden="true">${icon}</span><b>${title}</b></div>${a.length?a.slice(0,MAX).map(cheatRow).join(''):`<div class="cap cs-none">${sub}</div>`}</div>`;
- return `<h2 class="sec">${lg.toUpperCase()} cheatsheet</h2><div class="cap">${LG[lg].label}'s lines that hit in 100% of the games shown, updated ${esc(D.checked)}. Streaks are history, not a promise: in testing, past hit rates added nothing beyond the price, so each row also shows the price and the Stamped % (the fair chance from the price) when one is posted. Tap a row for his game log.</div>
- <div class="cs">${box('⚡','100% recent form','No Over has hit in every game this season yet.',R.form)}
- ${box('🛡','100% versus opponent','No line has hit in every game against this opponent (2+ games).',R.opp)}
- ${box('⑂','100% alternate lines','No alt rung reached in every game this season.',R.alt)}
- ${box('⬇','100% unders only','No Under has hit in every game this season yet.',R.under)}</div>`}
+ return `<h2 class="sec">${lg.toUpperCase()} Cheatsheet</h2><div class="cap">${LG[lg].label}'s lines that hit in 100% of the games shown, updated ${esc(D.checked)}. Streaks are history, not a promise: in testing, past hit rates added nothing beyond the price, so each row also shows the price and the Stamped % (the fair chance from the price) when one is posted. Tap a row for his game log.</div>
+ <div class="cs">${box('⚡','100% Recent Form','No Over has hit in every game this season yet.',R.form)}
+ ${box('🛡','100% Versus Opponent','No line has hit in every game against this opponent (2+ games).',R.opp)}
+ ${box('⑂','100% Alternate Lines','No alt rung reached in every game this season.',R.alt)}
+ ${box('⬇','100% Unders Only','No Under has hit in every game this season yet.',R.under)}</div>`}
 /* Upcoming games for a league, so screens that only know about today can say what is coming instead of "no games". */
 function upcoming(lg){const D=S[lg]&&S[lg].data;if(!D)return[];const now=Date.now();return D.games.filter(g=>et(g.when).getTime()>now&&g.status!=='post').sort((a,b)=>a.when<b.when?-1:1)}
 function next(lg){const up=upcoming(lg);if(!up.length)return null;
