@@ -43,6 +43,8 @@
 .lv-sec>summary{cursor:pointer;list-style:none;padding:11px 14px;font-family:var(--f-disp);font-weight:800;font-size:15px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);display:flex;justify-content:space-between;align-items:center}
 .lv-sec>summary::-webkit-details-marker{display:none}
 .lv-sec>summary::after{content:"+";font-size:20px;line-height:1}
+.lv-secbody .lv-sec>summary{justify-content:flex-start;gap:8px}
+.lv-secbody .lv-sec>summary::after{margin-left:auto}
 .lv-sec[open]>summary::after{content:"−"}
 .lv-secbody{padding:0 14px 14px;display:grid;gap:12px;min-width:0}
 .lv-secbody .panel{border:0;padding:0;background:none}

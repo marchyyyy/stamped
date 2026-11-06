@@ -72,7 +72,7 @@ function lean(p,pr){const C=LG[p.lg];
 /* Best alt line for a lean. Overs use DraftKings' "X or more" ladder (NBA rungs are priced; NFL rungs list the line only);
    Unders step one line either way. Pays more: a harder line he still cleared in 4 of 5, not into a tough matchup.
    Safer: an easier line he cleared every time. A priced rung must be under +300 (Stamped rule). */
-function alt(r){if(!r||!r.side||r.review)return null;const p=r.pr,v=r.v,n=r.n,st=LG[r.p.lg].STEP[p.stat]||1,need=Math.ceil(.8*n),ok=o=>o==null||o<300;
+function alt(r){if(!r||!r.side||r.review)return null;const p=r.pr,v=r.v,n=r.n,st=LG[r.p.lg].STEP[p.stat]||1,need=Math.ceil(.8*n),ok=o=>o==null||(o<300&&o>=-400);
  const helps=r.side==='Over'?r.grade!=='hostile':r.grade!=='favorable';let up=null,safe=null;
  if(r.side==='Over'){const kl=K[r.p.lg]&&K[r.p.lg].props[`${norm(r.p.name)}|${p.stat}`]||{};
   /* Rungs from DraftKings' ladder and Kalshi's; each priced by DraftKings when it has a price, otherwise Kalshi. */
@@ -95,17 +95,18 @@ function dffLine(r){const d=r.p.dff;if(!d)return '';const t=r.ratio>=1.05?'above
  return `<div class="cap"><span class="pill p-long">DFF</span> Projects ${d.proj.toFixed(1)} DK pts, ${t} his recent ${(d.l5||d.szn).toFixed(1)}${r.side&&r.dffSide?(r.dffSide===r.side?' · agrees':' · disagrees'):''}</div>`}
 function spark(r){const mx=Math.max(...r.v,r.pr.line,1),s=[...r.v].reverse(),h=[...r.hits].reverse();
  return `<span class="spark" aria-hidden="true">${s.map((x,i)=>`<i style="height:${Math.round(Math.max(.12,x/mx)*22)}px;background:var(${h[i]?'--hit':'--miss'})"></i>`).join('')}</span>`}
-function card(r){const p=r.p,pill=r.review?'<span class="pill p-long">Under review</span>':r.side?`<span class="pill p-pick">Lean ${r.side}</span>`:'<span class="pill p-stay">No lean</span>';
+/* inGame: the card sits in its game's section, which already shows the start time and the price source. */
+function card(r,inGame){const p=r.p,pill=r.review?'<span class="pill p-long">Under review</span>':r.side?`<span class="pill p-pick">Lean ${r.side}</span>`:'<span class="pill p-stay">No lean</span>';
  const pz=r.price||priceFor(p,r.pr,r.side||'Over'),price=pz?`<span class="odds">${fo(pz.odds)}</span>`:'',pct=fair(p,r.pr,r.side||'Over');
  return `<button class="card" data-prev-p="${esc(p.lg+'|'+p.id)}">
-  <div class="row between"><div style="min-width:0"><div class="pname">${esc(p.name)}</div><div class="team">${logo(p.logo)}${esc(p.team)} · ${esc(p.pos)}</div><div class="team">${when(p.when)} · ${esc(p.opp)}</div></div>${pill}</div>
+  <div class="row between"><div style="min-width:0"><div class="pname">${esc(p.name)}</div><div class="team">${logo(p.logo)}${esc(p.team)} · ${esc(p.pos)}${inGame?` · ${esc(p.opp)}`:''}</div>${inGame?'':`<div class="team">${when(p.when)} · ${esc(p.opp)}</div>`}</div>${pill}</div>
   <div class="row"><span class="prop">${r.side||'Over'} ${r.pr.line} ${esc(r.pr.stat)}</span>${price}${spark(r)}</div>
-  ${pct!=null?`<div class="cap"><b>Stamped ${pct}%</b> chance of ${r.side||'Over'} ${r.pr.line} · Vegas says ${fo(pz?pz.odds:r.pr.odds)}</div>`:''}
+  ${pct!=null?`<div class="cap"><b>Stamped ${pct}%</b> chance · Vegas says ${fo(pz?pz.odds:r.pr.odds)}</div>`:''}
   <div class="${r.side?'why':'reason'}">${esc(r.review||r.why)}</div>
   ${mline(r)}${dffLine(r)}
   ${(a=>a?`<div class="cap"><span class="pill p-long">Alt</span> ${a.side} ${a.line}${a.rung?` (${a.rung})`:''} ${esc(r.pr.stat)}${a.odds!=null?` at <b>${fo(a.odds)}</b> ${esc(a.src||'')}`:''} · ${a.k} of ${a.n} · ${a.kind.toLowerCase()}${a.odds==null?' · check the alt price':''}</div>`:'')(alt(r))}
   ${p.injury&&p.status!=='active'?`<div class="flag">${esc(p.status[0].toUpperCase()+p.status.slice(1))}${p.injury.detail?`: ${esc(p.injury.detail)}`:''}</div>`:''}
-  <div class="cap">${pz?esc(pz.book):'DraftKings line via ESPN · price not posted'} · Preview</div>
+  ${inGame&&pz?'':`<div class="cap">${pz?esc(pz.book):'DraftKings line via ESPN · price not posted'} · Preview</div>`}
  </button>`}
 /* Prop checks grouped by game: one collapsible section per game, leans strongest first. Open sections stay open across refreshes. */
 function checks(players){const all=leansFor(players);return{good:all.filter(r=>r.side&&!r.review).sort((a,b)=>b.score-a.score),rest:all.filter(r=>!r.side||r.review)}}
@@ -121,8 +122,8 @@ function gameSec(g,players,lg){const {good,rest}=checks(players),isOpen=open.has
   <span class="nflw-h"><span class="nflw-m">${logo(g.away.logo)}<b>${esc(g.away.abbr)}</b><span class="cap">@</span>${logo(g.home.logo)}<b>${esc(g.home.abbr)}</b></span>
   <span class="cap">${when(g.when)}${g.details?` · ${esc(g.details)}`:''}${g.total?` · O/U ${g.total}`:''}</span>${mlTxt(g)?`<span class="cap">${mlTxt(g).slice(3)}</span>`:''}</span>
   <span class="pill ${good.length?'p-pick':'p-stay'}">${good.length?`${good.length} lean${good.length>1?'s':''}`:players.length?'No leans':'No lines yet'}</span></summary>
-  <div class="lv-secbody">${isOpen?`${crowd(lg,g)}${injHTML(g)}${good.length?`<div class="list">${good.map(card).join('')}</div>`:`<div class="cap">${players.length?"None of this game's lines has enough support yet.":'DraftKings has not posted player props for this game yet.'}</div>`}
-   ${rest.length?sub(`${g.id}|rest`,`No lean or under review (${rest.length})`,`<div class="list">${rest.map(card).join('')}</div>`):''}`:''}</div></details>`}
+  <div class="lv-secbody">${isOpen?`${crowd(lg,g)}${injHTML(g)}${good.length?`<div class="list">${good.map(r=>card(r,1)).join('')}</div>`:`<div class="cap">${players.length?"None of this game's lines has enough support yet.":'DraftKings has not posted player props for this game yet.'}</div>`}
+   ${rest.length?sub(`${g.id}|rest`,`No lean or under review (${rest.length})`,`<div class="list">${rest.map(r=>card(r,1)).join('')}</div>`):''}`:''}</div></details>`}
 /* exclude: names already covered by Stamped's daily data (their own cards keep the full rules). */
 function gamesHTML(lg,exclude){const D=S[lg]&&S[lg].data;if(!D)return '';const ex=new Set((exclude||[]).map(s=>s.toLowerCase())),now=Date.now();
  const up=D.games.filter(g=>et(g.when).getTime()>now&&g.status!=='post');if(!up.length)return '';
@@ -132,7 +133,10 @@ const note=lg=>`Each lean uses his last 5 games, the matchup and DailyFantasyFue
 function weekHTML(lg){const h=gamesHTML(lg,[]);if(!h)return '';
  return `<div class="cap">${LG[lg].label}'s prop checks by game, updated ${esc(S[lg].data.checked)}. Preview: stamps still post under the usual rules. ${note(lg)}</div><h2 class="sec">${LG[lg].label}</h2>${h}`}
 /* With Stamped's daily picks out: players its data does not cover. */
-function moreHTML(lg,exclude){const h=gamesHTML(lg,exclude);return h?`<h2 class="sec">More props · Preview</h2><div class="cap">Players outside today's Stamped data, updated ${esc(S[lg].data.checked)}. Not stamped. ${note(lg)}</div>${h}`:''}
+function moreHTML(lg,exclude,link){const h=gamesHTML(lg,exclude);
+ /* link: the Today tab points to Props instead of repeating every game section. */
+ if(h&&link)return `<button class="card" data-mode="props"><div class="row between"><span class="prop">Player props</span><span class="pill p-long">Props →</span></div><div class="cap">Leans for every player on the slate, game by game, are on the Props tab.</div></button>`;
+ return h?`<h2 class="sec">More props · Preview</h2><div class="cap">Players outside today's Stamped data, updated ${esc(S[lg].data.checked)}. Not stamped. ${note(lg)}</div>${h}`:''}
 
 /* Parlays from the strongest leans: one leg per game and per player, each leg in its safest form (an easier alt he cleared
    every time when there is one), every leg cleared in at least 4 of 5.
@@ -177,10 +181,10 @@ function cheatRows(lg){const D=S[lg]&&S[lg].data;if(!D)return null;const ids=new
 function cheatRow(r){const pz=priceFor(r.p,r.pr,r.side,r.L),pct=r.L===r.pr.line?fair(r.p,r.pr,r.side):pz?Math.round(100*Math.min(.97,Math.max(.03,ip(pz.odds)-.035-(r.p.lg==='nba'?.01:0)))):null;
  const what=r.rung!=null?`${r.rung}+ ${r.lab}`:`${r.side} ${r.L} ${r.lab}`;
  return `<button class="cs-row" data-prev-p="${esc(r.p.lg+'|'+r.p.id)}">${logo(r.p.logo)}<span class="cs-what"><b>${esc(short(r.p.name))}:</b> ${esc(what)}
-  <small>${esc(r.p.opp)} · ${when(r.p.when)}${pz?` · ${fo(pz.odds)} ${esc(pz.src)}`:''}${pct!=null?` · Stamped ${pct}%`:''}</small></span><span class="cs-k">${r.k}/${r.n}</span></button>`}
+  <small>${esc(r.p.opp)} · ${when(r.p.when)}${pz?` · ${fo(pz.odds)}${/draftkings/i.test(pz.src||'')?'':' '+esc(pz.src)}`:''}${pct!=null?` · Stamped ${pct}%`:''}</small></span><span class="cs-k">${r.k}/${r.n}</span></button>`}
 function cheatHTML(lg){const R=cheatRows(lg);if(!R)return '<div class="empty"><h3>Loading</h3>Prop lines are loading.</div>';const D=S[lg].data,MAX=8;
  const box=(icon,title,sub,a)=>`<div class="cs-box"><div class="cs-h"><span aria-hidden="true">${icon}</span><b>${title}</b></div>${a.length?a.slice(0,MAX).map(cheatRow).join(''):`<div class="cap cs-none">${sub}</div>`}</div>`;
- return `<h2 class="sec">${lg.toUpperCase()} Cheatsheet</h2><div class="cap">${LG[lg].label}'s lines that hit in 100% of the games shown, updated ${esc(D.checked)}. Streaks are history, not a promise: in testing, past hit rates added nothing beyond the price, so each row also shows the price and the Stamped % (the fair chance from the price) when one is posted. Tap a row for his game log.</div>
+ return `<div class="slate"><h1>${lg.toUpperCase()} Cheatsheet</h1></div><div class="cap">Lines that hit in 100% of the games shown, updated ${esc(D.checked)}. Streaks are history, not a promise: the price (DraftKings unless marked) and the Stamped % show the fair chance. Tap a row for his game log.</div>
  <div class="cs">${box('⚡','100% Recent Form','No Over has hit in every game this season yet.',R.form)}
  ${box('🛡','100% Versus Opponent','No line has hit in every game against this opponent (2+ games).',R.opp)}
  ${box('⑂','100% Alternate Lines','No alt rung reached in every game this season.',R.alt)}
@@ -259,7 +263,7 @@ function crowdHTML(lg,g){const D=KG[lg];if(!D)return '';const G=Object.values(D.
    <path d="${path(A)}" fill="none" stroke="${ca}" stroke-width="2"/><path d="${path(H)}" fill="none" stroke="${ch}" stroke-width="2"/>
    <circle cx="${x(A[A.length-1][0]).toFixed(1)}" cy="${y(A[A.length-1][1]).toFixed(1)}" r="3" fill="${ca}"/><circle cx="${x(H[H.length-1][0]).toFixed(1)}" cy="${y(H[H.length-1][1]).toFixed(1)}" r="3" fill="${ch}"/>
    ${lab('away',ca,A)}${lab('home',ch,H)}</svg>
-  <div class="cap">Kalshi traders' chance of each team winning, by the hour. ${k(vol)} contracts traded${v24?`, ${k(v24)} in the last 24 h`:''} · ${esc(D.checked)}</div></div>`}
+  <div class="cap">Kalshi traders' win chance by the hour · ${k(vol)} traded${v24?`, ${k(v24)} in 24 h`:''} · ${esc(D.checked)}</div></div>`}
 /* Wrapped so the range buttons can redraw every chart on screen. */
 const GL={};
 function crowd(lg,g){const h=crowdHTML(lg,g);if(!h)return '';const id=String(g.id);GL[id]=g;return `<div data-kc-for="${esc(lg+'|'+id)}">${h}</div>`}

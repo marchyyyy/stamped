@@ -201,7 +201,7 @@ button.lucell{cursor:pointer}button.lucell:hover{outline:1px solid var(--line)}
 .srcs{font-size:12px;color:var(--muted);word-break:break-all;display:grid;gap:3px}
 .srcs a{color:var(--muted)}
 </style>
-<link rel="stylesheet" href="live/live.css?v=20261106l">
+<link rel="stylesheet" href="live/live.css?v=20261106m">
 </head>
 <body>
 
@@ -231,7 +231,7 @@ button.lucell{cursor:pointer}button.lucell:hover{outline:1px solid var(--line)}
 <script src="live/espn.js?v=20261106a"></script>
 <script src="live/ui.js?v=20261106l"></script>
 <script src="live/dff.js?v=20261106i"></script>
-<script src="live/props-preview.js?v=20261106w"></script>
+<script src="live/props-preview.js?v=20261106x"></script>
 <script>
 fetch('./data.json?v='+Date.now()).then(r=>r.json()).then(DATA=>{
 
@@ -519,12 +519,14 @@ function card(p){const b=p.best,e=b&&b.ev,[lab,cls]=STATUS[p.state];
 function probBar(g,r){const P=r.mk||r.M,a=Math.round(P.pA*100),d=Math.round((P.pD||0)*100),hm=100-a-d;
  return `<div class="prob" aria-label="${g.away.n} ${a}%, ${g.ml.draw!=null?`draw ${d}%, `:''}${g.home.n} ${hm}%"><span class="pa" style="width:${a}%">${a}%</span>${g.ml.draw!=null?`<span class="pd" style="width:${d}%">${d}%</span>`:''}<span class="ph">${hm}%</span></div>
  <div class="row between cap"><span>${g.away.n}</span>${g.ml.draw!=null?'<span>Draw</span>':''}<span>${g.home.n}</span></div>`}
+/* Said once above the team cards instead of on every card. */
+const PRACTICE_NOTE=' Practice pick: logged and graded while it proves itself.';
+const teamCap=`<div class="cap">The bar is the market's chance with the bookmaker's cut removed. Practice picks are logged and graded while they prove themselves.</div>`;
 function gameCard(g){const r=decide(g),[lab,cls]=STATUS[r.status];
  return `<button class="card" data-game="${g.id}">
   <div class="row between"><div style="min-width:0"><div class="pname">${g.away.n} at ${g.home.n}</div><div class="team">${dayWord(g.when.slice(0,10))} · ${fmtT(g.when)} ET${g.div?' · '+g.div:''}</div></div>${pill(r.status)}</div>
   ${probBar(g,r)}
-  ${r.status==='practice'?`<div class="row"><span class="prop">${r.label}</span></div><div class="mu">${r.why}</div>`:r.status==='info'||r.status==='pass'?`<div class="${r.status==='pass'?'reason':'mu'}">${r.why}</div>`:`<div class="row"><span class="prop">${r.label}</span></div><div class="row"><span class="sv">Secure Value <b>${r.sv}</b></span>${meter(r.sv)}</div>`}
-  ${r.mk?`<div class="cap">Stamped % = the market's chance with the bookmaker's cut removed.</div>`:''}
+  ${r.status==='practice'?`<div class="row"><span class="prop">${r.label}</span></div><div class="mu">${r.why.replace(PRACTICE_NOTE,'')}</div>`:r.status==='info'||r.status==='pass'?`<div class="${r.status==='pass'?'reason':'mu'}">${r.why}</div>`:`<div class="row"><span class="prop">${r.label}</span></div><div class="row"><span class="sv">Secure Value <b>${r.sv}</b></span>${meter(r.sv)}</div>`}
   <div class="cap">${r.ml?`${g.away.n} ${fo(r.ml.away)}${r.ml.draw!=null?` · Draw ${fo(r.ml.draw)}`:''} · ${g.home.n} ${fo(r.ml.home)} · ${r.mlSrc}`:`No price posted yet · as of ${DATA.checked}`}</div>
   ${window.PREV?(PREV.crowd(g.lg,g)||PREV.teamEKG(g.lg,g,r)):''}
  </button>`}
@@ -571,21 +573,22 @@ function renderMain(){
  const bad=ps.filter(p=>['killed','blocked'].includes(p.state)),none=ps.filter(p=>p.state==='noline');
  const gs=GAMES.filter(g=>g.lg===l.id&&gameOnSlate(g)),rs=gs.map(g=>[g,decide(g)]),tIs=([,r])=>['pick','spread','practice'].includes(r.status),tpicks=rs.filter(tIs).sort((a,b)=>b[1].edge-a[1].edge),tpass=rs.filter(x=>!tIs(x));
  if(state.mode==='today'){
-  html+=`<div class="slate"><h1>${slateTitle(l)}</h1><p>${ps.length||gs.length?`${good.filter(p=>p.state==='pick').length+tpicks.filter(([,r])=>r.status!=='practice').length} stamped · ${ps.length} players · ${gs.length} games`:''}</p></div>`;
+  html+=`<div class="slate"><h1>${slateTitle(l)}</h1><p>${ps.length||gs.length?`${good.filter(p=>p.state==='pick').length+tpicks.filter(([,r])=>r.status!=='practice').length} stamped${ps.length?` · ${ps.length} players`:''} · ${gs.length} games`:''}</p></div>`;
   if(l.off)html+=`<div class="empty"><h3>MLB is in the offseason</h3>Picks return when the new season has games.</div>`;
-  else if(!ps.length&&!gs.length)html+=teamPreviewHTML(l)+((window.PREV&&PREV.weekHTML(l.id))||noSlate(l)+upcomingHTML(l));
+  else if(!ps.length&&!gs.length)html+=teamPreviewHTML(l)+((window.PREV&&PREV.moreHTML(l.id,[],true))||noSlate(l)+upcomingHTML(l));
   else{const picks=good.filter(p=>p.state==='pick'),longs=good.filter(p=>p.state==='longshot');
-   html+=picks.length?`<div class="list">${picks.map(card).join('')}</div>`:`<div class="empty"><h3>No stamped props${none.length&&!ps.filter(p=>p.best).length?' yet':''}</h3>${ps.filter(p=>p.best).length?'Nothing earned a stamp today. See Props for leans.':'No book had a line for these players when we checked.'}</div>`;
-   if(tpicks.length)html+=`<h2 class="sec">${tpicks.every(([,r])=>r.status==='practice')?'Team practice picks':'Team picks'}</h2><div class="list">${tpicks.map(([g])=>gameCard(g)).join('')}</div>${window.PREV&&PREV.practiceHTML?PREV.practiceHTML(l.id):''}`;
+   html+=picks.length?`<div class="list">${picks.map(card).join('')}</div>`:`<div class="empty"><h3>No stamped props${none.length&&!ps.filter(p=>p.best).length?' yet':''}</h3>${ps.filter(p=>p.best).length?'Nothing earned a stamp today. See Props for leans.':ps.length?'No book had a line for these players when we checked.':"Today's player data isn't in yet. Leans are on the Props tab."}</div>`;
+   if(tpicks.length)html+=`<h2 class="sec">${tpicks.every(([,r])=>r.status==='practice')?'Team practice picks':'Team picks'}</h2>${teamCap}<div class="list">${tpicks.map(([g])=>gameCard(g)).join('')}</div>${window.PREV&&PREV.practiceHTML?PREV.practiceHTML(l.id):''}`;
    if(longs.length)html+=`<h2 class="sec">Small-stakes longshots</h2><div class="list">${longs.map(card).join('')}</div>`;
    const rev=ps.filter(p=>p.state==='review');if(rev.length)html+=`<h2 class="sec">Under review</h2><div class="cap">${rev.map(p=>p.name).join(', ')}. Check back closer to game time.</div>`;
-   if(window.PREV)html+=PREV.moreHTML(l.id,P.filter(p=>p.lg===l.id).map(p=>p.name))}
+   if(window.PREV)html+=PREV.moreHTML(l.id,P.filter(p=>p.lg===l.id).map(p=>p.name),true)}
   $('#main').innerHTML=html;return;
  }
  if(state.mode==='props'){
-  html+=`<div class="slate"><h1>${l.name} leans</h1><p>${ps.filter(p=>p.best&&p.state!=='blocked').length} players with lines</p></div>`;
   const withLine=ps.filter(p=>p.best&&p.state!=='blocked');
-  html+=`<div class="cap">Every player on today's slate with a posted line, with a lean and the reason. Leans are not stamped picks; nothing here is a lock.</div>`;
+  /* With no lines in the daily data, the game-by-game previews below carry their own intro, so skip the "0 players" header. */
+  html+=`<div class="slate"><h1>${l.name} leans</h1>${withLine.length?`<p>${withLine.length} players with lines</p>`:''}</div>`;
+  if(withLine.length)html+=`<div class="cap">Every player on today's slate with a posted line, with a lean and the reason. Leans are not stamped picks; nothing here is a lock.</div>`;
   html+=withLine.length?`<div class="list">${withLine.map(leanCard).join('')}</div>`:ps.length?`<div class="empty"><h3>No lines posted yet</h3>${ps.length} players are on today's slate but no book had a line when we checked.</div>`:(window.PREV&&PREV.weekHTML(l.id))||noSlate(l)+upcomingHTML(l);
   if(window.PREV&&ps.length)html+=PREV.moreHTML(l.id,P.filter(p=>p.lg===l.id).map(p=>p.name));
   $('#main').innerHTML=html;return;
@@ -598,7 +601,8 @@ function renderMain(){
   if(l.off)html+=`<div class="empty"><h3>MLB is in the offseason</h3>Team predictions return when the new season has games.</div>`;
   else if(l.id==='golf'||l.id==='tennis')html+=`<div class="empty"><h3>No teams in ${l.name}</h3>Head-to-head matchups use this same model once lines are posted.</div>`;
   else if(!gs.length)html+=noSlate(l)+teamPreviewHTML(l)+(window.PREV&&PREV.teamsHTML(l.id)?`<h2 class="sec">Current lines</h2>${PREV.teamsHTML(l.id)}`:upcomingHTML(l));
-  else{html+=tpicks.length?`<div class="list">${tpicks.map(([g])=>gameCard(g)).join('')}</div>${window.PREV&&PREV.practiceHTML?PREV.practiceHTML(l.id):''}`:`<div class="empty"><h3>No team picks</h3>${l.id==='nba'?'No game differs from its opening line by 5+ points in the tested model.':`${l.name} team picks are paused until a signal beats the market in testing.`}</div>`;
+  /* Pick cards already sit on Today; point there instead of repeating them. */
+  else{html+=teamCap;html+=tpicks.length?`<button class="card" data-mode="today"><div class="row between"><span class="prop">${tpicks.length} ${tpicks.every(([,r])=>r.status==='practice')?'practice pick':'pick'}${tpicks.length>1?'s':''}</span><span class="pill p-long">Today →</span></div><div class="cap">${tpicks.map(([g])=>g.away.n+' at '+g.home.n).join(' · ')}</div></button>${window.PREV&&PREV.practiceHTML?PREV.practiceHTML(l.id):''}`:`<div class="empty"><h3>No team picks</h3>${l.id==='nba'?'No game differs from its opening line by 5+ points in the tested model.':`${l.name} team picks are paused until a signal beats the market in testing.`}</div>`;
    if(tpass.length)html+=`<h2 class="sec">${tpicks.length?'Other games':'Games'}</h2><div class="list">${tpass.map(([g])=>gameCard(g)).join('')}</div>`}
  }else if(state.view==='alts'){
   html+=altsHTML(l);
@@ -690,7 +694,7 @@ function fanCard(p){const F=p.fan,e=F.ev,st=e?e.status:'noline';
  </button>`}
 function fantasyHTML(l){
  const sys=FSYS[FSYSSEL],ps=P.filter(p=>p.lg===l.id&&onSlate(p)),withF=ps.filter(p=>p.fan).sort((a,b)=>(rank[(b.fan.ev||{}).status]||0)-(rank[(a.fan.ev||{}).status]||0)||b.fan.proj-a.fan.proj),without=ps.filter(p=>!p.fan);
- let html=`<div class="slate"><h1>${l.name} fantasy</h1><p>${withF.length} players · ${withF.filter(p=>p.fan.ev&&p.fan.ev.status==='pick').length} stamped</p></div>
+ let html=`<div class="slate"><h1>${l.name} fantasy</h1>${withF.length?`<p>${withF.length} players · ${withF.filter(p=>p.fan.ev&&p.fan.ev.status==="pick").length} stamped</p>`:""}</div>
  <div class="row between"><span class="cap">Scoring</span><div class="toggle"><button data-fsys="dk" aria-pressed="${FSYSSEL==='dk'}">DraftKings</button><button data-fsys="ud" aria-pressed="${FSYSSEL==='ud'}">Underdog</button></div></div>`;
  if(!sys[l.id])return html+`<div class="empty"><h3>Fantasy scoring for ${l.name} comes next</h3>NBA and NFL use DraftKings and Underdog scoring now. ${l.name} scoring is next on the list.</div>`+upcomingHTML(l);
  if(!ps.length)return html+noSlate(l)+(window.DFF&&['nfl','nba'].includes(l.id)?DFF.previewHTML(l.id):'')+upcomingHTML(l);
@@ -858,23 +862,23 @@ function gameSheet(g){const M=model(g),r=decide(g),c=TEAM_CFG[g.lg],[lab,cls]=ST
  return `<div class="grab"></div>
  <div class="shead"><div style="min-width:0"><div class="pname">${g.away.n} at ${g.home.n}</div><div class="team">${dayWord(g.when.slice(0,10))} · ${fmtT(g.when)} ET · ${lgOf(g.lg).name}${g.div?' · '+g.div:''}</div></div><button class="x" id="close" aria-label="Close">×</button></div>
  <div class="panel"><div class="row between"><h4>Prediction</h4>${pill(r.status)}</div>${probBar(g,r)}
-  <div class="why">Projected: <strong>${fav} by ${Math.abs(M.m).toFixed(1)} ${c.u}</strong></div>
-  ${r.status!=='pass'?`<div class="row"><span class="prop">${r.label}</span></div><div class="row"><span class="sv">Secure Value <b>${r.sv}</b></span>${meter(r.sv)}</div>`:''}
+  ${r.label?`<div class="row"><span class="prop">${r.label}</span></div>`:''}${r.sv?`<div class="row"><span class="sv">Secure Value <b>${r.sv}</b></span>${meter(r.sv)}</div>`:''}
   <div class="${r.status==='pass'?'reason':'mu'}">${r.why}</div>${g.note?`<div class="mu">${g.note}</div>`:''}</div>
  <div class="panel"><h4>Posted prices</h4>
-  ${g.ml.home!=null?`<table><thead><tr><th>${g.ml.book}</th><th class="num">${g.away.n}</th>${g.ml.draw!=null?'<th class="num">Draw</th>':''}<th class="num">${g.home.n}</th></tr></thead><tbody>
+  ${g.ml.home==null&&r.ml?`<table><thead><tr><th></th><th class="num">${g.away.n}</th><th class="num">${g.home.n}</th></tr></thead><tbody><tr><td>Moneyline</td><td class="num">${fo(r.ml.away)}</td><td class="num">${fo(r.ml.home)}</td></tr></tbody></table><div class="cap">${r.mlSrc}</div>`
+  :g.ml.home!=null?`<table><thead><tr><th>${g.ml.book}</th><th class="num">${g.away.n}</th>${g.ml.draw!=null?'<th class="num">Draw</th>':''}<th class="num">${g.home.n}</th></tr></thead><tbody>
   <tr><td>Moneyline</td><td class="num">${fo(g.ml.away)}</td>${g.ml.draw!=null?`<td class="num">${fo(g.ml.draw)}</td>`:''}<td class="num">${fo(g.ml.home)}</td></tr>
   ${g.spread.home!=null?`<tr><td>Spread</td><td class="num">${-g.spread.home>0?'+':''}${-g.spread.home}${g.spread.awayOdds!=null?` (${fo(g.spread.awayOdds)})`:''}</td>${g.ml.draw!=null?'<td></td>':''}<td class="num">${g.spread.home>0?'+':''}${g.spread.home}${g.spread.homeOdds!=null?` (${fo(g.spread.homeOdds)})`:''}</td></tr>`:''}</tbody></table>`:'<div class="mu">No price posted yet for this game.</div>'}
-  <div class="cap">How to read a price: −150 means you bet $150 to win $100. +130 means a $100 bet wins $130. Prices as of ${DATA.checked}; they move, so confirm in your book.${g.ml.book&&/BC\.Game/.test(g.ml.book)?' This price is from an offshore book listed on an odds site, not DraftKings or Hard Rock.':''}</div></div>
+  <div class="cap">How to read a price: −150 means you bet $150 to win $100. +130 means a $100 bet wins $130. ${g.ml.home!=null?`Prices as of ${DATA.checked}; they`:'Prices'} move, so confirm in your book.${g.ml.book&&/BC\.Game/.test(g.ml.book)?' This price is from an offshore book listed on an odds site, not DraftKings or Hard Rock.':''}</div></div>
  ${(()=>{const LU=DATA.lineups||[],a=LU.find(t=>t.team===g.away.n&&t.start===g.when),h=LU.find(t=>t.team===g.home.n&&t.start===g.when);return a||h?`<div class="panel"><h4>Starting lineups</h4>${luGame(lgOf(g.lg),a,h).replace('<div class="inj lugame">','<div class="lugame" style="display:grid;gap:8px">')}</div>`:''})()}
  ${crowdPanel(g)}
- <div class="panel"><h4>Why the model says this</h4>
+ <div class="panel"><h4>Season model · ${fav} by ${Math.abs(M.m).toFixed(1)} ${c.u}</h4><div class="cap">Background only: this older model tested less accurate than the market, so the bar and picks above don't use it.</div>
   <table><thead><tr><th>Factor</th><th class="num">${g.away.n}</th><th class="num">${g.home.n}</th><th class="num">Moves ${c.u}</th></tr></thead><tbody>
   ${M.parts.map(([f,a,b,v])=>`<tr><td>${f}</td><td class="num">${a}</td><td class="num">${b}</td><td class="num ${v>0?'up':v<0?'dn':''}">${v>0?'+':''}${v.toFixed(g.lg==='soccer'?2:1)}</td></tr>`).join('')}
   <tr><th>Projected ${g.home.n} margin</th><td></td><td></td><td class="num"><b>${M.m>0?'+':''}${M.m.toFixed(g.lg==='soccer'?2:1)}</b></td></tr></tbody></table>
   <div class="cap">Positive numbers favor ${g.home.n}. ${M.T?`Offense vs this defense is each team's projected points: its points per game plus the other team's points allowed per game, minus the league average (${M.T.lg.toFixed(1)}), from ESPN (${g.away.n} ${M.T.away.ppg.toFixed(1)} scored / ${M.T.away.pa.toFixed(1)} allowed, ${g.home.n} ${M.T.home.ppg.toFixed(1)} / ${M.T.home.pa.toFixed(1)}). DvP adds up to ±${c.dv} points for how soft or tough this defense is against the team's actual players (DailyFantasyFuel, weighted by projection).`:`Season rating is this season's average margin (${g.away.n} ${g.away.record}, ${g.home.n} ${g.home.record})${M.w?`, blended with ${Math.round(M.w*100)}% of last season because it is early`:''}.`} Availability points are model estimates for the players listed out.</div>
   ${[g.away,g.home].map(t=>`<div class="flag">${t.n}: ${t.injNote}</div>`).join('')}</div>
- ${['away','home'].map(sd=>`<div class="panel"><h4>${g[sd].n} · last 5</h4><div class="chartbox">${teamChart(g,sd)}<div class="tip" hidden></div></div><div class="cap">Bars show the final margin. Hover or tap for the date, opponent and score.</div></div>`).join('')}`}
+ ${['away','home'].map(sd=>`<div class="panel"><h4>${g[sd].n} · last 5</h4><div class="chartbox">${teamChart(g,sd)}<div class="tip" hidden></div></div>${sd==='home'?'<div class="cap">Bars show the final margin. Tap for the date, opponent and score.</div>':''}</div>`).join('')}`}
 
 let openId=null,openKind=null;
 function openSheet(id){openId=id;openKind='player';$('#sheet').innerHTML=playerSheet(P.find(x=>x.id===id));showSheet()}
