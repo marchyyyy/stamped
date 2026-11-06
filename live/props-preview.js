@@ -91,8 +91,17 @@ const leansFor=players=>{const out=[];players.forEach(p=>(p.props||[]).forEach(p
 function mline(r){if(r.grade==null)return '';const C=LG[r.p.lg],g=r.side==='Under'?(r.grade==='favorable'?'hostile':r.grade==='hostile'?'favorable':r.grade):r.grade;
  const lab=g==='favorable'?'Matchup helps':g==='hostile'?'Tough matchup':'Average matchup',cls=g==='favorable'?'p-pick':g==='hostile'?'p-stay':'p-long';
  const opp=(r.p.opp||'').replace(/^(vs|@) /,''),V=r.vs,pos=C.POSN[V.pos]||'his position',st=STATW[r.pr.stat]||r.pr.stat,T=V.of;
- const where=r.rank>=T-(C.tot-C.fav)?`, the ${T+1-r.rank===1?'':ord(T+1-r.rank)+'-'}most`:r.rank<=C.bad?`, the ${r.rank===1?'':ord(r.rank)+'-'}fewest`:` (${ord(r.rank)} of ${T})`;
- return `<div class="mline"><span class="pill ${cls}">${lab}${r.side==='Under'?' (Under)':''}</span><span class="cap">${esc(opp)} allow ${V.avg} ${st} a game to ${pos}${V.pos==="QB"?"":" combined"}${where}. League average ${V.lg}, last ${V.n} games.</span></div>`}
+ const where=r.rank>=T-(C.tot-C.fav)?`${T+1-r.rank===1?'':ord(T+1-r.rank)+'-'}most`:r.rank<=C.bad?`${r.rank===1?'':ord(r.rank)+'-'}fewest`:`${ord(r.rank)} of ${T}`;
+ /* Tied to his bet (owner, 2026-11-06): how far this defense sits from average for his position and stat, applied to his
+    last-5 average and set against tonight's line, plus his own games against this team. */
+ const f=V.lg?V.avg/V.lg:1,pc=Math.round((f-1)*100),adj=r.avg*f,L=r.pr.line,dp=(C.STEP[r.pr.stat]||1)>=5?0:1;
+ const vsTxt=Math.abs(pc)<3?`${esc(opp)} are about average at stopping ${st} by ${pos}`:`${esc(opp)} allow ${Math.abs(pc)}% ${pc>0?'more':'fewer'} ${st} than average to ${pos}`;
+ return `<div class="mline"><span class="pill ${cls}">${lab}${r.side==='Under'?' (Under)':''}</span><span class="cap">${vsTxt} (${where}, last ${V.n} games). His ${r.avg.toFixed(dp)} average adjusts to about <b>${adj.toFixed(dp)}</b> tonight, ${adj>L?'over':adj<L?'under':'right at'} the ${L} line.</span></div>${h2h(r)}`}
+/* His games against tonight's opponent, this season and last (newest first, up to 4). */
+function h2h(r){const p=r.p,ab=p.oppAbbr;if(!ab)return '';const st=r.pr.stat,L=r.pr.line,sd=r.side||'Over',hit=x=>sd==='Under'?x<L:x>L;
+ const G=[...(p.games||[]),...(p.past||[])].filter(g=>g.vs&&g.vs.replace(/^(vs|@) /,'')===ab&&g.s&&g.s[st]!=null).slice(0,4);if(!G.length)return '';
+ const k=G.filter(g=>hit(g.s[st])).length;
+ return `<div class="cap"><span class="pill p-long">Vs ${esc(ab)}</span> ${G.map(g=>`<b class="${hit(g.s[st])?'up':'dn'}">${g.s[st]}</b>`).join(', ')} · ${sd} ${L} in ${k} of ${G.length}</div>`}
 /* Readable stat names for the matchup line. */
 const STATW={points:'points',rebounds:'rebounds',assists:'assists',threes:'3-pointers',PRA:'points + rebounds + assists','rush yds':'rushing yards','rec yds':'receiving yards',receptions:'catches','pass yds':'passing yards','pass TDs':'passing TDs'};
 function spark(r){const mx=Math.max(...r.v,r.pr.line,1),s=[...r.v].reverse(),h=[...r.hits].reverse();
