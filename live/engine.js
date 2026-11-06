@@ -179,14 +179,14 @@ function confidence(sim,q){
  if(st.status==='pre'||e<6)return{level:'Low',why:['too early in the game']};
  return e>=24?{level:'High',why:[]}:{level:'Medium',why:[]};
 }
-/* Existing Stamped rules are applied unchanged (−160 kill, +300 too long, 3-point edge over no-vig).
+/* Stamped rules: +300 too long, 3-point edge over no-vig. The -160 cap was removed (owner, 2026-11-06); kill stays null.
    Live-only rules are added on top; every live pick is Paper until the backtest and paper trading validate the model. */
-const RULES={kill:-160,tooLong:300,minEdge:.03,
+const RULES={kill:null,tooLong:300,minEdge:.03,
  live:{maxOddsAgeSec:90,noPickLastSec:120,needConfidence:['Medium','High']}};
 function grade(c,cfg){
  const why=[];
  if(c.price==null)return{ok:false,why:['No price.']};
- if(c.price<RULES.kill)why.push(`${c.price} is worse than −160, priced too steep (existing rule).`);
+ if(RULES.kill!=null&&c.price<RULES.kill)why.push(`${c.price} is worse than ${RULES.kill}, priced too steep.`);
  if(c.price>=RULES.tooLong)why.push(`+${c.price} is too long a shot (existing rule).`);
  if(c.edge<Math.max(RULES.minEdge,(cfg&&cfg.minEdge)||0))why.push(`Edge ${(c.edge*100).toFixed(1)} pts is under the ${Math.max(3,((cfg&&cfg.minEdge)||0)*100).toFixed(1)}-point minimum (existing rule).`);
  if(c.ev<=0)why.push('Negative expected value.');

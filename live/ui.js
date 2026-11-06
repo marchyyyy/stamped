@@ -237,7 +237,7 @@ function sheet(id,refresh){const v=ui.view[id];if(!v)return;const st=v.st,R=v.si
  <div class="panel"><h4>Player props</h4>${st.status!=='in'?'<div class="cap">Live props only run while the game is in progress.</div>':!v.props?'<div class="cap">No live player props posted.</div>':(()=>{const pos=(v.propOpps||[]).filter(o=>o.ev>0);
   return `${pos.length?`<table class="lv-t">${oppHead()}<tbody>${pos.map(oppRow).join('')}</tbody></table>`:'<div class="cap">No player prop pays more than it should.</div>'}
   <div class="cap">${v.propOpps.length} DraftKings "X or more" bets checked at ${tm(v.props.fetched)}${v.props.frozen?' · prices not moving':''}.</div>`})()}</div>
- <div class="cap">Only bets that earn money on average are listed. Faded rows still fail a rule: price worse than −160 or +300 or longer, edge under 3 or over 10 points, old prices, or the last 2:00.</div>
+ <div class="cap">Only bets that earn money on average are listed. Faded rows still fail a rule: +300 or longer, edge under 3 or over 10 points, old prices, or the last 2:00.</div>
  </div></details>
  ${secOpen('s-calc','Check a line from your book')}
   <div class="row lv-calc"><select data-lv-calc="key">${CALC_KEYS.map(([k,t])=>`<option value="${k}" ${ui.calc.key===k?'selected':''}>${t}</option>`).join('')}</select>

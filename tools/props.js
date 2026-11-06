@@ -59,6 +59,18 @@ function git(a){return cp.execFileSync('git',a,{cwd:ROOT,encoding:'utf8',stdio:[
    games.push({id:ev.id,when:et(ev.date),status:c.status&&c.status.type&&c.status.type.state,away:T('away'),home:T('home'),details:o.details||null,total:o.overUnder!=null?o.overUnder:null,
     ml:{away:mlv('away'),home:mlv('home')},book:o.provider&&o.provider.name||null,injuries:{away:[],home:[]}})}}
  log(`${games.length} games on ${dates.join(', ')}`);
+ /* Team model inputs (owner, 2026-11-06): each team's points scored and allowed per game this season (ESPN), and a DvP
+    matchup score: how soft (+1) or tough (-1) this opponent's defense is against the team's actual players, from DFF's
+    defense-vs-position ranks, weighted by each player's projected points. */
+ const ALIAS={WSH:['WAS'],LAR:['LA','LAR'],GS:['GSW','GS'],NO:['NOP','NO'],SA:['SAS','SA'],NY:['NYK','NY'],UTAH:['UTA','UTAH'],JAX:['JAC','JAX'],BKN:['BKN','BRK'],PHX:['PHX','PHO']};
+ const N=SPORT==='nfl'?32:30,mid=(N+1)/2;
+ for(const g of games)for(const t of [g.away,g.home]){
+  const R=await get(`${SITE}/teams/${t.id}`);await sleep(100);
+  const it=((R&&R.team&&R.team.record&&R.team.record.items)||[]).find(x=>x.type==='total'),st=n=>{const s=it&&(it.stats||[]).find(x=>x.name===n);return s?num(s.value):null};
+  t.ppg=st('avgPointsFor');t.pa=st('avgPointsAgainst');t.gp=st('gamesPlayed');
+  const codes=[t.abbr,...(ALIAS[t.abbr]||[])],rows=dff.filter(r=>codes.includes(r.team)&&!['DST','K'].includes(r.position)&&+r.ppg_projection>0&&r.L5_dvp_rank!=='');
+  const w=rows.reduce((a,r)=>a+ +r.ppg_projection,0);
+  t.dvp=w?{s:Math.round(rows.reduce((a,r)=>a+ +r.ppg_projection*Math.max(-1,Math.min(1,(+r.L5_dvp_rank-mid)/(mid-1))),0)/w*1000)/1000,n:rows.length}:null}
  for(const g of games){if(g.status==='post'&&!TEST)continue;
   const sum=await get(`${SITE}/summary?event=${g.id}`);await sleep(150);
   /* Injury report by team, with the reason: status, body part (and side/detail when given) and expected return. */

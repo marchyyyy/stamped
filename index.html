@@ -227,11 +227,11 @@ button.lucell{cursor:pointer}button.lucell:hover{outline:1px solid var(--line)}
 </div>
 
 <!-- Bump ?v= on every live release so browsers and the home-screen app pick up new files right away. -->
-<script src="live/engine.js?v=20261106a"></script>
+<script src="live/engine.js?v=20261106l"></script>
 <script src="live/espn.js?v=20261106a"></script>
-<script src="live/ui.js?v=20261106b"></script>
+<script src="live/ui.js?v=20261106l"></script>
 <script src="live/dff.js?v=20261106i"></script>
-<script src="live/props-preview.js?v=20261106k"></script>
+<script src="live/props-preview.js?v=20261106l"></script>
 <script>
 fetch('./data.json?v='+Date.now()).then(r=>r.json()).then(DATA=>{
 
@@ -256,7 +256,7 @@ const CHECKS={
  tennis:['Surface this season','Opponent hold / break %','Fatigue from last match','Retirement risk','Indoor vs outdoor'],
  golf:[],mlb:[]};
 const DONE={nba:['Injuries','Back-to-back'],nfl:['Injuries','Game script'],soccer:['Injuries and suspensions','Rotation risk (midweek cup / UCL)'],tennis:['Surface this season','Indoor vs outdoor']};
-const TEAM_CFG={nba:{home:2.5,form:.3,rest:.5,s:8.5,fade:20,u:'pts',cush:1,big:-2},nfl:{home:1.5,form:.5,rest:0,s:7,fade:6,u:'pts',cush:1,big:-2},soccer:{home:.3,form:.05,rest:0,s:.9,fade:10,u:'goals',cush:.25,big:-.2}};
+const TEAM_CFG={nba:{home:2.5,form:.3,rest:.5,s:8.5,fade:20,u:'pts',cush:1,big:-2,dv:4},nfl:{home:1.5,form:.5,rest:0,s:7,fade:6,u:'pts',cush:1,big:-2,dv:3},soccer:{home:.3,form:.05,rest:0,s:.9,fade:10,u:'goals',cush:.25,big:-.2}};
 
 /* ---------- helpers ---------- */
 const $=s=>document.querySelector(s);
@@ -304,7 +304,6 @@ function evaluate(p,stat,line,odds){
  if(p.status==='blocked'){r.status='blocked';r.reasons.push(p.note||'Blocked by a standing rule.');return r}
  if(p.status==='questionable'){r.review=r.review||[]}
  if(!r.n){r.status='blocked';r.reasons.push('No current-season games with this stat, so he is ineligible.');return r}
- if(odds!=null&&odds<-160){r.status='killed';r.reasons.push(`${fo(odds)} is priced too steep to recommend.`);return r}
  const statSrc=(p.sources||[]).filter(x=>!/^(Props|DvP)/i.test(x[0])&&!/props|spot-check/i.test(x[0]));
  const hasDvp=!!(p.matchup&&p.matchup.dvp&&p.matchup.dvp[stat]&&p.matchup.dvp[stat].rank!=null)||(p.matchup&&p.matchup.grade);
  r.review=[];if(p.status==='questionable')r.review.push('listed questionable; not cleared to play');if(statSrc.length<2)r.review.push('stats not yet confirmed on a second source');if(!hasDvp&&p.lg!=='golf')r.review.push(`DvP not yet checked for ${stat}`);
@@ -406,7 +405,7 @@ function scenario(p,pr){
  if(!side)return{side:'No lean',label:pr.ev.label,str:'',why:`Split: ${overs(pr.line)} over and ${n-overs(pr.line)} under in his last ${n} (${list}), averaging ${avg.toFixed(1)}${d?`, and the matchup doesn't tip it`:''}. Nothing to recommend.`,ctx,price:'',considered:[]};
  const dvS=side==='Over'?dv:-dv;
  const cands=[-2,-1,0,1,2].map(k=>{const L=+(pr.line+k*st).toFixed(1);if(L<.5)return null;const h=side==='Over'?overs(L):n-overs(L);return{k,L,h,pay:side==='Over'?k:-k}}).filter(Boolean);
- const posted=cands.find(c=>c.k===0),postedOK=!(side==='Over'&&pr.odds!=null&&pr.odds<-160);
+ const posted=cands.find(c=>c.k===0),postedOK=true; // no price cap since the -160 rule was removed
  const need=x=>Math.ceil(x*n);
  let pick=null,why2='';
  if(dvS>0){const up=cands.filter(c=>c.pay>0&&c.pay<=(dvS>0?2:1)&&c.h>=need(.8)).sort((a,b)=>b.pay-a.pay)[0];if(up){pick=up;why2=`The matchup favors the ${side.toLowerCase()} and he still clears ${up.L} in ${up.h} of ${n}, so the alt pays more for the same evidence.`}}
@@ -456,15 +455,23 @@ function altTable(p,all){const rows=all?p.alts:p.alts.filter(a=>a.ok);const b=p.
 const wins=t=>t.l5.filter(x=>x.m>0).length;
 const gp=t=>t.record?t.record.split('-').reduce((a,b)=>a+ +b,0):null;
 function model(g){
- const c=TEAM_CFG[g.lg],n=Math.min(gp(g.home)||c.fade,gp(g.away)||c.fade),w=g.home.prior!=null&&g.away.prior!=null?+(0.3*Math.max(0,1-n/c.fade)).toFixed(3):0;
- const rate=t=>(1-w)*t.net+w*(t.prior||0);
- const parts=[[`Season rating${w?` (${Math.round(w*100)}% last season)`:''}`,rate(g.away).toFixed(2),rate(g.home).toFixed(2),rate(g.home)-rate(g.away)],
+ const c=TEAM_CFG[g.lg],n=Math.min(gp(g.home)||c.fade,gp(g.away)||c.fade);
+ /* Season rating (owner, 2026-11-06): no season scoring margin. Each side's projected score is its offense against THIS
+    opponent's defense (its points per game + the opponent's points allowed per game - league average, ESPN), plus a DvP
+    term: how soft or tough this defense is against the team's actual players (DFF ranks, weighted by projection), worth
+    up to +/- dv points. Only when those inputs are missing (soccer) does it fall back to the season margin. */
+ const T=c.dv&&window.PREV&&PREV.teamRating&&PREV.teamRating(g.lg,g);let w=0,head;
+ if(T){const oA=T.away.ppg+T.home.pa-T.lg,oH=T.home.ppg+T.away.pa-T.lg,dA=c.dv*((T.away.dvp&&T.away.dvp.s)||0),dH=c.dv*((T.home.dvp&&T.home.dvp.s)||0),sg=x=>(x>=0?'+':'')+x.toFixed(1);
+  head=[['Offense vs this defense',oA.toFixed(1),oH.toFixed(1),oH-oA],['DvP: players vs this defense',sg(dA),sg(dH),dH-dA]]}
+ else{w=g.home.prior!=null&&g.away.prior!=null?+(0.3*Math.max(0,1-n/c.fade)).toFixed(3):0;const rate=t=>(1-w)*t.net+w*(t.prior||0);
+  head=[[`Season rating${w?` (${Math.round(w*100)}% last season)`:''}`,rate(g.away).toFixed(2),rate(g.home).toFixed(2),rate(g.home)-rate(g.away)]]}
+ const parts=[...head,
   ['Home edge','—','—',c.home],['Availability',g.away.inj,g.home.inj,g.home.inj-g.away.inj],
   ['Rest days',g.away.rest,g.home.rest,c.rest*(g.home.rest-g.away.rest)+(g.lg==='nba'?(g.home.rest===0?-1:0)-(g.away.rest===0?-1:0):0)],
   ['Wins in last 5',wins(g.away),wins(g.home),c.form*(wins(g.home)-wins(g.away))]];
  const m=parts.reduce((a,p)=>a+p[3],0);let pH,pA,pD=0;
  if(g.lg==='soccer'){const raw=1/(1+Math.exp(-m/c.s));pD=.26-.08*Math.min(Math.abs(m),1.5);pH=raw*(1-pD);pA=(1-raw)*(1-pD)}else{pH=1/(1+Math.exp(-m/c.s));pA=1-pH}
- return{m,parts,pH,pA,pD,w};
+ return{m,parts,pH,pA,pD,w,T};
 }
 function decide(g){
  const c=TEAM_CFG[g.lg],M=model(g),r={M,status:'pick',sv:0};
@@ -474,17 +481,10 @@ function decide(g){
  const side=eh>=ea?'home':'away',t=g[side],edge=Math.max(eh,ea),ml=g.ml[side],sm=side==='home'?M.m:-M.m;
  Object.assign(r,{side,team:t.n,edge});
  if(edge<.03){r.status='pass';r.why=`No edge. The model is within ${(Math.abs(edge)*100).toFixed(1)} points of the book on both sides.`;return r}
- let price;
- if(ml<-160){
-  if(g.spread.home==null){r.status='pass';r.why=`${t.n} moneyline ${fo(ml)} is priced too steep and no spread price was found.`;return r}
-  const spr=side==='home'?g.spread.home:-g.spread.home,cushion=sm+spr;price=side==='home'?g.spread.homeOdds:g.spread.awayOdds;
-  if(cushion<c.cush){r.status='pass';r.why=`${t.n} moneyline ${fo(ml)} is priced too steep, and the projected margin (${sm.toFixed(1)}) does not clear the ${spr>0?'+':''}${spr} spread.`;return r}
-  r.status='spread';r.label=`${t.n} ${spr>0?'+':''}${spr}${price!=null?` (${fo(price)})`:' (price not posted)'}`;
-  r.why=`Moneyline ${fo(ml)} is priced too steep, so the pick is the spread. Projected margin ${sm.toFixed(1)} clears it by ${cushion.toFixed(1)} ${c.u}.`;
-  const x=cushion/c.cush;r.sv=x>=4?8:x>=2.5?7:6;
- }else{price=ml;r.label=`${t.n} moneyline (${fo(ml)})`;
-  r.why=`Model gives ${t.n} ${(M[side==='home'?'pH':'pA']*100).toFixed(0)}% to win. The book implies ${((side==='home'?r.nh:r.na)*100).toFixed(0)}%. Edge ${(edge*100).toFixed(1)} points.`;
-  r.sv=edge>=.10?8:edge>=.06?7:6}
+ /* The -160 cap was removed (owner, 2026-11-06): heavy favorites stay on the moneyline instead of moving to the spread. */
+ const price=ml;r.label=`${t.n} moneyline (${fo(ml)})`;
+ r.why=`Model gives ${t.n} ${(M[side==='home'?'pH':'pA']*100).toFixed(0)}% to win. The book implies ${((side==='home'?r.nh:r.na)*100).toFixed(0)}%. Edge ${(edge*100).toFixed(1)} points.`;
+ r.sv=edge>=.10?8:edge>=.06?7:6;
  if(wins(t)>=4)r.sv=Math.min(9,r.sv+1);
  if(t.inj<=c.big)r.sv-=1;
  if(price!=null&&price<=-140)r.sv=Math.min(r.sv,8);
@@ -703,7 +703,7 @@ function rulesHTML(lg){
   <li>Current season only. No prior-season, career or preseason stats for props.</li>
   <li>Hit rate uses the last 5 games at most. A thin sample stays thin.</li>
   <li>Zero current-season games means ineligible.</li>
-  <li>Anything worse than −160 is killed, repriced to an alt line or spread, or replaced. That includes parlay legs.</li>
+  <li>No price cap: heavy favorites are allowed (the −160 limit was removed). Heavy juice still caps Secure Value at 8.</li>
   <li>Out or questionable players get nothing until they clear.</li>
   <li>Secure Value: 5/5 → 10, 4/5 → 8–9, 3/5 → 6–7, 1–2/5 → 3–5 only with a favorable matchup. Longshots cap at 5, heavy juice (−140 or worse) caps at 8, samples under 4 cap at 7.</li>
   <li>Nothing is recommended until everything is reviewed: stats confirmed on two sources, and DvP checked for that exact stat. Until then the card says Under review.</li>
@@ -719,9 +719,9 @@ function rulesHTML(lg){
   <li>Current day only. No future picks. Lineups refresh before every game; starters are confirmed about 20 minutes before tip.</li></ul></div>
   <div class="rules"><h3>Props leans <span class="pill p-long">New draft</span></h3><ul>
   <li>Stamped picks pass the full rules. Props is every player on today's slate with a line, each with a lean and the reason.</li>
-  <li>Lean Over: went over the line in 3+ of the last 5 and the price is −160 or better.</li>
-  <li>Lean Under: stayed under in 3+ of the last 5 and his average is below the line. The under price must still be −160 or better.</li>
-  <li>Lean Alt: the over hits but the price is past −160, so one line up; or the over hit 3 of 5, so one line down. Alt prices are checked in the book.</li>
+  <li>Lean Over: went over the line in 3+ of the last 5.</li>
+  <li>Lean Under: stayed under in 3+ of the last 5 and his average is below the line.</li>
+  <li>Lean Alt: the over hit 3 of 5, so one line down, or a stronger form supports one line up. Alt prices are checked in the book.</li>
   <li>Every prop is played out as scenarios: over and under at the posted line and at alt lines one and two steps each way, weighed on the last 5, the cushion, DvP, teammates out, back-to-backs and this season's head-to-head. The best-supported line wins.</li>
   <li>A favorable matchup moves us to a higher-paying alt only if he still cleared it in 4 of his last 5. A hostile matchup moves us to a safer alt only if he cleared it in all 5.</li>
   <li>DvP is judged for the side we recommend. A stingy defense (ranked 1st–10th fewest allowed) helps an Under and hurts an Over; a generous one (bottom 10) does the opposite.</li>
@@ -732,7 +732,7 @@ function rulesHTML(lg){
   <li>Current roster and current-season ratings come first. Last season is blended in early and fades to 0.</li>
   <li>A missing starter is priced from his team's on/off net rating this season (NBA.com), not a guess, whenever that split is available.</li>
   <li>A side needs a 3-point edge over the book's no-vig chance.</li>
-  <li>Moneylines past −160 are repriced to the spread, and kept only if the projected margin clears it.</li></ul></div>`;
+  <li>Picks are moneylines at any price (no −160 cap). +300 or longer is still too long a shot.</li></ul></div>`;
  const extra={
   soccer:`<div class="rules"><h3>Soccer <span class="pill p-long">New draft</span></h3><ul><li>Last 5 current-season matches across league and cups. A match under 60 minutes is flagged.</li><li>Props: shots, shots on target, anytime goal/assist, saves, tackles, fouls.</li><li>Starting XI must be confirmed before a pick is final.</li><li>Midweek Champions League or cup games drop the rating by 1 for rotation risk.</li></ul></div>`,
   golf:`<div class="rules"><h3>Golf <span class="pill p-long">New draft</span></h3><ul><li>Last 5 events played this season. A missed cut counts as a miss.</li><li>Props: make cut, top 20, top 10, top 5, round score, head-to-head matchups.</li><li>Top 5 and outright winner bets are always longshots, capped at 5.</li><li>Nothing after the first tee time of round 1.</li></ul></div>`,
@@ -859,7 +859,7 @@ function gameSheet(g){const M=model(g),r=decide(g),c=TEAM_CFG[g.lg],[lab,cls]=ST
   <table><thead><tr><th>Factor</th><th class="num">${g.away.n}</th><th class="num">${g.home.n}</th><th class="num">Moves ${c.u}</th></tr></thead><tbody>
   ${M.parts.map(([f,a,b,v])=>`<tr><td>${f}</td><td class="num">${a}</td><td class="num">${b}</td><td class="num ${v>0?'up':v<0?'dn':''}">${v>0?'+':''}${v.toFixed(g.lg==='soccer'?2:1)}</td></tr>`).join('')}
   <tr><th>Projected ${g.home.n} margin</th><td></td><td></td><td class="num"><b>${M.m>0?'+':''}${M.m.toFixed(g.lg==='soccer'?2:1)}</b></td></tr></tbody></table>
-  <div class="cap">Positive numbers favor ${g.home.n}. Season rating is this season's average margin (${g.away.n} ${g.away.record}, ${g.home.n} ${g.home.record})${M.w?`, blended with ${Math.round(M.w*100)}% of last season because it is early`:''}. Availability points are model estimates for the players listed out.</div>
+  <div class="cap">Positive numbers favor ${g.home.n}. ${M.T?`Offense vs this defense is each team's projected points: its points per game plus the other team's points allowed per game, minus the league average (${M.T.lg.toFixed(1)}), from ESPN (${g.away.n} ${M.T.away.ppg.toFixed(1)} scored / ${M.T.away.pa.toFixed(1)} allowed, ${g.home.n} ${M.T.home.ppg.toFixed(1)} / ${M.T.home.pa.toFixed(1)}). DvP adds up to ±${c.dv} points for how soft or tough this defense is against the team's actual players (DailyFantasyFuel, weighted by projection).`:`Season rating is this season's average margin (${g.away.n} ${g.away.record}, ${g.home.n} ${g.home.record})${M.w?`, blended with ${Math.round(M.w*100)}% of last season because it is early`:''}.`} Availability points are model estimates for the players listed out.</div>
   ${[g.away,g.home].map(t=>`<div class="flag">${t.n}: ${t.injNote}</div>`).join('')}</div>
  ${['away','home'].map(sd=>`<div class="panel"><h4>${g[sd].n} · last 5</h4><div class="chartbox">${teamChart(g,sd)}<div class="tip" hidden></div></div><div class="cap">Bars show the final margin. Hover or tap for the date, opponent and score.</div></div>`).join('')}`}
 

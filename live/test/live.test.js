@@ -97,13 +97,13 @@ test('suspended, missing and stale markets never qualify',()=>{
  const s2=S.fromOdds({items:[{provider:{name:'DraftKings'}}]},game(),5);assert.equal(s2.available,false);assert.equal(s2.suspended,true);
 });
 
-test('existing Stamped rules hold for live picks (−160 kill, +300 too long, 3-point edge)',()=>{
- assert.ok(E.grade({price:-170,edge:.2,ev:.1}).why.some(w=>/−160/.test(w)));
+test('Stamped rules hold for live picks (no price cap, +300 too long, 3-point edge)',()=>{
+ assert.equal(E.grade({price:-400,edge:.05,ev:.03}).ok,true,'heavy favorites are allowed since the -160 cap was removed');
  assert.ok(E.grade({price:300,edge:.2,ev:.5}).why.some(w=>/too long/.test(w)));
  assert.ok(E.grade({price:-110,edge:.02,ev:.01}).why.some(w=>/3\.0-point/.test(w)));
  assert.equal(E.grade({price:-110,edge:.05,ev:.04}).ok,true);
  assert.equal(E.grade({price:-110,edge:.04,ev:.02},{minEdge:.05}).ok,false,'a stricter user filter can only raise the bar');
- assert.equal(E.RULES.kill,-160);assert.equal(E.RULES.tooLong,300);assert.equal(E.RULES.minEdge,.03);
+ assert.equal(E.RULES.kill,null);assert.equal(E.RULES.tooLong,300);assert.equal(E.RULES.minEdge,.03);
 });
 
 test('a big model edge in a clean live spot qualifies, and is still Paper',()=>{
@@ -188,7 +188,7 @@ test('live props: milestones parse, only priced edges qualify, rules and player 
  const ops=E.propOpportunities(st,pp,P,q,1e6);
  const m25=ops.find(o=>o.target===25),m10=ops.find(o=>o.target===10);
  assert.ok(m25.p>.3&&m25.p<.9,`P(25+) ${m25.p}`);assert.ok(Math.abs(m25.ev-(m25.p*2.5-1))<1e-9,'EV uses the posted price');
- assert.equal(m10.p,1,'already reached');assert.equal(m10.qualifies,false);assert.ok(m10.rule.why.some(w=>/−160/.test(w)));
+ assert.equal(m10.p,1,'already reached');assert.equal(m10.qualifies,false);assert.ok(m10.rule.why.some(w=>/point minimum/.test(w)),'a -3500 price leaves under 3 points of edge');
  assert.equal(m25.qualifies,false,'an already-reached milestone still on the board blocks his other props');assert.ok(m25.gate.why.some(w=>/behind the score/.test(w)));
  P.items=P.items.filter(m=>m.target!==10);
  const fouled=E.propOpportunities(game({period:3,clock:720,players:[{...pl,pf:6}]}),[E.projectPlayer({...pl,pf:6},st,data,{n:500})],P,q,1e6);
@@ -212,9 +212,11 @@ test('page files are clean UTF-8 (no double-encoded characters from a wrong-enco
   assert.equal(/Â|â€|Ã©/.test(t),false,`${f} contains garbled characters`);assert.notEqual(t.charCodeAt(0),0xFEFF,`${f} starts with a byte-order mark`)});
 });
 
-test('existing betting rules in index.html are unchanged since the pre-live rollback point',()=>{
+/* The rules may only change on purpose: the owner approves a change, then the rules-approved tag is moved to that commit
+   (first set at pre-live-v1; moved 2026-11-06 when the -160 cap was removed and the team rating was reworked). */
+test('betting rules in index.html match the last owner-approved version (tag rules-approved)',()=>{
  const root=path.join(__dirname,'..','..');let old;
- try{old=cp.execSync('git show pre-live-v1:index.html',{cwd:root,encoding:'utf8',maxBuffer:1<<26})}catch(e){test.skip?.('rollback tag not available');return}
+ try{old=cp.execSync('git show rules-approved:index.html',{cwd:root,encoding:'utf8',maxBuffer:1<<26})}catch(e){test.skip?.('rules-approved tag not available');return}
  const cur=fs.readFileSync(path.join(root,'index.html'),'utf8');
  const block=(s,a,b)=>{s=s.replace(/\r\n/g,'\n');const i=s.indexOf(a),j=s.indexOf(b,i);assert.ok(i>=0&&j>i,`markers ${a}`);return s.slice(i,j)};
  [['/* ---------- prop rules ---------- */','/* ---------- state ---------- */'],['function rulesHTML(','/* ---------- alts ---------- */']].forEach(([a,b])=>
