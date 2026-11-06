@@ -1,0 +1,294 @@
+{
+ "generated": "2026-11-06T08:13:51.640Z",
+ "lines": 20279,
+ "tested": 17003,
+ "books": [
+  {
+   "book": "ESPN BET",
+   "lines": 13078
+  },
+  {
+   "book": "DraftKings",
+   "lines": 7201
+  }
+ ],
+ "accuracy": {
+  "Market": {
+   "brier": 0.2468,
+   "logloss": 0.6867
+  },
+  "Market+": {
+   "brier": 0.247,
+   "logloss": 0.687
+  }
+ },
+ "overRate": 0.485,
+ "marketOver": 0.495,
+ "calibration": {
+  "Market": [
+   {
+    "bucket": "10-20%",
+    "n": 2,
+    "predicted": 0.191,
+    "actual": 0
+   },
+   {
+    "bucket": "20-30%",
+    "n": 20,
+    "predicted": 0.261,
+    "actual": 0.2
+   },
+   {
+    "bucket": "30-40%",
+    "n": 831,
+    "predicted": 0.375,
+    "actual": 0.355
+   },
+   {
+    "bucket": "40-50%",
+    "n": 7541,
+    "predicted": 0.464,
+    "actual": 0.453
+   },
+   {
+    "bucket": "50-60%",
+    "n": 8136,
+    "predicted": 0.528,
+    "actual": 0.519
+   },
+   {
+    "bucket": "60-70%",
+    "n": 456,
+    "predicted": 0.625,
+    "actual": 0.621
+   },
+   {
+    "bucket": "70-80%",
+    "n": 12,
+    "predicted": 0.756,
+    "actual": 0.833
+   },
+   {
+    "bucket": "80-90%",
+    "n": 5,
+    "predicted": 0.86,
+    "actual": 1
+   }
+  ],
+  "Market+": [
+   {
+    "bucket": "10-20%",
+    "n": 1,
+    "predicted": 0.173,
+    "actual": 0
+   },
+   {
+    "bucket": "20-30%",
+    "n": 27,
+    "predicted": 0.259,
+    "actual": 0.148
+   },
+   {
+    "bucket": "30-40%",
+    "n": 1120,
+    "predicted": 0.374,
+    "actual": 0.376
+   },
+   {
+    "bucket": "40-50%",
+    "n": 8375,
+    "predicted": 0.463,
+    "actual": 0.465
+   },
+   {
+    "bucket": "50-60%",
+    "n": 6880,
+    "predicted": 0.534,
+    "actual": 0.515
+   },
+   {
+    "bucket": "60-70%",
+    "n": 583,
+    "predicted": 0.626,
+    "actual": 0.607
+   },
+   {
+    "bucket": "70-80%",
+    "n": 9,
+    "predicted": 0.755,
+    "actual": 0.778
+   },
+   {
+    "bucket": "80-90%",
+    "n": 6,
+    "predicted": 0.836,
+    "actual": 0.833
+   },
+   {
+    "bucket": "90-100%",
+    "n": 2,
+    "predicted": 0.906,
+    "actual": 1
+   }
+  ]
+ },
+ "rule": {
+  "allLines": {
+   "all": {
+    "n": 12339,
+    "w": 6480,
+    "l": 5859,
+    "hit": 0.525,
+    "roi": -0.052
+   },
+   "strong": {
+    "n": 6369,
+    "w": 3374,
+    "l": 2995,
+    "hit": 0.53,
+    "roi": -0.055
+   },
+   "moderate": {
+    "n": 5522,
+    "w": 2882,
+    "l": 2640,
+    "hit": 0.522,
+    "roi": -0.047
+   },
+   "over": {
+    "n": 6445,
+    "w": 3289,
+    "l": 3156,
+    "hit": 0.51,
+    "roi": -0.071
+   },
+   "under": {
+    "n": 5894,
+    "w": 3191,
+    "l": 2703,
+    "hit": 0.541,
+    "roi": -0.032
+   }
+  },
+  "tested": {
+   "all": {
+    "n": 10383,
+    "w": 5468,
+    "l": 4915,
+    "hit": 0.527,
+    "roi": -0.05
+   },
+   "strong": {
+    "n": 5721,
+    "w": 3014,
+    "l": 2707,
+    "hit": 0.527,
+    "roi": -0.059
+   },
+   "moderate": {
+    "n": 4578,
+    "w": 2411,
+    "l": 2167,
+    "hit": 0.527,
+    "roi": -0.038
+   },
+   "over": {
+    "n": 5432,
+    "w": 2780,
+    "l": 2652,
+    "hit": 0.512,
+    "roi": -0.068
+   },
+   "under": {
+    "n": 4951,
+    "w": 2688,
+    "l": 2263,
+    "hit": 0.543,
+    "roi": -0.031
+   }
+  },
+  "byStat": {
+   "points": {
+    "n": 2917,
+    "w": 1508,
+    "l": 1409,
+    "hit": 0.517,
+    "roi": -0.034
+   },
+   "rebounds": {
+    "n": 2871,
+    "w": 1487,
+    "l": 1384,
+    "hit": 0.518,
+    "roi": -0.068
+   },
+   "assists": {
+    "n": 1974,
+    "w": 1060,
+    "l": 914,
+    "hit": 0.537,
+    "roi": -0.053
+   },
+   "threes": {
+    "n": 2009,
+    "w": 1116,
+    "l": 893,
+    "hit": 0.556,
+    "roi": -0.059
+   },
+   "PRA": {
+    "n": 2568,
+    "w": 1309,
+    "l": 1259,
+    "hit": 0.51,
+    "roi": -0.049
+   }
+  }
+ },
+ "ruleChance": {
+  "strong": 0.531,
+  "moderate": 0.516
+ },
+ "edges": {
+  "2%+": {
+   "n": 164,
+   "w": 82,
+   "l": 82,
+   "hit": 0.5,
+   "roi": -0.057
+  },
+  "4%+": {
+   "n": 32,
+   "w": 17,
+   "l": 15,
+   "hit": 0.531,
+   "roi": -0.002
+  },
+  "6%+": {
+   "n": 5,
+   "w": 1,
+   "l": 4,
+   "hit": 0.2,
+   "roi": -0.59
+  },
+  "8%+": {
+   "n": 1,
+   "w": 0,
+   "l": 1,
+   "hit": 0,
+   "roi": -1
+  }
+ },
+ "weights": {
+  "intercept": -0.045,
+  "L5 avg vs line": -0.042,
+  "L5 over rate": -0.04,
+  "L10 avg vs line": 0.144,
+  "season avg vs line": 0.002,
+  "minutes trend": 0.059,
+  "teammates out": -0.001,
+  "opponent vs position": 0.047,
+  "back-to-back": -0.029,
+  "home": 0.005
+ }
+}

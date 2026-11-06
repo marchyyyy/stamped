@@ -25,11 +25,26 @@ const kAm=ask=>{const p=Math.min(.99,ask+.07*ask*(1-ask));return p>=.5?Math.roun
 function kQuote(lg,name,stat,T,side){const P=K[lg]&&K[lg].props[`${norm(name)}|${stat}`],q=P&&P[T];if(!q)return null;
  const ask=side==='Under'?q.na:q.ya,bid=side==='Under'?q.nb:q.yb;if(ask==null||bid==null||ask-bid>.05||ask<.03||ask>.97)return null;
  return{odds:kAm(ask),cents:Math.round(ask*100),src:'Kalshi'}}
-/* Price for a side of a line: DraftKings via ESPN when posted (Overs), otherwise Kalshi (Over = Yes, Under = No on "line+" ). */
+/* Price for a side of a line: DraftKings via ESPN when posted (NBA main lines carry both sides; Over alts come from the
+   "X or more" ladder), otherwise Kalshi (Over = Yes, Under = No on "line+" ). */
 function priceFor(p,pr,side,L){L=L==null?pr.line:L;const T=Math.floor(L)+1;
  if(side==='Over'&&L===pr.line&&pr.odds!=null)return{odds:pr.odds,src:'DraftKings',book:pr.book};
+ if(side==='Under'&&L===pr.line&&pr.under!=null)return{odds:pr.under,src:'DraftKings',book:pr.book};
  if(side==='Over'){const a=(pr.alts||[]).find(x=>x.t===T&&x.odds!=null);if(a)return{odds:a.odds,src:'DraftKings',book:`DraftKings (${T}+ via ESPN)`}}
  const k=kQuote(p.lg,p.name,pr.stat,T,side);return k?Object.assign(k,{book:`Kalshi ${side==='Under'?'No':'Yes'} on ${T}+ at ${k.cents}¢ incl. fee`}):null}
+/* Stamped % for a prop: the market's fair chance, because nothing tested beats it (tools/tune-props.js, 20,279 past NBA
+   props: last 5, last 10, season average, minutes, teammates out, opponent by position, back-to-backs and home/away added
+   nothing to the posted price). Fair = the Over/Under pair with the book's cut removed; with one side only, that price less
+   the typical cut (3.5 points); Kalshi uses the middle of its Yes quotes. NBA Overs land about 1 point less often than the
+   fair price says, so they get 1 point off. NFL props have no prices, so no Stamped %. */
+const ip=o=>o>0?100/(o+100):-o/(-o+100);
+function fair(p,pr,side){let po=null;
+ if(pr.odds!=null&&pr.under!=null)po=ip(pr.odds)/(ip(pr.odds)+ip(pr.under));
+ else{const P=K[p.lg]&&K[p.lg].props[`${norm(p.name)}|${pr.stat}`],q=P&&P[Math.floor(pr.line)+1];
+  if(q&&q.yb!=null&&q.ya!=null&&q.ya-q.yb<=.05)po=(q.yb+q.ya)/2;
+  else if(side==='Over'&&pr.odds!=null)po=ip(pr.odds)-.035;
+  else if(side==='Under'&&pr.under!=null)po=1-(ip(pr.under)-.035)}
+ if(po==null)return null;if(p.lg==='nba')po-=.01;po=Math.min(.97,Math.max(.03,po));return Math.round(100*(side==='Under'?1-po:po))}
 function lean(p,pr){const C=LG[p.lg];
  if(p.status==='out'||p.status==='doubtful')return null;
  const smp=(p.games||[]).filter(g=>g.s&&g.s[pr.stat]!=null).slice(0,5),n=smp.length;if(n<3)return null;
@@ -80,10 +95,11 @@ function dffLine(r){const d=r.p.dff;if(!d)return '';const t=r.ratio>=1.05?'above
 function spark(r){const mx=Math.max(...r.v,r.pr.line,1),s=[...r.v].reverse(),h=[...r.hits].reverse();
  return `<span class="spark" aria-hidden="true">${s.map((x,i)=>`<i style="height:${Math.round(Math.max(.12,x/mx)*22)}px;background:var(${h[i]?'--hit':'--miss'})"></i>`).join('')}</span>`}
 function card(r){const p=r.p,pill=r.review?'<span class="pill p-long">Under review</span>':r.side?`<span class="pill p-pick">Lean ${r.side}</span>`:'<span class="pill p-stay">No lean</span>';
- const pz=r.price||priceFor(p,r.pr,r.side||'Over'),price=pz?`<span class="odds">${fo(pz.odds)}</span>`:'';
+ const pz=r.price||priceFor(p,r.pr,r.side||'Over'),price=pz?`<span class="odds">${fo(pz.odds)}</span>`:'',pct=fair(p,r.pr,r.side||'Over');
  return `<button class="card" data-prev-p="${esc(p.lg+'|'+p.id)}">
   <div class="row between"><div style="min-width:0"><div class="pname">${esc(p.name)}</div><div class="team">${logo(p.logo)}${esc(p.team)} · ${esc(p.pos)}</div><div class="team">${when(p.when)} · ${esc(p.opp)}</div></div>${pill}</div>
   <div class="row"><span class="prop">${r.side||'Over'} ${r.pr.line} ${esc(r.pr.stat)}</span>${price}${r.str?`<span class="odds">${r.str}</span>`:''}${spark(r)}</div>
+  ${pct!=null?`<div class="cap"><b>Stamped ${pct}%</b> chance of ${r.side||'Over'} ${r.pr.line} · Vegas says ${fo(pz?pz.odds:r.pr.odds)}</div>`:''}
   <div class="${r.side?'why':'reason'}">${esc(r.review||r.why)}</div>
   ${mline(r)}${dffLine(r)}
   ${(a=>a?`<div class="cap"><span class="pill p-long">Alt</span> ${a.side} ${a.line}${a.rung?` (${a.rung})`:''} ${esc(r.pr.stat)}${a.odds!=null?` at <b>${fo(a.odds)}</b> ${esc(a.src||'')}`:''} · ${a.k} of ${a.n} · ${a.kind.toLowerCase()}${a.odds==null?' · check the alt price':''}</div>`:'')(alt(r))}
@@ -110,7 +126,7 @@ function gameSec(g,players){const {good,rest}=checks(players),strong=good.filter
 function gamesHTML(lg,exclude){const D=S[lg]&&S[lg].data;if(!D)return '';const ex=new Set((exclude||[]).map(s=>s.toLowerCase())),now=Date.now();
  const up=D.games.filter(g=>et(g.when).getTime()>now&&g.status!=='post');if(!up.length)return '';
  return `<div class="list">${up.map(g=>gameSec(g,D.players.filter(p=>p.gameId===g.id&&!ex.has(p.name.toLowerCase())))).join('')}</div>`}
-const note=lg=>`Each lean uses his last 5 games, the matchup and DailyFantasyFuel's projection.${lg==='nfl'?" NFL prop prices aren't available, so check the price in your book.":' Over prices are DraftKings\' "X or more" bets; check the Under price in your book.'}`;
+const note=lg=>`Each lean uses his last 5 games, the matchup and DailyFantasyFuel's projection.${lg==='nfl'?" NFL prop prices aren't available, so check the price in your book.":' Prices are DraftKings via ESPN. Stamped % is the fair chance from the price. Tested on 12,339 past NBA props, last-5 leans won 52.5% and lost about 5% at the posted prices, so treat them as practice.'}`;
 /* Before Stamped's daily picks are out: every upcoming game for the league. */
 function weekHTML(lg){const h=gamesHTML(lg,[]);if(!h)return '';
  return `<div class="cap">${LG[lg].label}'s prop checks by game, updated ${esc(S[lg].data.checked)}. Preview: stamps still post under the usual rules. ${note(lg)}</div><h2 class="sec">${LG[lg].label}</h2>${h}`}
