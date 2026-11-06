@@ -19,6 +19,20 @@
 .lv-cks{display:flex;flex-wrap:wrap;gap:8px 16px;font-size:14px}
 .lv-ck{display:flex;gap:6px;align-items:center}
 .lv code{font-family:var(--f-mono);font-size:12px}
+/* Live game sheet: the game name and score stay pinned while you scroll. */
+#sheet .grab[data-lv-sheet]~.shead{position:sticky;top:-8px;z-index:4;background:var(--bg);margin:0 -16px;padding:10px 16px 8px;border-bottom:1px solid var(--line)}
+#sheet .grab[data-lv-sheet]~.shead .pname{font-size:24px}
+.lv-t{table-layout:fixed;width:100%}
+.lv-t th:first-child,.lv-t td:first-child{width:auto;overflow-wrap:anywhere;padding-right:6px}
+.lv-t th:not(:first-child),.lv-t td:not(:first-child){width:58px}
+.lv-t td{vertical-align:top}
+.lv-pls{display:grid}
+.lv-pl{display:grid;gap:3px;padding:8px 0;border-bottom:1px solid var(--line)}
+.lv-pl:last-child{border-bottom:0}
+.lv-pl .row b{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.lv-pl .row .cap{flex:none}
+.lv-st{display:grid;grid-template-columns:repeat(4,1fr);gap:4px;font-family:var(--f-mono);font-size:12px;color:var(--muted)}
+.lv-st b{color:var(--ink)}
 .lv-kid{gap:8px}
 .lv-ask{font-family:var(--f-disp);font-weight:800;font-size:22px;line-height:1.15;letter-spacing:.01em;text-wrap:balance}
 .lv-kid .pill{flex:none}
