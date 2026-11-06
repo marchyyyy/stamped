@@ -201,7 +201,7 @@ button.lucell{cursor:pointer}button.lucell:hover{outline:1px solid var(--line)}
 .srcs{font-size:12px;color:var(--muted);word-break:break-all;display:grid;gap:3px}
 .srcs a{color:var(--muted)}
 </style>
-<link rel="stylesheet" href="live/live.css?v=20261106f">
+<link rel="stylesheet" href="live/live.css?v=20261106i">
 </head>
 <body>
 
@@ -230,8 +230,8 @@ button.lucell{cursor:pointer}button.lucell:hover{outline:1px solid var(--line)}
 <script src="live/engine.js?v=20261106a"></script>
 <script src="live/espn.js?v=20261106a"></script>
 <script src="live/ui.js?v=20261106b"></script>
-<script src="live/dff.js?v=20261106g"></script>
-<script src="live/props-preview.js?v=20261106h"></script>
+<script src="live/dff.js?v=20261106i"></script>
+<script src="live/props-preview.js?v=20261106i"></script>
 <script>
 fetch('./data.json?v='+Date.now()).then(r=>r.json()).then(DATA=>{
 
@@ -546,7 +546,7 @@ function renderMain(){
  if(state.mode==='live'&&!hasLive)state.mode='today';
  let html=`<div class="mode"${hasLive?' style="grid-template-columns:repeat(6,1fr)"':''}><button data-mode="today" aria-pressed="${state.mode==='today'}">Today</button><button data-mode="props" aria-pressed="${state.mode==='props'}">Props</button><button data-mode="fantasy" aria-pressed="${state.mode==='fantasy'}">Fantasy</button><button data-mode="parlays" aria-pressed="${state.mode==='parlays'}">Parlays</button>${hasLive?`<button data-mode="live" aria-pressed="${state.mode==='live'}">Live</button>`:''}<button data-mode="more" aria-pressed="${state.mode==='more'}">More</button></div>`;
  if(state.mode==='live'){$('#main').innerHTML=html+'<div id="live-root"></div>';LiveUI.mount($('#live-root'));return}
- if(state.mode==='parlays'){$('#main').innerHTML=html+parlaysHTML();return}
+ if(state.mode==='parlays'){$('#main').innerHTML=html+parlaysHTML()+(window.PREV&&['nfl','nba'].includes(l.id)?PREV.parlaysHTML(l.id):'');return}
  if(state.mode==='fantasy'){$('#main').innerHTML=html+fantasyHTML(l);return}
  const ps=P.filter(p=>p.lg===l.id&&onSlate(p));
  const good=ps.filter(p=>['pick','longshot'].includes(p.state)).sort((a,b)=>b.best.ev.stars-a.best.ev.stars);
@@ -643,15 +643,22 @@ const FPARTS={
       ['Receiving',s=>s.receptions+.1*s['rec yds']+6*s['rec TDs']+(s['rec yds']>=100?3:0)],['Fumbles',s=>-(s['fumbles lost']||0)]]},
  ud:{nba:[['Points',s=>s.points],['Rebounds',s=>1.2*s.rebounds],['Assists',s=>1.5*s.assists],['Steals + blocks',s=>3*s.steals+3*s.blocks],['Turnovers',s=>-(s.turnovers||0)]],
      nfl:[['Passing',s=>.04*s['pass yds']+4*s['pass TDs']-s.INT],['Rushing',s=>.1*s['rush yds']+6*s['rush TDs']],['Receiving',s=>.5*s.receptions+.1*s['rec yds']+6*s['rec TDs']],['Fumbles',s=>-2*(s['fumbles lost']||0)]]}};
-/* Per-stat fantasy points averaged over his last 5 complete box scores; also used by live/dff.js for the preview board. */
+/* The unconverted stat averages behind his fantasy points, over his last 5 complete box scores, plus the fantasy total they
+   convert to. Also used by live/dff.js for the preview board. */
+const FRAW={nba:[['points','pts'],['rebounds','reb'],['assists','ast'],['threes','3PM'],['steals','stl'],['blocks','blk'],['turnovers','TO']],
+ nfl:[['pass yds','pass yds'],['pass TDs','pass TD'],['INT','INT'],['rush yds','rush yds'],['rush TDs','rush TD'],['receptions','rec'],['rec yds','rec yds'],['rec TDs','rec TD'],['fumbles lost','fum lost']]};
 function fanParts(lg,sys,games){const S=FSYS[sys]&&FSYS[sys][lg],parts=FPARTS[sys]&&FPARTS[sys][lg];if(!S||!parts)return null;
  const rows=(games||[]).filter(g=>g.s&&S.need.every(k=>g.s[k]!=null)).slice(0,5);if(!rows.length)return null;
- return{n:rows.length,parts:parts.map(([l,f])=>[l,rows.reduce((a,g)=>a+f(g.s),0)/rows.length])}}
-const fanPartsHTML=r=>`<div class="fsrc">Last ${r.n}: ${r.parts.filter(x=>Math.abs(x[1])>=.3).sort((a,b)=>b[1]-a[1]).map(([l,v])=>`${l} <b>${v<0?'−'+Math.abs(v).toFixed(1):v.toFixed(1)}</b>`).join(' · ')}</div>`;
+ const raw=(FRAW[lg]||[]).filter(([k])=>rows.some(g=>g.s[k]!=null)).map(([k,l])=>[l,rows.reduce((a,g)=>a+(g.s[k]||0),0)/rows.length]);
+ const pp=parts.map(([l,f])=>[l,rows.reduce((a,g)=>a+f(g.s),0)/rows.length]);
+ return{n:rows.length,sys,raw,parts:pp,total:pp.reduce((a,x)=>a+x[1],0)}}
+/* Line 1: his real averages. Line 2: the fantasy points they make, then how the projection follows (tail). */
+const fanPartsHTML=(r,tail)=>`<div class="fsrc">Last ${r.n} avg: ${r.raw.filter(x=>x[1]>=.05).map(([l,v])=>`<b>${v.toFixed(1)}</b> ${l}`).join(' · ')}</div><div class="fsrc">= <b>${r.total.toFixed(1)}</b> ${FSYS[r.sys].name} pts${tail||''}</div>`;
 window.fanParts=fanParts;window.fanPartsHTML=fanPartsHTML;
 function fanSrc(p){const F=p.fan;if(!F||!F.l5)return '';const r=fanParts(p.lg,F.sys,p.games);if(!r)return '';
- if(Math.abs(r.parts.reduce((a,x)=>a+x[1],0)-F.l5)>.5)return '';
- return fanPartsHTML(r)}
+ if(Math.abs(r.total-F.l5)>.5)return '';
+ const how=Math.abs(F.proj-F.l5)<.05?'projected the same (his usual minutes)':`projected <b>${F.proj.toFixed(1)}</b>: ${String(F.why||'').replace(/^Last-5 average /,'').replace(/\.$/,'')}`;
+ return fanPartsHTML(r,` → ${how}`)}
 function fanCard(p){const F=p.fan,e=F.ev,st=e?e.status:'noline';
  return `<button class="card" data-id="${p.id}" data-fan="1">
   <div class="row between"><div style="min-width:0"><div class="pname">${p.name}</div>${fanSrc(p)}<div class="team">${teamLine(p)}</div><div class="team">${gameLine(p)}</div></div>${e?pill(st):'<span class="pill p-long">No line</span>'}</div>
@@ -677,7 +684,7 @@ function fantasyPanel(p){const F=p.fan;if(!F)return '';const ch=chartSVG(p,Math.
  return `<div class="panel"><div class="row between"><h4>Fantasy points · ${FSYS[F.sys].name}</h4><div class="toggle"><button data-count="5" aria-pressed="${state.count===5}">Last 5</button><button data-count="10" aria-pressed="${state.count===10}">Last 10</button></div></div>
   <div class="chartbox">${ch.svg}<div class="tip" hidden></div></div>
   <div class="stats"><div class="stat"><span>Last 5 avg</span><b>${F.l5.toFixed(1)}</b></div><div class="stat"><span>Last ${F.n10} avg</span><b>${F.l10.toFixed(1)}</b></div><div class="stat"><span>Projected</span><b>${F.proj.toFixed(1)}</b></div></div>
-  ${fanSrc(p)?`<div class="cap">His ${F.l5.toFixed(1)} last-5 average, by stat (from his verified box scores):</div>${fanSrc(p)}`:''}
+  ${fanSrc(p)?`<div class="cap">How his projection is built (from his verified box scores):</div>${fanSrc(p)}`:''}
   <div class="row" style="flex-wrap:wrap">${fanDvp(p)}</div>
   <div class="cap">${F.why}${F.prop?` Line: over ${F.prop.line} (${fo(F.prop.odds)}, ${F.prop.book}).`:' No fantasy line posted.'}${F.noTO?' Turnovers not counted yet.':''}</div></div>`}
 function rulesHTML(lg){

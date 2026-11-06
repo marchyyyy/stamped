@@ -55,18 +55,27 @@ function git(a){return cp.execFileSync('git',a,{cwd:ROOT,encoding:'utf8',stdio:[
  const games=[],players=[],injuries={};let boardItems=0;
  for(const d of dates){const sb=await get(`${SITE}/scoreboard?dates=${d.replace(/-/g,'')}`);
   for(const ev of (sb&&sb.events)||[]){const c=ev.competitions[0],T=x=>{const t=c.competitors.find(k=>k.homeAway===x).team;return{id:t.id,abbr:t.abbreviation,n:t.name||t.shortDisplayName,city:t.location,logo:t.logo}};
-   const o=(c.odds||[])[0]||{};games.push({id:ev.id,when:et(ev.date),status:c.status&&c.status.type&&c.status.type.state,away:T('away'),home:T('home'),details:o.details||null,total:o.overUnder!=null?o.overUnder:null,book:o.provider&&o.provider.name||null})}}
+   const o=(c.odds||[])[0]||{},mlv=s=>{const x=o.moneyline&&o.moneyline[s];return x?num((x.close&&x.close.odds)||(x.open&&x.open.odds)):null};
+   games.push({id:ev.id,when:et(ev.date),status:c.status&&c.status.type&&c.status.type.state,away:T('away'),home:T('home'),details:o.details||null,total:o.overUnder!=null?o.overUnder:null,
+    ml:{away:mlv('away'),home:mlv('home')},book:o.provider&&o.provider.name||null,injuries:{away:[],home:[]}})}}
  log(`${games.length} games on ${dates.join(', ')}`);
  for(const g of games){if(g.status==='post'&&!TEST)continue;
   const sum=await get(`${SITE}/summary?event=${g.id}`);await sleep(150);
-  ((sum&&sum.injuries)||[]).forEach(t=>(t.injuries||[]).forEach(i=>{const id=i.athlete&&i.athlete.id;if(id)injuries[id]={status:(i.status||'').toLowerCase(),detail:[i.type&&i.type.description,i.details&&i.details.type].filter(Boolean).join(', ')}}));
+  /* Injury report by team, with the reason: status, body part (and side/detail when given) and expected return. */
+  const real=v=>v&&!/not specified/i.test(v)?v:'';
+  ((sum&&sum.injuries)||[]).forEach(t=>{const side=t.team&&t.team.id===g.home.id?'home':t.team&&t.team.id===g.away.id?'away':null;
+   (t.injuries||[]).forEach(i=>{const a=i.athlete||{},d=i.details||{},bits=[real(d.side),real(d.type),real(d.detail)].filter(Boolean);
+    const why=bits.filter((b,j)=>!bits.some((o,k)=>k!==j&&o.toLowerCase().includes(b.toLowerCase())&&(o.length>b.length||k<j))).join(' ');
+    const row={name:a.displayName,pos:a.position&&a.position.abbreviation,status:i.status||'',why,ret:d.returnDate||null};
+    if(side)g.injuries[side].push(row);if(a.id)injuries[a.id]={status:(i.status||'').toLowerCase(),detail:[why,d.returnDate?`expected back ${d.returnDate}`:''].filter(Boolean).join(', ')}})});
   const items=[];for(let pg=1;pg<=4;pg++){const p=await get(`${CORE}/events/${g.id}/competitions/${g.id}/odds/100/propBets?lang=en&region=us&limit=1000&page=${pg}`);await sleep(150);if(!p)break;items.push(...(p.items||[]));if(pg>=(p.pageCount||1))break}
   boardItems+=items.length;
   /* The prop's athlete link is season-specific, and only that record carries the player's current team. */
   const lines={},refs={},miles={};
   items.forEach(x=>{const ref=String((x.athlete&&x.athlete.$ref)||''),id=(ref.match(/athletes\/(\d+)/)||[])[1];if(!id)return;const tn=x.type&&x.type.name,T=x.current&&x.current.target&&x.current.target.value;
    if(CFG.lines[tn]&&T!=null){(lines[id]=lines[id]||{})[CFG.lines[tn]]=+T;refs[id]=ref}
-   const pr=x.odds&&x.odds.american&&num(x.odds.american.value);if(CFG.miles[tn]&&T!=null&&pr!=null)((miles[id]=miles[id]||{})[CFG.miles[tn]]=miles[id][CFG.miles[tn]]||{})[+T]=pr});
+   /* "X or more" ladder for alt lines. NBA carries prices; NFL lists the same rungs without prices (kept as null). */
+   const pr=x.odds&&x.odds.american&&num(x.odds.american.value);if(CFG.miles[tn]&&T!=null)((miles[id]=miles[id]||{})[CFG.miles[tn]]=miles[id][CFG.miles[tn]]||{})[+T]=pr!=null?pr:null});
   for(const [aid,L] of Object.entries(lines)){
    const a=await get(refs[aid]);await sleep(120);if(!a)continue;
    const tid=(String((a.team&&a.team.$ref)||'').match(/teams\/(\d+)/)||[])[1]||'',side=tid===g.home.id?'home':tid===g.away.id?'away':null;
@@ -78,7 +87,9 @@ function git(a){return cp.execFileSync('git',a,{cwd:ROOT,encoding:'utf8',stdio:[
     status:inj?(INJ[inj.status]||'active'):(d&&d.injury_status==='O'?'out':d&&d.injury_status==='Q'?'questionable':'active'),injury:inj||null,
     games:gl,
     /* Over price = the "X or more" bet at the next whole number above the line (over 22.5 = 23+). Under prices are not posted. */
-    props:Object.entries(L).map(([stat,line])=>{const op_=M[stat]&&M[stat][Math.floor(line)+1];return{stat,line,odds:op_!=null?op_:null,book:op_!=null?`DraftKings (${Math.floor(line)+1}+ via ESPN)`:'DraftKings (line via ESPN)'}}),
+    props:Object.entries(L).map(([stat,line])=>{const op_=M[stat]&&M[stat][Math.floor(line)+1];
+     return{stat,line,odds:op_!=null?op_:null,book:op_!=null?`DraftKings (${Math.floor(line)+1}+ via ESPN)`:'DraftKings (line via ESPN)',
+      alts:Object.entries(M[stat]||{}).map(([t,o])=>({t:+t,odds:o})).sort((a,b)=>a.t-b.t)}}),
     dff:d?{proj:+d.ppg_projection,l5:+d.L5_fppg_avg,l10:+d.L10_fppg_avg,szn:+d.szn_fppg_avg,dvp:d.L5_dvp_rank!==''?+d.L5_dvp_rank:null,salary:+d.salary,value:+d.value_projection,inj:d.injury_status||''}:null,
     sources:[['ESPN game log','ok',`${gl.length} games`],['DraftKings line (via ESPN)','ok',Object.keys(L).join(', ')],...(d?[['DailyFantasyFuel','ok','projection']]:[])]});
   }

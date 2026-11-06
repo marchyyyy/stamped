@@ -17,16 +17,19 @@ const ymd=t=>new Date(t).toLocaleDateString('en-CA',{timeZone:'America/New_York'
 async function pregame(){
  /* Window 45-75 minutes ahead: with a 15-minute check, every start time is caught once, 60-75 minutes before it. */
  /* --now <ISO> --dry replays the check at another time without refreshing or saving anything (for testing the schedule). */
- const dry=has('dry'),now=arg('now')?Date.parse(arg('now')):Date.now(),lo=now+45*60e3,hi=now+75*60e3;
+ const dry=has('dry'),now=arg('now')?Date.parse(arg('now')):Date.now();
+ /* Two refreshes per start time (owner: enough time before each game to look with confidence): about 3 hours before,
+    for a full early read, and about 1 hour before, for final injuries, lines and prices. */
+ const WIN=[['3h',165,195],['1h',45,75]];
  let st={};try{if(!dry)st=JSON.parse(fs.readFileSync(STATE,'utf8'))}catch(e){}
  Object.keys(st).forEach(k=>{if(st[k]<now-2*864e5)delete st[k]});
  for(const [s,p] of Object.entries(SPORTS)){
   const sb=await fetch(`https://site.api.espn.com/apis/site/v2/sports/${p}/scoreboard?dates=${ymd(now)}`).then(r=>r.ok?r.json():null).catch(()=>null);
-  const soon=((sb&&sb.events)||[]).filter(e=>e.status&&e.status.type&&e.status.type.state==='pre').map(e=>Date.parse(e.date)).filter(t=>t>lo&&t<=hi);
-  const starts=[...new Set(soon)].filter(t=>!st[`${s}|${t}`]);
-  if(!starts.length)continue;
-  log(`${s.toUpperCase()}: ${starts.length} start time(s) about an hour away (${starts.map(t=>new Date(t).toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit',timeZone:'America/New_York'})).join(', ')} ET). Full refresh.`);
-  if(dry)continue;full(s);starts.forEach(t=>st[`${s}|${t}`]=t);
+  const pre=((sb&&sb.events)||[]).filter(e=>e.status&&e.status.type&&e.status.type.state==='pre').map(e=>Date.parse(e.date));
+  const due=[];for(const [w,a,b] of WIN)[...new Set(pre)].filter(t=>t>now+a*60e3&&t<=now+b*60e3&&!st[`${s}|${w}|${t}`]).forEach(t=>due.push([w,t]));
+  if(!due.length)continue;
+  log(`${s.toUpperCase()}: ${due.map(([w,t])=>`${new Date(t).toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit',timeZone:'America/New_York'})} ET (${w} before)`).join(', ')}. Full refresh.`);
+  if(dry)continue;full(s);due.forEach(([w,t])=>st[`${s}|${w}|${t}`]=t);
  }
  if(dry)return;fs.mkdirSync(path.dirname(STATE),{recursive:true});fs.writeFileSync(STATE,JSON.stringify(st));
 }

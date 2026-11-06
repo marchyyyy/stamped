@@ -41,6 +41,19 @@ function lean(p,pr){const C=LG[p.lg];
  const agree=(dffSide===side?1:0)+((side==='Over'&&grade==='favorable')||(side==='Under'&&grade==='hostile')?1:0);
  r.score=lvl*10+agree*3+k/n+Math.abs(avg-L)/(C.STEP[pr.stat]||1)/10;return r;
 }
+/* Best alt line for a lean. Overs use DraftKings' "X or more" ladder (NBA rungs are priced; NFL rungs list the line only);
+   Unders step one line either way. Pays more: a harder line he still cleared in 4 of 5, not into a tough matchup.
+   Safer: an easier line he cleared every time. A priced rung must be -160 or better and under +300 (Stamped rules). */
+function alt(r){if(!r||!r.side||r.review)return null;const p=r.pr,v=r.v,n=r.n,st=LG[r.p.lg].STEP[p.stat]||1,need=Math.ceil(.8*n),ok=o=>o==null||(o>=-160&&o<300);
+ const helps=r.side==='Over'?r.grade!=='hostile':r.grade!=='favorable';let up=null,safe=null;
+ if(r.side==='Over'){const lad=(p.alts||[]).filter(a=>a.t!==Math.floor(p.line)+1&&ok(a.odds)),hit=t=>v.filter(x=>x>=t).length;
+  if(helps)up=lad.filter(a=>a.t>p.line+.5&&hit(a.t)>=need).sort((a,b)=>b.t-a.t)[0];
+  safe=lad.filter(a=>a.t<p.line&&hit(a.t)===n).sort((a,b)=>b.t-a.t)[0];
+  const mk=(a,kind)=>a&&{kind,side:'Over',line:a.t-.5,rung:`${a.t}+`,k:hit(a.t),n,odds:a.odds};up=mk(up,'Pays more');safe=mk(safe,'Safer')}
+ else{const hit=L=>v.filter(x=>x<L).length,dn=+(p.line-st).toFixed(1),upL=+(p.line+st).toFixed(1);
+  if(helps&&dn>0&&hit(dn)>=need)up={kind:'Pays more',side:'Under',line:dn,k:hit(dn),n,odds:null};
+  if(hit(upL)===n)safe={kind:'Safer',side:'Under',line:upL,k:n,n,odds:null}}
+ return r.str==='Strong'?(up||safe):(safe||up)}
 const leansFor=players=>{const out=[];players.forEach(p=>(p.props||[]).forEach(pr=>{const r=lean(p,pr);if(r)out.push(r)}));return out};
 function mline(r){if(r.grade==null)return '';const C=LG[r.p.lg],g=r.side==='Under'?(r.grade==='favorable'?'hostile':r.grade==='hostile'?'favorable':r.grade):r.grade;
  const lab=g==='favorable'?'Matchup helps':g==='hostile'?'Tough matchup':'Average matchup',cls=g==='favorable'?'p-pick':g==='hostile'?'p-stay':'p-long';
@@ -58,18 +71,26 @@ function card(r){const p=r.p,pill=r.review?'<span class="pill p-long">Under revi
   <div class="row"><span class="prop">${r.side||'Over'} ${r.pr.line} ${esc(r.pr.stat)}</span>${price}${r.str?`<span class="odds">${r.str}</span>`:''}${spark(r)}</div>
   <div class="${r.side?'why':'reason'}">${esc(r.review||r.why)}</div>
   ${mline(r)}${dffLine(r)}
+  ${(a=>a?`<div class="cap"><span class="pill p-long">Alt</span> ${a.side} ${a.line}${a.rung?` (${a.rung})`:''} ${esc(r.pr.stat)}${a.odds!=null?` at <b>${fo(a.odds)}</b>`:''} · ${a.k} of ${a.n} · ${a.kind.toLowerCase()}${a.odds==null?' · check the alt price':''}</div>`:'')(alt(r))}
   ${p.injury&&p.status!=='active'?`<div class="flag">${esc(p.status[0].toUpperCase()+p.status.slice(1))}${p.injury.detail?`: ${esc(p.injury.detail)}`:''}</div>`:''}
   <div class="cap">${r.pr.odds!=null&&(r.side||'Over')==='Over'?`${esc(r.pr.book)}`:'DraftKings line via ESPN · price not posted'} · Preview</div>
  </button>`}
 /* Prop checks grouped by game: one collapsible section per game, leans strongest first. Open sections stay open across refreshes. */
 function checks(players){const all=leansFor(players);return{good:all.filter(r=>r.side&&!r.review).sort((a,b)=>b.score-a.score),rest:all.filter(r=>!r.side||r.review)}}
+/* Collapsible inner section that stays open across refreshes (key must be unique). */
+const sub=(key,title,inner)=>`<details class="lv-sec" data-prev-sec="${esc(key)}" ${open.has(key)?'open':''}><summary>${title}</summary><div class="lv-secbody">${open.has(key)?inner:''}</div></details>`;
+/* Injury report by team with the reason (ESPN), refreshed with every run. */
+function injHTML(g){const I=g.injuries;if(!I)return '';
+ return ['away','home'].map(s=>{const L=I[s]||[],t=g[s];
+  return sub(`${g.id}|inj|${s}`,`${logo(t.logo)}${esc(t.n)} injuries (${L.length})`,L.length?L.map(x=>`<div class="lv-dffrow"><div class="row between"><span><b>${esc(x.name)}</b> <span class="cap">${esc(x.pos||'')}</span></span><span class="${/out|reserve/i.test(x.status)?'dn':'wn'}">${esc(x.status)}</span></div>${x.why||x.ret?`<div class="cap">${esc(x.why||'Reason not given')}${x.ret?` · expected back ${esc(x.ret.slice(5).replace('-','/'))}`:''}</div>`:''}</div>`).join(''):'<div class="cap">No injuries reported.</div>')}).join('')}
+const mlTxt=g=>g.ml&&(g.ml.away!=null||g.ml.home!=null)?` · ML ${esc(g.away.abbr)} ${g.ml.away!=null?fo(g.ml.away):'—'} / ${esc(g.home.abbr)} ${g.ml.home!=null?fo(g.ml.home):'—'}`:'';
 function gameSec(g,players){const {good,rest}=checks(players),strong=good.filter(r=>r.str==='Strong').length,isOpen=open.has(g.id);
  return `<details class="lv-sec nflw-sec" data-prev-sec="${esc(g.id)}" ${isOpen?'open':''}><summary>
   <span class="nflw-h"><span class="nflw-m">${logo(g.away.logo)}<b>${esc(g.away.abbr)}</b><span class="cap">@</span>${logo(g.home.logo)}<b>${esc(g.home.abbr)}</b></span>
-  <span class="cap">${when(g.when)}${g.details?` · ${esc(g.details)}`:''}${g.total?` · O/U ${g.total}`:''}</span></span>
+  <span class="cap">${when(g.when)}${g.details?` · ${esc(g.details)}`:''}${g.total?` · O/U ${g.total}`:''}</span>${mlTxt(g)?`<span class="cap">${mlTxt(g).slice(3)}</span>`:''}</span>
   <span class="pill ${good.length?'p-pick':'p-stay'}">${good.length?`${good.length} lean${good.length>1?'s':''}${strong?` · ${strong} strong`:''}`:players.length?'No leans':'No lines yet'}</span></summary>
-  <div class="lv-secbody">${isOpen?`${good.length?`<div class="list">${good.map(card).join('')}</div>`:`<div class="cap">${players.length?"None of this game's lines has enough support yet.":'DraftKings has not posted player props for this game yet.'}</div>`}
-   ${rest.length?`<details class="lv-sec"><summary>No lean or under review (${rest.length})</summary><div class="lv-secbody"><div class="list">${rest.map(card).join('')}</div></div></details>`:''}`:''}</div></details>`}
+  <div class="lv-secbody">${isOpen?`${injHTML(g)}${good.length?`<div class="list">${good.map(card).join('')}</div>`:`<div class="cap">${players.length?"None of this game's lines has enough support yet.":'DraftKings has not posted player props for this game yet.'}</div>`}
+   ${rest.length?sub(`${g.id}|rest`,`No lean or under review (${rest.length})`,`<div class="list">${rest.map(card).join('')}</div>`):''}`:''}</div></details>`}
 /* exclude: names already covered by Stamped's daily data (their own cards keep the full rules). */
 function gamesHTML(lg,exclude){const D=S[lg]&&S[lg].data;if(!D)return '';const ex=new Set((exclude||[]).map(s=>s.toLowerCase())),now=Date.now();
  const up=D.games.filter(g=>et(g.when).getTime()>now&&g.status!=='post');if(!up.length)return '';
@@ -80,6 +101,25 @@ function weekHTML(lg){const h=gamesHTML(lg,[]);if(!h)return '';
  return `<div class="cap">${LG[lg].label}'s prop checks by game, updated ${esc(S[lg].data.checked)}. Preview: stamps still post under the usual rules. ${note(lg)}</div><h2 class="sec">${LG[lg].label}</h2>${h}`}
 /* With Stamped's daily picks out: players its data does not cover. */
 function moreHTML(lg,exclude){const h=gamesHTML(lg,exclude);return h?`<h2 class="sec">More props · Preview</h2><div class="cap">Players outside today's Stamped data, updated ${esc(S[lg].data.checked)}. Not stamped. ${note(lg)}</div>${h}`:''}
+
+/* Parlays from the strongest leans: one leg per game and per player, each leg in its safest form (an easier alt he cleared
+   every time when there is one), every leg cleared in at least 4 of 5, no priced leg worse than -160 (Stamped rule).
+   Combined price only when every leg is priced. */
+const dec=o=>o>0?1+o/100:1+100/-o,am=d=>d>=2?Math.round((d-1)*100):Math.round(-100/(d-1));
+function legOf(r){const a=alt(r),use=a&&a.kind==='Safer'?a:null,k=use?use.k:r.k,odds=use?use.odds:(r.side==='Over'?r.pr.odds:null);
+ if(!k||k<Math.ceil(.8*r.n)||(odds!=null&&odds<-160))return null;
+ return{r,side:use?use.side:r.side,line:use?use.line:r.pr.line,rung:use&&use.rung,k,n:r.n,odds,score:k/r.n*10+r.score}}
+function parlaysHTML(lg){const D=S[lg]&&S[lg].data;if(!D)return '';const now=Date.now(),games=D.games.filter(g=>et(g.when).getTime()>now&&g.status!=='post');
+ const legs=checks(D.players.filter(p=>games.some(g=>g.id===p.gameId))).good.map(legOf).filter(Boolean).sort((a,b)=>b.score-a.score);
+ const pick=size=>{const out=[],gs=new Set(),ps=new Set();for(const l of legs){if(gs.has(l.r.p.gameId)||ps.has(l.r.p.id))continue;out.push(l);gs.add(l.r.p.gameId);ps.add(l.r.p.id);if(out.length===size)break}return out.length===size?out:null};
+ const show=(title,L)=>{if(!L)return '';const priced=L.every(l=>l.odds!=null),price=priced?am(L.reduce((a,l)=>a*dec(l.odds),1)):null;
+  return `<div class="card"><div class="row between"><div class="pname">${title}</div><span class="pill p-long">Preview</span></div>
+   ${L.map(l=>`<div class="row between lv-leg"><span>${logo(l.r.p.logo)}<b>${esc(l.r.p.name)}</b> <span class="cap">${l.side} ${l.line}${l.rung?` (${l.rung})`:''} ${esc(l.r.pr.stat)}</span></span><span class="cap">${l.k}/${l.n}${l.odds!=null?` · ${fo(l.odds)}`:''}</span></div>`).join('')}
+   <div class="cap">${priced?`DraftKings legs price to about <b>${fo(price)}</b> together; confirm the parlay price in your book.`:'Some legs have no posted price, so check the parlay price in your book.'} Each leg is from a different game.</div></div>`};
+ const two=pick(2),three=pick(3),four=pick(4);
+ if(!two)return `<h2 class="sec">${lg.toUpperCase()} parlays · Preview</h2><div class="empty"><h3>Not enough strong legs yet</h3>Parlays need leans from different games that hit in at least 4 of their last 5. Lines are still posting.</div>`;
+ return `<h2 class="sec">${lg.toUpperCase()} parlays · Preview</h2><div class="cap">Built from ${LG[lg].label.toLowerCase()}'s strongest leans, updated ${esc(D.checked)}. Every leg must clear Stamped's rules on its own; parlays multiply risk, so stakes should stay small.</div>
+  <div class="list">${show('2-leg',two)}${show('3-leg',three)}${show('4-leg',four)}</div>`}
 
 function sheetHTML(key){const [lg,id]=key.split('|'),D=S[lg]&&S[lg].data,p=D&&D.players.find(x=>x.id===id);if(!p)return '';const stats=[...new Set(p.props.map(x=>x.stat))];
  return `<div class="grab"></div>
@@ -98,5 +138,5 @@ function start(h){h=h||{};onChange=h.onChange;const all=()=>Object.keys(LG).forE
 const norm=s=>String(s||'').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'').replace(/\b(jr|sr|ii|iii|iv|v)\b\.?/g,'').replace(/[^a-z]/g,'');
 /* A player's ESPN game log from this week's file, by name (used by the fantasy preview board). */
 function player(lg,name){const D=S[lg]&&S[lg].data;if(!D)return null;const k=norm(name);return D.players.find(p=>norm(p.name)===k)||(D.logs||[]).find(p=>norm(p.name)===k)||null}
-window.PREV={start,load,weekHTML,moreHTML,player,ready:lg=>!!(S[lg]&&S[lg].data),_lean:lean,_checks:checks};
+window.PREV={start,load,weekHTML,moreHTML,parlaysHTML,player,ready:lg=>!!(S[lg]&&S[lg].data),_lean:lean,_checks:checks};
 })();

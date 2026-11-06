@@ -67,6 +67,9 @@
 @media (prefers-reduced-motion:reduce){.lv-ekg-dot{animation:none}}
 .lv-ekg-cap{display:flex;justify-content:space-between;font-size:11px;color:var(--muted);font-family:var(--f-mono)}
 .lv-ekg-cap span:first-child{color:var(--ekg);font-weight:600}
+.lv-leg{gap:8px;padding:4px 0;border-top:1px solid var(--line);font-size:14px}
+.lv-leg>span:first-child{min-width:0}
+.lv-leg>span:last-child{flex:none}
 /* Fantasy: where the projected points come from (small line under the player name). */
 .fsrc{font-size:11px;line-height:1.35;color:var(--muted);margin:1px 0 2px}
 .fsrc b{font-family:var(--f-mono);font-weight:500;color:var(--ink)}
