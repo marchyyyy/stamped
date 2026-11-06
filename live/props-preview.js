@@ -252,7 +252,8 @@ function crowdHTML(lg,g){const D=KG[lg];if(!D)return '';const G=Object.values(D.
  const lab=(s,c,P)=>{const v=nowP(s),yy=y(P[P.length-1][1]);return `<text x="${W-56}" y="${(yy-4).toFixed(1)}" fill="${c}" font-size="10" font-weight="700">${esc(g[s].abbr||g[s].n)}</text><text x="${W-56}" y="${(yy+12).toFixed(1)}" fill="${c}" font-size="16" font-weight="800">${v}%</text>`};
  const grid=[25,50,75].filter(v=>v>lo&&v<hi).map(v=>`<line x1="0" x2="${W}" y1="${y(v).toFixed(1)}" y2="${y(v).toFixed(1)}" stroke="var(--line)" stroke-dasharray="2 4"/>`).join('');
  const vol=(G.away.vol||0)+(G.home.vol||0),v24=(G.away.vol24||0)+(G.home.vol24||0),k=n=>n>=1e6?(n/1e6).toFixed(1)+'M':n>=1e3?Math.round(n/1e3)+'k':String(Math.round(n));
- const btn=r=>`<button class="kc-r" data-kc-range="${r}" aria-pressed="${CR===r}">${r==='ALL'?'All':r}</button>`;
+ /* Spans, not buttons: the chart also sits inside game cards, which are buttons themselves. */
+ const btn=r=>`<span class="kc-r" role="button" tabindex="0" data-kc-range="${r}" aria-pressed="${CR===r}">${r==='ALL'?'All':r}</span>`;
  return `<div class="kc"><div class="row between"><b>What other bettors are doing</b><span class="kc-rs">${btn('1D')}${btn('1W')}${btn('ALL')}</span></div>
   <svg viewBox="0 0 ${W} ${Ht}" class="kc-svg" role="img" aria-label="${esc(g.away.n)} ${nowP('away')}%, ${esc(g.home.n)} ${nowP('home')}% on Kalshi">${grid}
    <path d="${path(A)}" fill="none" stroke="${ca}" stroke-width="2"/><path d="${path(H)}" fill="none" stroke="${ch}" stroke-width="2"/>

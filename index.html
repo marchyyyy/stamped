@@ -231,7 +231,7 @@ button.lucell{cursor:pointer}button.lucell:hover{outline:1px solid var(--line)}
 <script src="live/espn.js?v=20261106a"></script>
 <script src="live/ui.js?v=20261106l"></script>
 <script src="live/dff.js?v=20261106i"></script>
-<script src="live/props-preview.js?v=20261106v"></script>
+<script src="live/props-preview.js?v=20261106w"></script>
 <script>
 fetch('./data.json?v='+Date.now()).then(r=>r.json()).then(DATA=>{
 
@@ -526,7 +526,7 @@ function gameCard(g){const r=decide(g),[lab,cls]=STATUS[r.status];
   ${r.status==='practice'?`<div class="row"><span class="prop">${r.label}</span></div><div class="mu">${r.why}</div>`:r.status==='info'||r.status==='pass'?`<div class="${r.status==='pass'?'reason':'mu'}">${r.why}</div>`:`<div class="row"><span class="prop">${r.label}</span></div><div class="row"><span class="sv">Secure Value <b>${r.sv}</b></span>${meter(r.sv)}</div>`}
   ${r.mk?`<div class="cap">Stamped % = the market's chance with the bookmaker's cut removed.</div>`:''}
   <div class="cap">${r.ml?`${g.away.n} ${fo(r.ml.away)}${r.ml.draw!=null?` · Draw ${fo(r.ml.draw)}`:''} · ${g.home.n} ${fo(r.ml.home)} · ${r.mlSrc}`:`No price posted yet · as of ${DATA.checked}`}</div>
-  ${window.PREV?PREV.teamEKG(g.lg,g,r):''}
+  ${window.PREV?(PREV.crowd(g.lg,g)||PREV.teamEKG(g.lg,g,r)):''}
  </button>`}
 
 /* ---------- screens ---------- */
