@@ -84,12 +84,25 @@ function git(a){return cp.execFileSync('git',a,{cwd:ROOT,encoding:'utf8',stdio:[
   }
   log(`${g.away.abbr} @ ${g.home.abbr}: ${Object.keys(lines).length} players with lines, ${items.length} props on the board`);
  }
+ /* Game logs for every other DFF player on these teams, found through ESPN team rosters, so the fantasy breakdown does not
+    depend on prop lines being posted. Stored apart from players, so they never enter the prop checks. */
+ const have=new Set(players.map(p=>norm(p.name))),want=new Map();
+ dff.forEach(r=>{const k=norm(r.first_name+' '+r.last_name);if(r.position!=='DST'&&!have.has(k)&&+r.ppg_projection>0)want.set(k,r)});
+ const logs=[];
+ if(want.size){const roster=new Map();
+  for(const g of games)for(const t of [g.away,g.home]){const R=await get(`${SITE}/teams/${t.id}/roster`);await sleep(120);
+   const list=((R&&R.athletes)||[]).flatMap(x=>x.items?x.items:[x]);list.forEach(a=>roster.set(norm(a.displayName),{id:a.id,name:a.displayName,team:t}))}
+  for(const [k,r] of want){const a=roster.get(k);if(!a)continue;
+   const gl=gamelog(await get(`https://site.web.api.espn.com/apis/common/v3/sports/${CFG.path}/athletes/${a.id}/gamelog`));await sleep(100);
+   if(gl.length)logs.push({name:a.name,pos:r.position,abbr:a.team.abbr,games:gl.slice(0,10)})}
+  log(`Game logs for ${logs.length} more DFF players (of ${want.size} without prop lines).`)}
  const out={sport:SPORT,generated:new Date().toISOString(),checked:new Date().toLocaleString('en-US',{timeZone:'America/New_York',month:'short',day:'numeric',hour:'numeric',minute:'2-digit'})+' ET',
-  slate:dff[0]&&dff[0].slate||'',dates,games,players};
+  slate:dff[0]&&dff[0].slate||'',dates,games,players,logs};
  /* No props on any board yet (DraftKings posts NBA props in the morning): publish the games so they still show.
     Props on the board but none read: something broke, so keep the previous file. */
  if(!games.length){log('No games found. Keeping the previous file.');process.exit(1)}
- if(boardItems>0&&players.length<CFG.min){log(`Only ${players.length} players read from ${boardItems} props. Keeping the previous file.`);process.exit(1)}
+ /* Boards fill in over the morning, so a few players is normal; none read from a board with props means a parse problem. */
+ if(boardItems>0&&!players.length){log(`No players read from ${boardItems} props. Keeping the previous file.`);process.exit(1)}
  if(!boardItems)log('No player props posted yet for these games; publishing the games so they show as "No lines yet".');
  if(TEST){const f=path.join(require('node:os').tmpdir(),`props-${SPORT}-test.json`);fs.writeFileSync(f,JSON.stringify(out));log(`Test build: ${games.length} games, ${players.length} players -> ${f}`);return}
  fs.mkdirSync(path.join(ROOT,'data'),{recursive:true});fs.writeFileSync(path.join(ROOT,CFG.out),JSON.stringify(out));

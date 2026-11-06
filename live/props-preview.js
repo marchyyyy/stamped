@@ -97,6 +97,6 @@ function start(h){h=h||{};onChange=h.onChange;const all=()=>Object.keys(LG).forE
  document.getElementById('main').addEventListener('click',e=>{const c=e.target.closest('[data-prev-p]');if(c&&h.showSheet){document.getElementById('sheet').innerHTML=sheetHTML(c.dataset.prevP);h.showSheet()}})}
 const norm=s=>String(s||'').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'').replace(/\b(jr|sr|ii|iii|iv|v)\b\.?/g,'').replace(/[^a-z]/g,'');
 /* A player's ESPN game log from this week's file, by name (used by the fantasy preview board). */
-function player(lg,name){const D=S[lg]&&S[lg].data;if(!D)return null;const k=norm(name);return D.players.find(p=>norm(p.name)===k)||null}
+function player(lg,name){const D=S[lg]&&S[lg].data;if(!D)return null;const k=norm(name);return D.players.find(p=>norm(p.name)===k)||(D.logs||[]).find(p=>norm(p.name)===k)||null}
 window.PREV={start,load,weekHTML,moreHTML,player,ready:lg=>!!(S[lg]&&S[lg].data),_lean:lean,_checks:checks};
 })();
