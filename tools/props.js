@@ -48,6 +48,12 @@ function gamelog(g){
 }
 /* ESPN's season label for last season: NBA seasons are named by the year they end (2026-27 = 2027), NFL by the year they start. */
 const PREV_SEASON=(()=>{const d=new Date(),y=d.getFullYear(),m=d.getMonth()+1;return SPORT==='nba'?(m>=8?y+1:y)-1:(m>=3?y:y-1)-1})();
+/* ESPN can list two ladders under one name (the full game, and a partial game with low rungs at long prices, e.g.
+   rebounds 2+..5+ beside 6+..20+). Keep the full-game ladder: start at the rung nearest the line and walk out each way
+   while the price moves the right way (higher rungs less likely). Unpriced ladders (NFL) are kept whole. */
+function ladder(a,line){a=a.sort((x,y)=>x.t-y.t);if(!a.length||a.some(x=>x.odds==null))return a;
+ const ip=o=>o>0?100/(o+100):-o/(-o+100);const i=a.reduce((b,x,j)=>Math.abs(x.t-line-.5)<Math.abs(a[b].t-line-.5)?j:b,0);let lo=i,hi=i;
+ while(lo>0&&ip(a[lo-1].odds)>ip(a[lo].odds))lo--;while(hi<a.length-1&&ip(a[hi+1].odds)<ip(a[hi].odds))hi++;return a.slice(lo,hi+1)}
 function git(a){return cp.execFileSync('git',a,{cwd:ROOT,encoding:'utf8',stdio:['ignore','pipe','pipe']}).trim()}
 
 (async()=>{
@@ -116,7 +122,7 @@ function git(a){return cp.execFileSync('git',a,{cwd:ROOT,encoding:'utf8',stdio:[
        whole number above the line (over 22.5 = 23+). */
     props:Object.entries(L).map(([stat,line])=>{const q=ou[aid]&&ou[aid][stat],op_=q?q.o:M[stat]&&M[stat][Math.floor(line)+1];
      return{stat,line,odds:op_!=null?op_:null,under:q?q.u:null,book:q?'DraftKings (via ESPN)':op_!=null?`DraftKings (${Math.floor(line)+1}+ via ESPN)`:'DraftKings (line via ESPN)',
-      alts:Object.entries(M[stat]||{}).map(([t,o])=>({t:+t,odds:o})).sort((a,b)=>a.t-b.t)}}),
+      alts:ladder(Object.entries(M[stat]||{}).map(([t,o])=>({t:+t,odds:o})),line)}}),
     dff:d?{proj:+d.ppg_projection,l5:+d.L5_fppg_avg,l10:+d.L10_fppg_avg,szn:+d.szn_fppg_avg,dvp:d.L5_dvp_rank!==''?+d.L5_dvp_rank:null,salary:+d.salary,value:+d.value_projection,inj:d.injury_status||''}:null,
     sources:[['ESPN game log','ok',`${gl.length} games`],['DraftKings line (via ESPN)','ok',Object.keys(L).join(', ')],...(d?[['DailyFantasyFuel','ok','projection']]:[])]});
   }

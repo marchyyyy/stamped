@@ -170,7 +170,7 @@ function cheatRows(lg){const D=S[lg]&&S[lg].data;if(!D)return null;const ids=new
    const ku=streak(vals(all),x=>x<L);if(ku>=n)R.under.push({...base,side:'Under',L,k:ku,n:ku});
    /* Highest rung reached in every game this season (other than the one that equals the posted Over). */
    const lo=Math.min(...vals(cur)),rung=(pr.alts||[]).filter(a=>a.t<=lo&&a.t!==Math.floor(L)+1&&(a.odds==null||a.odds>=-400)).sort((a,b)=>b.t-a.t)[0];
-   if(rung){const k=streak(vals(all),x=>x>=rung.t);R.alt.push({...base,side:'Over',L:rung.t-.5,rung:rung.t,k,n:k})}}
+   const rz=rung&&priceFor(p,pr,"Over",rung.t-.5);if(rung&&!(rz&&rz.odds<-400)){const k=streak(vals(all),x=>x>=rung.t);R.alt.push({...base,side:'Over',L:rung.t-.5,rung:rung.t,k,n:k})}}
   const op=p.oppAbbr,vs=all.filter(g=>op&&new RegExp(`(^|\\s)${op}$`).test(g.vs||'')),hv=vals(vs);
   if(hv.length>=2){const side=hv.every(x=>x>L)?'Over':hv.every(x=>x<L)?'Under':null;if(side)R.opp.push({...base,side,L,k:hv.length,n:hv.length})}}));
  Object.values(R).forEach(a=>a.sort((x,y)=>y.k-x.k||x.p.name.localeCompare(y.p.name)));return R}

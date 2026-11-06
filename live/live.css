@@ -91,13 +91,13 @@
 .lv-toast{background:var(--ink);color:var(--bg);border-radius:10px;padding:10px 14px;font-size:13px;box-shadow:0 8px 24px rgba(0,0,0,.3);animation:up .2s ease-out}
 @media (prefers-reduced-motion:reduce){.lv-toast{animation:none}}
 /* Cheatsheet (NFL/NBA): four boxes of lines that hit in every game shown. */
-.cs{display:grid;gap:12px}
-@media (min-width:760px){.cs{grid-template-columns:1fr 1fr}}
-.cs-box{background:var(--surface);border:1px solid var(--line);border-radius:14px;overflow:hidden}
+.cs{display:grid;gap:12px;grid-template-columns:minmax(0,1fr)}
+@media (min-width:760px){.cs{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}}
+.cs-box{min-width:0;background:var(--surface);border:1px solid var(--line);border-radius:14px;overflow:hidden}
 .cs-h{display:flex;gap:8px;align-items:center;padding:10px 14px;border-bottom:1px solid var(--line);font-size:15px}
 .cs-row{display:flex;gap:10px;align-items:center;width:100%;padding:9px 14px;background:none;border:0;border-top:1px solid var(--line);color:var(--ink);font:inherit;font-size:14px;text-align:left;cursor:pointer}
 .cs-h+.cs-row{border-top:0}
 .cs-what{flex:1;min-width:0}
-.cs-what small{display:block;font-size:11px;color:var(--muted);margin-top:2px}
+.cs-what small{display:block;white-space:normal;overflow-wrap:anywhere;font-size:11px;color:var(--muted);margin-top:2px}
 .cs-k{font-family:var(--f-mono);font-weight:700;font-variant-numeric:tabular-nums;white-space:nowrap}
 .cs-none{padding:10px 14px}
