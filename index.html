@@ -231,7 +231,7 @@ button.lucell{cursor:pointer}button.lucell:hover{outline:1px solid var(--line)}
 <script src="live/espn.js?v=20261106a"></script>
 <script src="live/ui.js?v=20261106l"></script>
 <script src="live/dff.js?v=20261106i"></script>
-<script src="live/props-preview.js?v=20261107b"></script>
+<script src="live/props-preview.js?v=20261107c"></script>
 <script>
 fetch('./data.json?v='+Date.now()).then(r=>r.json()).then(DATA=>{
 
@@ -759,6 +759,8 @@ function rulesHTML(lg){
 /* ---------- alts ---------- */
 function altsHTML(l){
  const ps=P.filter(p=>p.lg===l.id&&onSlate(p)&&p.bestAlt).sort((a,b)=>b.bestAlt.ev.stars-a.bestAlt.ev.stars);
+ /* NBA and NFL: when the daily data has no alts, use the preview's DraftKings ladders. */
+ if(!ps.length&&window.PREV&&PREV.altsHTML){const h=PREV.altsHTML(l.id);if(h)return h}
  let html=`<div class="slate"><h1>${l.name} alts</h1><p>${ps.length} players with usable alts</p></div>
  <div class="warnbox"><b>How alts work</b><span>A lower line is easier to hit but pays less. A higher line is harder but pays more. Check the alt price in your book before betting.</span></div>`;
  if(l.off)return html+`<div class="empty"><h3>MLB is in the offseason</h3>No alts until the season starts.</div>`;

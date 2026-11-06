@@ -156,6 +156,18 @@ function moreHTML(lg,exclude,link){const h=gamesHTML(lg,exclude);
  /* link: the Today tab points to Props instead of repeating every game section. */
  if(h&&link)return `<button class="card" data-mode="props"><div class="row between"><span class="prop">Player props</span><span class="pill p-long">Props →</span></div><div class="cap">Leans for every player on the slate, game by game, are on the Props tab.</div></button>`;
  return h?`<h2 class="sec">More props · Preview</h2><div class="cap">Players outside today's Stamped data, updated ${esc(S[lg].data.checked)}. Not stamped. ${note(lg)}</div>${h}`:''}
+/* Alts tab: each lean's best alt line (same pick as on its card), harder-paying first, then safer. Tap a row for his log. */
+function altsHTML(lg){const D=S[lg]&&S[lg].data;if(!D)return '';const ids=new Set(upcoming(lg).map(g=>g.id));if(!ids.size)return '';
+ const R=checks(D.players.filter(p=>ids.has(p.gameId)&&p.status!=='out'&&p.status!=='doubtful')).good.map(r=>({r,a:alt(r)})).filter(x=>x.a);
+ const row=({r,a})=>{const pct=a.odds!=null?Math.round(100*Math.min(.97,Math.max(.03,ip(a.odds)-.035-(lg==='nba'?.01:0)))):null,mz=r.price||priceFor(r.p,r.pr,r.side);
+  return `<button class="card" data-prev-p="${esc(r.p.lg+'|'+r.p.id)}"><div class="row between"><div style="min-width:0"><div class="pname">${esc(r.p.name)}</div><div class="team">${logo(r.p.logo)}${esc(r.p.team)} · ${esc(r.p.opp)} · ${when(r.p.when)}</div></div><span class="pill ${a.kind==='Safer'?'p-pick':'p-long'}">${a.kind}</span></div>
+  <div class="row"><span class="prop">${a.side} ${a.line}${a.rung?` (${a.rung})`:''} ${esc(r.pr.stat)}</span>${a.odds!=null?`<span class="odds">${fo(a.odds)}</span>`:''}${spark(r)}</div>
+  <div class="cap">Cleared it in <b>${a.k} of ${a.n}</b>${pct!=null?` · Stamped ${pct}%`:' · check the alt price in your book'} · main line ${r.side} ${r.pr.line}${mz?` at ${fo(mz.odds)}`:''}</div></button>`};
+ const up=R.filter(x=>x.a.kind!=='Safer').sort((x,y)=>y.a.k/y.a.n-x.a.k/x.a.n||y.r.score-x.r.score),sf=R.filter(x=>x.a.kind==='Safer').sort((x,y)=>y.r.score-x.r.score);
+ const sec=(t,a)=>a.length?`<h2 class="sec">${t} (${a.length})</h2><div class="list">${a.map(row).join('')}</div>`:'';
+ return `<div class="slate"><h1>${lg.toUpperCase()} alts</h1>${R.length?`<p>${R.length} alt line${R.length>1?'s':''}</p>`:''}</div>
+ <div class="cap">One alt per lean, from DraftKings' ladder and Kalshi, updated ${esc(D.checked)}. Pays more: a harder line he still cleared in 4 of 5, never into a tough matchup. Safer: an easier line he cleared every time; it pays less. No price shown: check your book. Streaks are history; Stamped % is the fair chance from the price.</div>
+ ${R.length?sec('Pays more',up)+sec('Safer',sf):'<div class="empty"><h3>No alts yet</h3>No lean has an alt line its last 5 games support. The Cheatsheet lists alt rungs hit in every game.</div>'}`}
 
 /* Parlays from the strongest leans: one leg per game and per player, each leg in its safest form (an easier alt he cleared
    every time when there is one), every leg cleared in at least 4 of 5.
@@ -329,5 +341,5 @@ function start(h){h=h||{};onChange=h.onChange;const all=()=>{Object.keys(LG).for
 const norm=s=>String(s||'').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'').replace(/\b(jr|sr|ii|iii|iv|v)\b\.?/g,'').replace(/[^a-z]/g,'');
 /* A player's ESPN game log from this week's file, by name (used by the fantasy preview board). */
 function player(lg,name){const D=S[lg]&&S[lg].data;if(!D)return null;const k=norm(name);return D.players.find(p=>norm(p.name)===k)||(D.logs||[]).find(p=>norm(p.name)===k)||null}
-window.PREV={start,load,weekHTML,moreHTML,parlaysHTML,cheatHTML,teamsHTML,injuriesHTML,next,player,teamEKG,crowd,teamRating,teamSignal,teamSignalChecked,practiceHTML,ready:lg=>!!(S[lg]&&S[lg].data),_lean:lean,_checks:checks};
+window.PREV={start,load,weekHTML,moreHTML,altsHTML,parlaysHTML,cheatHTML,teamsHTML,injuriesHTML,next,player,teamEKG,crowd,teamRating,teamSignal,teamSignalChecked,practiceHTML,ready:lg=>!!(S[lg]&&S[lg].data),_lean:lean,_checks:checks};
 })();
