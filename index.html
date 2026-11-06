@@ -490,7 +490,7 @@ function decide(g){
  if(S&&S.pick){const ml=ML[S.side],t=g[S.side];
   if(ml!=null&&ml>=300){r.why=`${t.n} at ${fo(ml)} is too long a shot, even though the model likes them more than the opening line.`;return r}
   Object.assign(r,{status:'practice',side:S.side,team:t.n,edge:S.edge,label:`${t.n} moneyline (${fo(ml)})`,
-   why:`The tested model gives ${t.n} ${Math.round((S.side==='home'?S.model:1-S.model)*100)}% against ${Math.round((S.side==='home'?S.open.p:1-S.open.p)*100)}% at the opening line, ${(S.edge*100).toFixed(1)} points. Practice pick: logged and graded while it proves itself.`});return r}
+   why:`The tested model gives ${t.n} ${Math.round((S.side==='home'?S.model:1-S.model)*100)}% against ${Math.round((S.side==='home'?S.open.p:1-S.open.p)*100)}% at the opening line, ${(S.edge*100).toFixed(1)} points.${(m=>m?` Missing regulars: ${m}.`:'')([['away','away'],['home','home']].map(([s])=>S.missing&&S.missing[s]&&S.missing[s].length?`${g[s].n}: ${S.missing[s].join(', ')}`:'').filter(Boolean).join('; '))} Practice pick: logged and graded while it proves itself.`});return r}
  r.why=g.lg==='nba'?(S?`No practice pick: the tested model is within 5 points of the opening line (${(S.edge*100).toFixed(1)}).`:'No signal yet for this game.')
   :`Information only. ${lgOf(g.lg).name} team picks are paused until a signal beats the market in testing.`;
  return r;
@@ -739,7 +739,8 @@ function rulesHTML(lg){
   <li>A missing starter is priced from his team's on/off net rating this season (NBA.com), not a guess, whenever that split is available.</li>
   <li>Team percentages are the market's no-vig chances. In a walk-forward test on 392 NFL and 1,354 NBA games they were better calibrated than any model of ours.</li>
   <li>NFL and soccer team picks are information only until a signal beats the market in that test.</li>
-  <li>NBA: a Practice pick when the tested model (opening line plus this season's and last season's opponent-adjusted ratings, rest and back-to-backs) differs from the opening line by 5+ points. Every practice pick is logged at the opening price and graded on the closing line and the result.</li>
+  <li>NBA: a Practice pick when the tested model (opening line plus this season's and last season's opponent-adjusted ratings, rest, back-to-backs and missing regulars from the injury report, weighted by their production) differs from the opening line by 5+ points. Every practice pick is logged at the opening price and graded on the closing line and the result.</li>
+  <li>NFL: quarterback absences were tested too; they help but the NFL model still trails the opening line, so NFL team picks stay paused.</li>
   <li>Moneylines at any price (no −160 cap). +300 or longer is still too long a shot.</li></ul></div>`;
  const extra={
   soccer:`<div class="rules"><h3>Soccer <span class="pill p-long">New draft</span></h3><ul><li>Last 5 current-season matches across league and cups. A match under 60 minutes is flagged.</li><li>Props: shots, shots on target, anytime goal/assist, saves, tackles, fouls.</li><li>Starting XI must be confirmed before a pick is final.</li><li>Midweek Champions League or cup games drop the rating by 1 for rotation risk.</li></ul></div>`,

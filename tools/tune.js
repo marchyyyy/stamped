@@ -45,16 +45,43 @@ function srs(games,lam){const t={};games.forEach(g=>{t[g.home.id]=t[g.home.id]||
  return t}
 /* NFL DvP from box scores, the way DFF builds L5_dvp_rank (DK points allowed per position, last 5, ranked). */
 function boxPlayers(id){const f=path.join(CACHE,`${SPORT}-${id}.json`);if(!fs.existsSync(f))return[];const sum=JSON.parse(fs.readFileSync(f,'utf8')),pl={};
- const n=v=>{const x=parseFloat(String(v).split('/')[0].split('-')[0]);return isNaN(x)?0:x};
- ((sum.boxscore&&sum.boxscore.players)||[]).forEach(t=>(t.statistics||[]).forEach(cat=>(cat.athletes||[]).forEach(a=>{const s=Object.fromEntries((cat.keys||[]).map((k,i)=>[k,n(a.stats[i])])),P=pl[a.athlete.id]=pl[a.athlete.id]||{id:a.athlete.id,team:t.team.id,dk:0,pass:0,rush:0,rec:0};
+ const n=v=>{const x=parseFloat(String(v).split('-')[0]);return isNaN(x)?0:x};
+ /* Some columns are combined, e.g. "completions/passingAttempts" = "22/35": split both the key and the value. */
+ const row=(keys,stats)=>{const s={};(keys||[]).forEach((k,i)=>{const ks=k.split('/'),vs=String(stats[i]==null?'':stats[i]).split('/');ks.forEach((kk,j)=>s[kk]=n(vs[j]))});return s};
+ ((sum.boxscore&&sum.boxscore.players)||[]).forEach(t=>(t.statistics||[]).forEach(cat=>(cat.athletes||[]).forEach(a=>{const s=row(cat.keys,a.stats||[]),P=pl[a.athlete.id]=pl[a.athlete.id]||{id:a.athlete.id,team:t.team.id,dk:0,pass:0,rush:0,rec:0};
   if(cat.name==='passing'){P.dk+=.04*s.passingYards+4*s.passingTouchdowns-s.interceptions;P.pass+=s.passingAttempts||0}
   if(cat.name==='rushing'){P.dk+=.1*s.rushingYards+6*s.rushingTouchdowns;P.rush+=s.rushingAttempts||0}
   if(cat.name==='receiving'){P.dk+=s.receptions+.1*s.receivingYards+6*s.receivingTouchdowns;P.rec+=s.receptions||0}})));
  return Object.values(pl).map(p=>Object.assign(p,{pos:p.pass>=5?'QB':p.rush>p.rec?'RB':'WR'}))}
+/* Missing players, detected from box scores so only pregame-knowable absences count:
+   NBA: a regular (played 3+ of his team's last 5 games, 15+ minutes a game) who logs no minutes, unless benched by the
+   coach; weighted by his average DraftKings points. A player hurt during the game still logs minutes, so it cannot leak.
+   NFL: the team's regular quarterback (most pass attempts this season) throws no passes in this game. */
+function nbaBox(id){const f=path.join(CACHE,`nba-${id}.json`);if(!fs.existsSync(f))return null;const sum=JSON.parse(fs.readFileSync(f,'utf8')),out=[];
+ ((sum.boxscore&&sum.boxscore.players)||[]).forEach(t=>{const S=(t.statistics||[])[0];if(!S)return;const K=S.keys||[],ix=k=>K.indexOf(k);
+  (S.athletes||[]).forEach(a=>{const v=k=>{const s=a.stats&&a.stats[ix(k)];const x=parseFloat(String(s||'').split('-')[0]);return isNaN(x)?0:x};
+   const min=v('minutes'),dk=v('points')+.5*v('threePointFieldGoalsMade-threePointFieldGoalsAttempted')+1.25*v('rebounds')+1.5*v('assists')+2*v('steals')+2*v('blocks')-.5*v('turnovers');
+   out.push({id:a.athlete.id,team:t.team.id,min,dk,coach:/coach/i.test(a.reason||'')})})});
+ return out}
+function missingSeason(G){/* game id -> {home, away} missing value, using only games before that day */
+ const res={},avg={},teamGames={},byDay=[...new Set(G.map(g=>g.date.slice(0,10)))].sort(),qb={};
+ for(const day of byDay){const today=G.filter(g=>g.date.slice(0,10)===day);
+  for(const g of today){const v={};for(const [s,t] of [['home',g.home.id],['away',g.away.id]]){
+   if(SPORT==='nba'){const box=nbaBox(g.id)||[],played=new Set(box.filter(p=>p.team===t&&p.min>0).map(p=>p.id)),coach=new Set(box.filter(p=>p.team===t&&p.coach).map(p=>p.id));
+    const last5=(teamGames[t]||[]).slice(-5);
+    v[s]=Object.entries(avg).filter(([id,a])=>a.team===t&&a.n>=3&&a.min/a.n>=15&&last5.filter(gid=>a.games.has(gid)).length>=3&&!played.has(id)&&!coach.has(id)).reduce((x,[,a])=>x+a.dk/a.n,0)}
+   else{const Q=qb[t];const box=boxPlayers(g.id),threw=new Set(box.filter(p=>p.team===t&&p.pass>0).map(p=>p.id));
+    const main=Q&&Object.entries(Q).sort((a,b)=>b[1]-a[1])[0];v[s]=main&&main[1]>=40&&!threw.has(main[0])?1:0}}
+   res[g.id]=v}
+  /* absorb today's games into the season-to-date state */
+  for(const g of today){if(SPORT==='nba'){(nbaBox(g.id)||[]).forEach(p=>{if(p.min<=0)return;const a=avg[p.id]=avg[p.id]&&avg[p.id].team===p.team?avg[p.id]:{team:p.team,n:0,min:0,dk:0,games:new Set()};a.n++;a.min+=p.min;a.dk+=p.dk;a.games.add(g.id)})}
+   else boxPlayers(g.id).forEach(p=>{if(p.pass>0)((qb[p.team]=qb[p.team]||{})[p.id]=(qb[p.team][p.id]||0)+p.pass)});
+   [g.home.id,g.away.id].forEach(t=>(teamGames[t]=teamGames[t]||[]).push(g.id))}}
+ return res}
 const seasons=[...new Set(H.map(g=>g.season))].sort(),finalSRS={};
 seasons.forEach(s=>{finalSRS[s]=srs(H.filter(g=>g.season===s),CFG.lam)});
 const rows=[];
-for(const s of seasons){const G=H.filter(g=>g.season===s),prev=finalSRS[String(+s-1)]||null,dates=[...new Set(G.map(g=>g.date.slice(0,10)))];
+for(const s of seasons){const G=H.filter(g=>g.season===s),prev=finalSRS[String(+s-1)]||null,dates=[...new Set(G.map(g=>g.date.slice(0,10)))],MISS=missingSeason(G);
  let cacheKey=null,R=null,soft=null,wgt=null;
  for(const g of G){const day=g.date.slice(0,10),key=SPORT==='nfl'?g.week:day,prior=G.filter(x=>x.date<g.date&&x.date.slice(0,10)<day);
   if(key!==cacheKey){cacheKey=key;R=srs(prior,CFG.lam);
@@ -68,7 +95,8 @@ for(const s of seasons){const G=H.filter(g=>g.season===s),prev=finalSRS[String(+
   const wins=tid=>prior.filter(y=>y.home.id===tid||y.away.id===tid).slice(-5).filter(y=>(y.home.id===tid?y.home.pts-y.away.pts:y.away.pts-y.home.pts)>0).length;
   const appM=(nH&&nA?(R[g.home.id]||0)-(R[g.away.id]||0):0)+(g.neutral?0:CFG.home)+CFG.form*(wins(g.home.id)-wins(g.away.id));
   rows.push({g,season:s,key,x:{srs:(R[g.home.id]||0)-(R[g.away.id]||0),prev:prev?(prev[g.home.id]||0)-(prev[g.away.id]||0):0,hasPrev:prev?1:0,rest:rH-rA,
-   b2b:SPORT==='nba'?(rA<=1.5?1:0)-(rH<=1.5?1:0):0,dvp:dvp(g.home.id,g.away.id)-dvp(g.away.id,g.home.id),home:g.neutral?0:1,games:Math.min(nH,nA)},appP:sig(appM/CFG.s)})}}
+   b2b:SPORT==='nba'?(rA<=1.5?1:0)-(rH<=1.5?1:0):0,dvp:dvp(g.home.id,g.away.id)-dvp(g.away.id,g.home.id),home:g.neutral?0:1,games:Math.min(nH,nA),
+   inj:MISS[g.id]?(MISS[g.id].away-MISS[g.id].home):0},appP:sig(appM/CFG.s)})}}
 
 /* ---------- Practice picks for upcoming games (--today) ---------- */
 async function today(){
@@ -79,6 +107,12 @@ async function today(){
  const day=t=>new Date(t).toLocaleDateString('en-CA',{timeZone:'America/New_York'}).replace(/-/g,''),up=[];
  for(const d of [day(Date.now()),day(Date.now()+864e5)]){const s=await J(`https://site.api.espn.com/apis/site/v2/sports/${P[0]}/scoreboard?dates=${d}`);((s&&s.events)||[]).filter(e=>e.status.type.state==='pre').forEach(e=>up.push(e))}
  const am=x=>x&&x.american!=null?parseFloat(x.american):null,games=[];
+ /* Injury signal for upcoming games (NBA): regulars on ESPN's current injury report as Out or Doubtful, weighted by their
+    season DraftKings average, with the same "regular" test as the backtest (3+ of the team's last 5, 15+ minutes). */
+ const avg={},teamGames={};
+ if(SPORT==='nba')G.forEach(g=>{(nbaBox(g.id)||[]).forEach(p=>{if(p.min<=0)return;const a=avg[p.id]=avg[p.id]&&avg[p.id].team===p.team?avg[p.id]:{team:p.team,n:0,min:0,dk:0,games:new Set()};a.n++;a.min+=p.min;a.dk+=p.dk;a.games.add(g.id)});
+  [g.home.id,g.away.id].forEach(t=>(teamGames[t]=teamGames[t]||[]).push(g.id))});
+ const regular=(id,t)=>{const a=avg[id];if(!a||a.team!==t||a.n<3||a.min/a.n<15)return null;const l5=(teamGames[t]||[]).slice(-5);return l5.filter(x=>a.games.has(x)).length>=3?a.dk/a.n:null};
  for(const e of up){const c=e.competitions[0],Hc=c.competitors.find(x=>x.homeAway==='home'),Ac=c.competitors.find(x=>x.homeAway==='away'),hid=Hc.team.id,aid=Ac.team.id;
   const o=await J(`https://sports.core.api.espn.com/v2/sports/${P[1]}/events/${e.id}/competitions/${e.id}/odds`);
   const it=((o&&o.items)||[]).find(x=>!/live/i.test((x.provider&&x.provider.name)||'')&&x.homeTeamOdds&&x.homeTeamOdds.open&&am(x.homeTeamOdds.open.moneyLine)!=null&&am(x.awayTeamOdds.open.moneyLine)!=null);
@@ -87,10 +121,16 @@ async function today(){
   open.p=noVig(open.h,open.a);now.p=now.h!=null&&now.a!=null?noVig(now.h,now.a):null;
   const n=tid=>G.filter(y=>y.home.id===tid||y.away.id===tid).length,last=tid=>{const x=G.filter(y=>y.home.id===tid||y.away.id===tid).pop();return x?Math.min(10,(Date.parse(e.date)-Date.parse(x.date))/864e5):7};
   const rH=last(hid),rA=last(aid);
-  const r={g:{open,mkt:{p:open.p}},x:{srs:(R[hid]||0)-(R[aid]||0),prev:prev?(prev[hid]||0)-(prev[aid]||0):0,hasPrev:prev?1:0,rest:rH-rA,b2b:(rA<=1.5?1:0)-(rH<=1.5?1:0),dvp:0,home:c.neutralSite?0:1,games:Math.min(n(hid),n(aid))}};
+  const miss={home:{v:0,who:[]},away:{v:0,who:[]}};
+  if(SPORT==='nba'){const sum=await J(`https://site.api.espn.com/apis/site/v2/sports/${P[0]}/summary?event=${e.id}`);
+   ((sum&&sum.injuries)||[]).forEach(t=>{const s=t.team&&t.team.id===hid?'home':t.team&&t.team.id===aid?'away':null;if(!s)return;
+    (t.injuries||[]).forEach(i=>{if(!/out|doubtful/i.test(i.status||''))return;const id=i.athlete&&i.athlete.id,v=regular(id,s==='home'?hid:aid);
+     if(v){miss[s].v+=v;miss[s].who.push(`${i.athlete.displayName} (${i.status})`)}})})}
+  const r={g:{open,mkt:{p:open.p}},x:{srs:(R[hid]||0)-(R[aid]||0),prev:prev?(prev[hid]||0)-(prev[aid]||0):0,hasPrev:prev?1:0,rest:rH-rA,b2b:(rA<=1.5?1:0)-(rH<=1.5?1:0),dvp:0,home:c.neutralSite?0:1,games:Math.min(n(hid),n(aid)),
+   inj:miss.away.v-miss.home.v}};
   const p=sig(MODELS['Market+ (open)'](r).reduce((a,v,j)=>a+v*W[j],0)),eh=p-open.p,ea=(1-p)-(1-open.p),side=eh>=ea?'home':'away',edge=Math.max(eh,ea),ml=open[side==='home'?'h':'a'];
   games.push({id:e.id,date:e.date,away:{abbr:Ac.team.abbreviation,n:Ac.team.name},home:{abbr:Hc.team.abbreviation,n:Hc.team.name},open,now,model:p,side,edge,pick:edge>=.05&&ml<300,
-   book:it.provider&&it.provider.name,why:{rating:r.x.srs,lastSeason:r.x.prev,rest:r.x.rest,b2b:r.x.b2b}})}
+   book:it.provider&&it.provider.name,why:{rating:r.x.srs,lastSeason:r.x.prev,rest:r.x.rest,b2b:r.x.b2b},missing:{home:miss.home.who,away:miss.away.who}})}
  /* Practice log: add new picks at the opening price; settle finished ones with the closing line, line movement and result. */
  const logF=path.join(ROOT,'data',`practice_${SPORT}_teams.json`),L=fs.existsSync(logF)?JSON.parse(fs.readFileSync(logF,'utf8')):{picks:[]};
  games.filter(g=>g.pick&&!L.picks.some(x=>x.id===g.id)).forEach(g=>{const s=g.side==='home'?'h':'a';
@@ -102,7 +142,7 @@ async function today(){
  L.weights=W;L.updated=new Date().toISOString();
  const sigF=path.join(ROOT,'data',`team_signals_${SPORT}.json`);
  fs.writeFileSync(sigF,JSON.stringify({sport:SPORT,generated:new Date().toISOString(),checked:new Date().toLocaleString('en-US',{timeZone:'America/New_York',month:'short',day:'numeric',hour:'numeric',minute:'2-digit'})+' ET',
-  rule:'Practice pick when the tested model differs from the opening line by 5+ points (walk-forward test 2025-26: 229-147, +2.8% at the opening price, not yet proven)',games}));
+  rule:'Practice pick when the tested model (with injuries) differs from the opening line by 5+ points (walk-forward test 2025-27: 331-205, +4.5% at the opening price, line moved our way 2.0 pts; not yet proven live)',games}));
  fs.writeFileSync(logF,JSON.stringify(L,null,1));
  console.log(`${SPORT.toUpperCase()} signals: ${games.length} upcoming games with an opening line, ${games.filter(g=>g.pick).length} practice picks. Log: ${L.summary.picks} picks, ${L.summary.settled} settled.`);
  games.forEach(g=>console.log(`  ${g.away.abbr} @ ${g.home.abbr}: open ${g.open.h}/${g.open.a} (${Math.round(g.open.p*100)}% home) · model ${Math.round(g.model*100)}% · edge ${(g.edge*100).toFixed(1)} on ${g[g.side].abbr}${g.pick?'  << PRACTICE PICK':''}`));
@@ -122,8 +162,10 @@ function fit(X,y,lam){const k=X[0].length;let w=new Array(k).fill(0);
   const step=M.map((r,i)=>Math.abs(r[i])<1e-12?0:r[k]/r[i]);w=w.map((v,i)=>v-step[i]);if(step.every(s=>Math.abs(s)<1e-7))break}
  return w}
 const sc=SPORT==='nfl'?{srs:1/7,prev:1/7,rest:1/7,dvp:1,b2b:1}:{srs:1/10,prev:1/10,rest:1/2,dvp:1,b2b:1};
-const feats=r=>[r.x.srs*sc.srs*Math.min(1,r.x.games/4),r.x.prev*sc.prev*r.x.hasPrev,r.x.rest*sc.rest,SPORT==='nba'?r.x.b2b:r.x.dvp*sc.dvp];
-const FEAT=['rating gap (this season)','rating gap (last season)','rest gap',SPORT==='nba'?'back-to-back':'DvP matchup'];
+/* --noinj leaves the injury signal out, to measure what it adds. */
+const NOINJ=process.argv.includes('--noinj');
+const feats=r=>[r.x.srs*sc.srs*Math.min(1,r.x.games/4),r.x.prev*sc.prev*r.x.hasPrev,r.x.rest*sc.rest,SPORT==='nba'?r.x.b2b:r.x.dvp*sc.dvp,...(NOINJ?[]:[SPORT==='nba'?r.x.inj/20:r.x.inj])];
+const FEAT=['rating gap (this season)','rating gap (last season)','rest gap',SPORT==='nba'?'back-to-back':'DvP matchup',...(NOINJ?[]:[SPORT==='nba'?'missing regulars (DK pts/20)':'QB out'])];
 const MODELS={
  /* Same signals anchored on the OPENING line: the realistic workflow (bet when lines first post), scored at the open price. */
  'Market+ (open)':r=>[1,logit(r.g.open&&r.g.open.p>0&&r.g.open.p<1?r.g.open.p:r.g.mkt.p),...feats(r)],
