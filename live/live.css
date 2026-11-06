@@ -1,0 +1,24 @@
+/* NBA Live Intelligence. Uses the app's existing color tokens, so light and dark themes follow automatically. */
+.lv{display:grid;gap:14px}
+.lv .warnbox span{display:block}
+.lv-filters{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+.lv-filters select,.lv-search,.lv-num,.lv-calc select{font:inherit;font-size:13px;color:var(--ink);background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:6px 8px}
+.lv-search{flex:1;min-width:120px}
+.lv-num{width:68px;font-family:var(--f-mono)}
+.lv-score{display:flex;justify-content:space-between;font-family:var(--f-disp);font-weight:800;font-size:20px;letter-spacing:.03em}
+.lv-score b{font-size:30px;margin-left:6px;font-variant-numeric:tabular-nums}
+.lv-q td,.lv-q th{padding:5px 4px}
+.lv-q td:first-child{font-weight:600}
+.lv-q small,.lv-p small{display:block;font-size:10px;color:var(--muted);font-family:var(--f-mono);white-space:nowrap}
+.lv-act{font-weight:700;color:var(--ink)}
+.lv-tot td{border-top:2px solid var(--line)}
+.lv-p{font-size:13px}
+.lv-p td{vertical-align:top;padding:6px 4px}
+.lv-p td.num{white-space:nowrap}
+.lv-calc{flex-wrap:wrap}
+.lv-cks{display:flex;flex-wrap:wrap;gap:8px 16px;font-size:14px}
+.lv-ck{display:flex;gap:6px;align-items:center}
+.lv code{font-family:var(--f-mono);font-size:12px}
+#lv-toasts{position:fixed;left:50%;bottom:calc(16px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);z-index:60;display:grid;gap:6px;width:min(480px,calc(100vw - 32px))}
+.lv-toast{background:var(--ink);color:var(--bg);border-radius:10px;padding:10px 14px;font-size:13px;box-shadow:0 8px 24px rgba(0,0,0,.3);animation:up .2s ease-out}
+@media (prefers-reduced-motion:reduce){.lv-toast{animation:none}}

@@ -201,6 +201,7 @@ button.lucell{cursor:pointer}button.lucell:hover{outline:1px solid var(--line)}
 .srcs{font-size:12px;color:var(--muted);word-break:break-all;display:grid;gap:3px}
 .srcs a{color:var(--muted)}
 </style>
+<link rel="stylesheet" href="live/live.css">
 </head>
 <body>
 
@@ -225,6 +226,9 @@ button.lucell{cursor:pointer}button.lucell:hover{outline:1px solid var(--line)}
   <div class="sheet pad" id="sheet" role="dialog" aria-modal="true" aria-label="Detail"></div>
 </div>
 
+<script src="live/engine.js"></script>
+<script src="live/espn.js"></script>
+<script src="live/ui.js"></script>
 <script>
 fetch('./data.json?v='+Date.now()).then(r=>r.json()).then(DATA=>{
 
@@ -535,8 +539,10 @@ function upcomingHTML(l){
  return `<div class="inj"><div class="row between"><b>Next up · ${fmtDay(nd)}</b><span class="pill p-long">Preview</span></div>${rows.join('')}${!rows.length?ps.map(p=>`<div class="row between"><span>${p.name} <span class="cap">${p.team}</span></span><span class="cap">${p.opp} · ${fmtT(p.when)} ET</span></div>`).join(''):''}<div class="cap">Not picks. Stamped only picks the current day, so these post the morning of the games, once lines and lineups are out.</div></div>`;
 }
 function renderMain(){
- const l=lgOf(state.lg);
- let html=`<div class="mode"><button data-mode="today" aria-pressed="${state.mode==='today'}">Today</button><button data-mode="props" aria-pressed="${state.mode==='props'}">Props</button><button data-mode="fantasy" aria-pressed="${state.mode==='fantasy'}">Fantasy</button><button data-mode="parlays" aria-pressed="${state.mode==='parlays'}">Parlays</button><button data-mode="more" aria-pressed="${state.mode==='more'}">More</button></div>`;
+ const l=lgOf(state.lg),hasLive=l.id==='nba'&&!!window.LiveUI;
+ if(state.mode==='live'&&!hasLive)state.mode='today';
+ let html=`<div class="mode"${hasLive?' style="grid-template-columns:repeat(6,1fr)"':''}><button data-mode="today" aria-pressed="${state.mode==='today'}">Today</button><button data-mode="props" aria-pressed="${state.mode==='props'}">Props</button><button data-mode="fantasy" aria-pressed="${state.mode==='fantasy'}">Fantasy</button><button data-mode="parlays" aria-pressed="${state.mode==='parlays'}">Parlays</button>${hasLive?`<button data-mode="live" aria-pressed="${state.mode==='live'}">Live</button>`:''}<button data-mode="more" aria-pressed="${state.mode==='more'}">More</button></div>`;
+ if(state.mode==='live'){$('#main').innerHTML=html+'<div id="live-root"></div>';LiveUI.mount($('#live-root'));return}
  if(state.mode==='parlays'){$('#main').innerHTML=html+parlaysHTML();return}
  if(state.mode==='fantasy'){$('#main').innerHTML=html+fantasyHTML(l);return}
  const ps=P.filter(p=>p.lg===l.id&&onSlate(p));
@@ -850,7 +856,8 @@ res.addEventListener('click',e=>{const b=e.target.closest('[data-pick]');const b
 document.addEventListener('click',e=>{if(!e.target.closest('.search'))res.hidden=true});
 $('#checked').textContent=DATA.checked;
 render();
-setInterval(renderMain,60000);
+setInterval(()=>{if(state.mode!=='live')renderMain()},60000);
+if(window.LiveUI)LiveUI.start(DATA,{showSheet});
 
 }).catch(e=>{document.getElementById('main').innerHTML='<div class="empty"><h3>Could not load today\'s data</h3>Check your connection and pull to refresh.</div>'});
 </script>

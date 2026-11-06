@@ -1,0 +1,168 @@
+{
+ "modelVersion": "live-1.2.0",
+ "params": {
+  "kRate": 192,
+  "rubber": 0.006,
+  "blowPace": 0.88,
+  "kPace": 10
+ },
+ "generated": "2026-11-06T04:17:19.491Z",
+ "games": 65,
+ "skipped": 0,
+ "range": "20261028–20261104",
+ "sims": 2000,
+ "outOfSample": true,
+ "tuning": null,
+ "pregameMae": 14.46923076923077,
+ "byCheckpoint": [
+  {
+   "label": "Pregame",
+   "n": 65,
+   "maeTotal": 14.524830769230771,
+   "maeNextQ": 7.452007692307693,
+   "maeNextQNaive": 7.540384615384616,
+   "brierWin": 0.19553743076923072,
+   "brierOver": 0.2515771269230769
+  },
+  {
+   "label": "Q1 6:00",
+   "n": 65,
+   "maeTotal": 14.188915384615385,
+   "maeNextQ": 5.009523076923077,
+   "maeNextQNaive": 5.031730769230769,
+   "brierWin": 0.20448423076923072,
+   "brierOver": 0.25097786153846147
+  },
+  {
+   "label": "End Q1",
+   "n": 65,
+   "maeTotal": 12.897392307692307,
+   "maeNextQ": 7.359423076923076,
+   "maeNextQNaive": 7.313461538461539,
+   "brierWin": 0.19398422307692303,
+   "brierOver": 0.2219145615384615
+  },
+  {
+   "label": "Q2 6:00",
+   "n": 65,
+   "maeTotal": 12.379092307692307,
+   "maeNextQ": 4.936507692307691,
+   "maeNextQNaive": 4.883653846153846,
+   "brierWin": 0.17279354615384612,
+   "brierOver": 0.2135824653846154
+  },
+  {
+   "label": "Halftime",
+   "n": 65,
+   "maeTotal": 13.554930769230772,
+   "maeNextQ": 7.16183846153846,
+   "maeNextQNaive": 7.051923076923077,
+   "brierWin": 0.14517238846153846,
+   "brierOver": 0.21528120384615385
+  },
+  {
+   "label": "Q3 6:00",
+   "n": 65,
+   "maeTotal": 11.073199999999996,
+   "maeNextQ": 4.770199999999999,
+   "maeNextQNaive": 4.627884615384615,
+   "brierWin": 0.1354285923076923,
+   "brierOver": 0.18290743076923074
+  },
+  {
+   "label": "End Q3",
+   "n": 65,
+   "maeTotal": 9.105076923076926,
+   "maeNextQ": 8.659976923076924,
+   "maeNextQNaive": 8.028846153846153,
+   "brierWin": 0.12148058076923078,
+   "brierOver": 0.14810952307692304
+  },
+  {
+   "label": "Q4 6:00",
+   "n": 65,
+   "maeTotal": 7.441207692307694,
+   "maeNextQ": 6.6322846153846164,
+   "maeNextQNaive": 5.991346153846154,
+   "brierWin": 0.08725481538461538,
+   "brierOver": 0.11816611538461538
+  },
+  {
+   "label": "Q4 2:00",
+   "n": 65,
+   "maeTotal": 5.3338,
+   "maeNextQ": 4.772807692307696,
+   "maeNextQNaive": 4.256089743589745,
+   "brierWin": 0.02571811538461539,
+   "brierOver": 0.07884856153846154
+  }
+ ],
+ "calibration": [
+  {
+   "bucket": "0–10%",
+   "n": 65,
+   "predicted": 0.029861538461538457,
+   "observed": 0.015384615384615385
+  },
+  {
+   "bucket": "10–20%",
+   "n": 40,
+   "predicted": 0.1477125,
+   "observed": 0.05
+  },
+  {
+   "bucket": "20–30%",
+   "n": 48,
+   "predicted": 0.25633333333333325,
+   "observed": 0.16666666666666666
+  },
+  {
+   "bucket": "30–40%",
+   "n": 35,
+   "predicted": 0.3522857142857143,
+   "observed": 0.34285714285714286
+  },
+  {
+   "bucket": "40–50%",
+   "n": 33,
+   "predicted": 0.44995454545454544,
+   "observed": 0.45454545454545453
+  },
+  {
+   "bucket": "50–60%",
+   "n": 40,
+   "predicted": 0.552125,
+   "observed": 0.5
+  },
+  {
+   "bucket": "60–70%",
+   "n": 53,
+   "predicted": 0.6594150943396224,
+   "observed": 0.5471698113207547
+  },
+  {
+   "bucket": "70–80%",
+   "n": 47,
+   "predicted": 0.7479574468085108,
+   "observed": 0.6170212765957447
+  },
+  {
+   "bucket": "80–90%",
+   "n": 49,
+   "predicted": 0.8559285714285718,
+   "observed": 0.7755102040816326
+  },
+  {
+   "bucket": "90–100%",
+   "n": 110,
+   "predicted": 0.9743227272727273,
+   "observed": 1
+  }
+ ],
+ "notes": [
+  "Parameters were tuned only on games before 20261028; these numbers are from later games the tuning never saw.",
+  "Next-quarter MAE is for the quarter in progress (or starting) at that checkpoint; the naive reference is the pregame total split evenly by quarter.",
+  "Pregame lines are ESPN pickcenter (DraftKings), known before tip-off.",
+  "No historical live odds are available from the free sources, so expected value, closing line value and results after latency and fees are not evaluated yet. Paper trading on the live page fills that gap going forward."
+ ]
+}
