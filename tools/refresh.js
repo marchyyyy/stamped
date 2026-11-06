@@ -13,7 +13,9 @@ const SPORTS={nba:'basketball/nba',nfl:'football/nfl'};
 const run=args=>{log('node '+args.join(' '));const r=cp.spawnSync(process.execPath,args,{cwd:ROOT,stdio:'inherit'});return r.status===0};
 /* Kalshi runs after the props builder, which it reads to match games. Soccer has no props builder, so it rides along. */
 const kalshi=s=>run(['tools/kalshi.js','--sport',s]);
-const full=s=>{const a=run(['tools/dff.js','--sport',s]),b=run(['tools/props.js','--sport',s]),c=kalshi(s);if(s==='nfl'||s==='nba')kalshi('soccer');return a&&b&&c};
+/* NBA team practice picks: refresh the game history (new results), then rebuild today's signals and grade the log. */
+const practice=s=>{if(s!=='nba')return true;return run(['tools/hist.js','--sport',s])&&run(['tools/tune.js','--sport',s,'--today'])};
+const full=s=>{const a=run(['tools/dff.js','--sport',s]),b=run(['tools/props.js','--sport',s]),c=kalshi(s),d=practice(s);if(s==='nfl'||s==='nba')kalshi('soccer');return a&&b&&c&&d};
 const ymd=t=>new Date(t).toLocaleDateString('en-CA',{timeZone:'America/New_York'}).replace(/-/g,'');
 
 async function pregame(){
@@ -38,7 +40,7 @@ async function pregame(){
 
 (async()=>{
  if(arg('sport'))full(arg('sport'));
- else if(has('props')){Object.keys(SPORTS).forEach(s=>{run(['tools/props.js','--sport',s]);kalshi(s)});kalshi('soccer')}
+ else if(has('props')){Object.keys(SPORTS).forEach(s=>{run(['tools/props.js','--sport',s]);kalshi(s);practice(s)});kalshi('soccer')}
  else if(has('pregame'))await pregame();
  else log('Nothing to do. Use --sport nba|nfl, --props or --pregame.');
 })().catch(e=>{log('Failed: '+(e&&e.message||e));process.exit(1)});

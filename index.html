@@ -231,7 +231,7 @@ button.lucell{cursor:pointer}button.lucell:hover{outline:1px solid var(--line)}
 <script src="live/espn.js?v=20261106a"></script>
 <script src="live/ui.js?v=20261106l"></script>
 <script src="live/dff.js?v=20261106i"></script>
-<script src="live/props-preview.js?v=20261106l"></script>
+<script src="live/props-preview.js?v=20261106n"></script>
 <script>
 fetch('./data.json?v='+Date.now()).then(r=>r.json()).then(DATA=>{
 
@@ -288,7 +288,7 @@ const meter=n=>`<span class="meter" aria-label="${n} of 10">${Array.from({length
 const SEAL=`<svg viewBox="0 0 150 150" aria-hidden="true"><circle cx="75" cy="75" r="70" fill="var(--hdr)"/><circle cx="75" cy="75" r="60" fill="none" stroke="var(--mint)" stroke-width="5" stroke-dasharray="3 6" stroke-linecap="round"/><circle cx="75" cy="75" r="47" fill="none" stroke="var(--mint)" stroke-width="5"/><text x="75" y="99" text-anchor="middle" font-family="Big Shoulders Display, Arial Narrow, sans-serif" font-weight="900" font-size="72" fill="var(--mint)">S</text><path d="M98 48 l7 7 l14 -16" fill="none" stroke="var(--mint)" stroke-width="7" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
 const sealPill=`<span class="seal">${SEAL}Stamped</span>`;
 const pill=(st)=>['pick','spread'].includes(st)?sealPill:`<span class="pill ${STATUS[st][1]}">${STATUS[st][0]}</span>`;
-const STATUS={review:['Under review','p-long'],pick:['Stamped','p-pick'],longshot:['Small-stakes','p-long'],stay:['Stay away','p-stay'],killed:['Killed','p-killed'],blocked:['Blocked','p-blocked'],spread:['Stamped','p-pick'],pass:['Pass','p-stay'],noline:['No line yet','p-long']};
+const STATUS={review:['Under review','p-long'],pick:['Stamped','p-pick'],longshot:['Small-stakes','p-long'],stay:['Stay away','p-stay'],killed:['Killed','p-killed'],blocked:['Blocked','p-blocked'],spread:['Stamped','p-pick'],pass:['Pass','p-stay'],noline:['No line yet','p-long'],info:['Info','p-long'],practice:['Practice','p-long']};
 
 /* ---------- prop rules ---------- */
 const STEPS={fantasy:3,points:2,rebounds:1,assists:1,threes:1,blocks:1,steals:1,PRA:3,'rush yds':5,'rec yds':5,receptions:1,'pass yds':10,'pass TDs':1,shots:1,'shots on target':1,goals:1,'total games':1,aces:1};
@@ -473,24 +473,26 @@ function model(g){
  if(g.lg==='soccer'){const raw=1/(1+Math.exp(-m/c.s));pD=.26-.08*Math.min(Math.abs(m),1.5);pH=raw*(1-pD);pA=(1-raw)*(1-pD)}else{pH=1/(1+Math.exp(-m/c.s));pA=1-pH}
  return{m,parts,pH,pA,pD,w,T};
 }
+/* Team picks (owner, 2026-11-06, after the walk-forward test in tools/tune.js):
+   - Stamped % on team cards is the market's no-vig chance; it tested as the best-calibrated number we have.
+   - NFL and soccer team picks are information only until a signal beats the market in testing.
+   - NBA: a Practice pick when the tested model (opening line + our signals, data/team_signals_nba.json) differs from the
+     opening line by 5+ points. Practice picks are logged and graded (closing line, result) in data/practice_nba_teams.json.
+   The season model (model()) stays as the breakdown in the game sheet. +300 or longer is still too long a shot. */
 function decide(g){
- const c=TEAM_CFG[g.lg],M=model(g),r={M,status:'pick',sv:0};
- if(g.ml.home==null){r.status='pass';r.why='No price posted yet for this game.';return r}
- const ih=imp(g.ml.home),ia=imp(g.ml.away),id=g.ml.draw!=null?imp(g.ml.draw):0,tot=ih+ia+id;
- r.nh=ih/tot;r.na=ia/tot;const eh=M.pH-r.nh,ea=M.pA-r.na;
- const side=eh>=ea?'home':'away',t=g[side],edge=Math.max(eh,ea),ml=g.ml[side],sm=side==='home'?M.m:-M.m;
- Object.assign(r,{side,team:t.n,edge});
- if(edge<.03){r.status='pass';r.why=`No edge. The model is within ${(Math.abs(edge)*100).toFixed(1)} points of the book on both sides.`;return r}
- /* The -160 cap was removed (owner, 2026-11-06): heavy favorites stay on the moneyline instead of moving to the spread. */
- const price=ml;r.label=`${t.n} moneyline (${fo(ml)})`;
- r.why=`Model gives ${t.n} ${(M[side==='home'?'pH':'pA']*100).toFixed(0)}% to win. The book implies ${((side==='home'?r.nh:r.na)*100).toFixed(0)}%. Edge ${(edge*100).toFixed(1)} points.`;
- r.sv=edge>=.10?8:edge>=.06?7:6;
- if(wins(t)>=4)r.sv=Math.min(9,r.sv+1);
- if(t.inj<=c.big)r.sv-=1;
- if(price!=null&&price<=-140)r.sv=Math.min(r.sv,8);
- if(price!=null&&price>=150){r.sv=Math.min(r.sv,5);r.long=true}
- if(price!=null&&price>=300){r.status='pass';r.why=`${t.n} at ${fo(price)} is too long a shot to stamp, even though the model likes them more than the book does.`;return r}
- if(r.sv<6){r.status='pass';r.why=`Not strong enough to stamp. ${r.why}`;return r}
+ const M=model(g),r={M,status:'info',sv:0},S=g.lg==='nba'&&window.PREV&&PREV.teamSignal&&PREV.teamSignal(g.lg,g);
+ /* Daily data's price first; if it has none yet, the current line from the signals file (ESPN odds feed). */
+ const ML=g.ml.home!=null?g.ml:S&&S.now&&S.now.h!=null&&S.now.a!=null?{home:S.now.h,away:S.now.a}:null;
+ if(!ML){r.status='pass';r.why='No price posted yet for this game.';return r}
+ const ih=imp(ML.home),ia=imp(ML.away),id=ML.draw!=null?imp(ML.draw):0,tot=ih+ia+id;
+ r.nh=ih/tot;r.na=ia/tot;r.mk={pH:r.nh,pA:r.na,pD:id/tot};r.ml=ML;r.mlSrc=g.ml.home!=null?`${g.ml.book} · as of ${DATA.checked}`:`${S.book||'Sportsbook'} via ESPN · ${PREV.teamSignalChecked?PREV.teamSignalChecked(g.lg):'latest'}`;
+ const fav=r.nh>=r.na?'home':'away';Object.assign(r,{side:fav,team:g[fav].n,edge:0});
+ if(S&&S.pick){const ml=ML[S.side],t=g[S.side];
+  if(ml!=null&&ml>=300){r.why=`${t.n} at ${fo(ml)} is too long a shot, even though the model likes them more than the opening line.`;return r}
+  Object.assign(r,{status:'practice',side:S.side,team:t.n,edge:S.edge,label:`${t.n} moneyline (${fo(ml)})`,
+   why:`The tested model gives ${t.n} ${Math.round((S.side==='home'?S.model:1-S.model)*100)}% against ${Math.round((S.side==='home'?S.open.p:1-S.open.p)*100)}% at the opening line, ${(S.edge*100).toFixed(1)} points. Practice pick: logged and graded while it proves itself.`});return r}
+ r.why=g.lg==='nba'?(S?`No practice pick: the tested model is within 5 points of the opening line (${(S.edge*100).toFixed(1)}).`:'No signal yet for this game.')
+  :`Information only. ${lgOf(g.lg).name} team picks are paused until a signal beats the market in testing.`;
  return r;
 }
 
@@ -513,15 +515,17 @@ function card(p){const b=p.best,e=b&&b.ev,[lab,cls]=STATUS[p.state];
   ${p.pending?`<div class="flag">${p.pending}</div>`:''}
   ${e&&e.stars&&(p.state==='pick'||p.state==='longshot')?`<div class="row"><span class="sv">Secure Value <b>${e.stars}</b></span>${meter(e.stars)}</div>`:''}
  </button>`}
-function probBar(g,r){const a=Math.round(r.M.pA*100),d=Math.round(r.M.pD*100),hm=100-a-d;
+/* Shows the market's no-vig chance when there is a price (the best-calibrated number in testing), else the model's. */
+function probBar(g,r){const P=r.mk||r.M,a=Math.round(P.pA*100),d=Math.round((P.pD||0)*100),hm=100-a-d;
  return `<div class="prob" aria-label="${g.away.n} ${a}%, ${g.ml.draw!=null?`draw ${d}%, `:''}${g.home.n} ${hm}%"><span class="pa" style="width:${a}%">${a}%</span>${g.ml.draw!=null?`<span class="pd" style="width:${d}%">${d}%</span>`:''}<span class="ph">${hm}%</span></div>
  <div class="row between cap"><span>${g.away.n}</span>${g.ml.draw!=null?'<span>Draw</span>':''}<span>${g.home.n}</span></div>`}
 function gameCard(g){const r=decide(g),[lab,cls]=STATUS[r.status];
  return `<button class="card" data-game="${g.id}">
   <div class="row between"><div style="min-width:0"><div class="pname">${g.away.n} at ${g.home.n}</div><div class="team">${dayWord(g.when.slice(0,10))} · ${fmtT(g.when)} ET${g.div?' · '+g.div:''}</div></div>${pill(r.status)}</div>
   ${probBar(g,r)}
-  ${r.status==='pass'?`<div class="reason">${r.why}</div>`:`<div class="row"><span class="prop">${r.label}</span></div><div class="row"><span class="sv">Secure Value <b>${r.sv}</b></span>${meter(r.sv)}</div>`}
-  <div class="cap">${g.ml.home!=null?`${g.ml.book}: ${g.away.n} ${fo(g.ml.away)}${g.ml.draw!=null?` · Draw ${fo(g.ml.draw)}`:''} · ${g.home.n} ${fo(g.ml.home)}`:'No price posted yet'} · as of ${DATA.checked}</div>
+  ${r.status==='practice'?`<div class="row"><span class="prop">${r.label}</span></div><div class="mu">${r.why}</div>`:r.status==='info'||r.status==='pass'?`<div class="${r.status==='pass'?'reason':'mu'}">${r.why}</div>`:`<div class="row"><span class="prop">${r.label}</span></div><div class="row"><span class="sv">Secure Value <b>${r.sv}</b></span>${meter(r.sv)}</div>`}
+  ${r.mk?`<div class="cap">Stamped % = the market's chance with the bookmaker's cut removed.</div>`:''}
+  <div class="cap">${r.ml?`${g.away.n} ${fo(r.ml.away)}${r.ml.draw!=null?` · Draw ${fo(r.ml.draw)}`:''} · ${g.home.n} ${fo(r.ml.home)} · ${r.mlSrc}`:`No price posted yet · as of ${DATA.checked}`}</div>
   ${window.PREV?PREV.teamEKG(g.lg,g,r):''}
  </button>`}
 
@@ -539,10 +543,11 @@ function renderTabs(){$('#tabs').innerHTML=LEAGUES.map(l=>`<button class="tab" r
    shown as a preview (picks are final on game day, when the lines and injuries are re-checked). */
 function teamPreviewHTML(l){if(!TEAM_CFG[l.id])return '';const nd=nextDay(l.id);if(!nd)return '';
  const rs=GAMES.filter(g=>g.lg===l.id&&g.when.slice(0,10)===nd&&!started(g.when)).map(g=>[g,decide(g)]);if(!rs.length)return '';
- const picks=rs.filter(([,r])=>r.status!=='pass').sort((a,b)=>b[1].sv-a[1].sv),pass=rs.filter(([,r])=>r.status==='pass');
- return `<h2 class="sec">Team picks · ${fmtDay(nd)} · Preview</h2><div class="cap">Stamped's team model on ${fmtDay(nd)}'s games, prices as of ${DATA.checked}. Same rules as game day; picks become final that morning.</div>
-  ${picks.length?`<div class="list">${picks.map(([g])=>gameCard(g)).join('')}</div>`:`<div class="empty"><h3>No team edge yet</h3>The model is within 3 points of the book on every game.</div>`}
-  ${pass.length?`<details class="lv-sec"><summary>No edge (${pass.length})</summary><div class="lv-secbody"><div class="list">${pass.map(([g])=>gameCard(g)).join('')}</div></div></details>`:''}`}
+ const isPick=([,r])=>['pick','spread','practice'].includes(r.status),picks=rs.filter(isPick).sort((a,b)=>b[1].edge-a[1].edge),pass=rs.filter(x=>!isPick(x));
+ const none=l.id==='nba'?'No game differs from its opening line by 5+ points in the tested model.':`${l.name} team picks are paused until a signal beats the market in testing. The games below show the market's chances, lines and matchups.`;
+ return `<h2 class="sec">Team ${l.id==='nba'?'practice picks':'games'} · ${fmtDay(nd)}</h2><div class="cap">Percentages are the market's no-vig chances (prices as of ${DATA.checked}), the best-calibrated numbers in our testing.</div>
+  ${picks.length?`<div class="list">${picks.map(([g])=>gameCard(g)).join('')}</div>${window.PREV&&PREV.practiceHTML?PREV.practiceHTML(l.id):''}`:`<div class="empty"><h3>No team picks</h3>${none}</div>`}
+  ${pass.length?`<details class="lv-sec"><summary>${picks.length?'Other games':'All games'} (${pass.length})</summary><div class="lv-secbody"><div class="list">${pass.map(([g])=>gameCard(g)).join('')}</div></div></details>`:''}`}
 function upcomingHTML(l){
  const nd=nextDay(l.id);if(!nd)return '';
  const gs=GAMES.filter(g=>g.lg===l.id&&g.when.slice(0,10)===nd).sort((a,b)=>a.when<b.when?-1:1),tm=(DATA.tennis_matches||[]).filter(m=>l.id==='tennis'&&m.start&&m.start.slice(0,10)===nd);
@@ -562,14 +567,14 @@ function renderMain(){
  const ps=P.filter(p=>p.lg===l.id&&onSlate(p));
  const good=ps.filter(p=>['pick','longshot'].includes(p.state)).sort((a,b)=>b.best.ev.stars-a.best.ev.stars);
  const bad=ps.filter(p=>['killed','blocked'].includes(p.state)),none=ps.filter(p=>p.state==='noline');
- const gs=GAMES.filter(g=>g.lg===l.id&&gameOnSlate(g)),rs=gs.map(g=>[g,decide(g)]),tpicks=rs.filter(([,r])=>r.status!=='pass').sort((a,b)=>b[1].sv-a[1].sv),tpass=rs.filter(([,r])=>r.status==='pass');
+ const gs=GAMES.filter(g=>g.lg===l.id&&gameOnSlate(g)),rs=gs.map(g=>[g,decide(g)]),tIs=([,r])=>['pick','spread','practice'].includes(r.status),tpicks=rs.filter(tIs).sort((a,b)=>b[1].edge-a[1].edge),tpass=rs.filter(x=>!tIs(x));
  if(state.mode==='today'){
-  html+=`<div class="slate"><h1>${slateTitle(l)}</h1><p>${ps.length||gs.length?`${good.filter(p=>p.state==='pick').length+tpicks.length} stamped · ${ps.length} players · ${gs.length} games`:''}</p></div>`;
+  html+=`<div class="slate"><h1>${slateTitle(l)}</h1><p>${ps.length||gs.length?`${good.filter(p=>p.state==='pick').length+tpicks.filter(([,r])=>r.status!=='practice').length} stamped · ${ps.length} players · ${gs.length} games`:''}</p></div>`;
   if(l.off)html+=`<div class="empty"><h3>MLB is in the offseason</h3>Picks return when the new season has games.</div>`;
   else if(!ps.length&&!gs.length)html+=teamPreviewHTML(l)+((window.PREV&&PREV.weekHTML(l.id))||noSlate(l)+upcomingHTML(l));
   else{const picks=good.filter(p=>p.state==='pick'),longs=good.filter(p=>p.state==='longshot');
    html+=picks.length?`<div class="list">${picks.map(card).join('')}</div>`:`<div class="empty"><h3>No stamped props${none.length&&!ps.filter(p=>p.best).length?' yet':''}</h3>${ps.filter(p=>p.best).length?'Nothing earned a stamp today. See Props for leans.':'No book had a line for these players when we checked.'}</div>`;
-   if(tpicks.length)html+=`<h2 class="sec">Team picks</h2><div class="list">${tpicks.map(([g])=>gameCard(g)).join('')}</div>`;
+   if(tpicks.length)html+=`<h2 class="sec">${tpicks.every(([,r])=>r.status==='practice')?'Team practice picks':'Team picks'}</h2><div class="list">${tpicks.map(([g])=>gameCard(g)).join('')}</div>${window.PREV&&PREV.practiceHTML?PREV.practiceHTML(l.id):''}`;
    if(longs.length)html+=`<h2 class="sec">Small-stakes longshots</h2><div class="list">${longs.map(card).join('')}</div>`;
    const rev=ps.filter(p=>p.state==='review');if(rev.length)html+=`<h2 class="sec">Under review</h2><div class="cap">${rev.map(p=>p.name).join(', ')}. Check back closer to game time.</div>`;
    if(window.PREV)html+=PREV.moreHTML(l.id,P.filter(p=>p.lg===l.id).map(p=>p.name))}
@@ -591,7 +596,8 @@ function renderMain(){
   if(l.off)html+=`<div class="empty"><h3>MLB is in the offseason</h3>Team predictions return when the new season has games.</div>`;
   else if(l.id==='golf'||l.id==='tennis')html+=`<div class="empty"><h3>No teams in ${l.name}</h3>Head-to-head matchups use this same model once lines are posted.</div>`;
   else if(!gs.length)html+=noSlate(l)+teamPreviewHTML(l)+(window.PREV&&PREV.teamsHTML(l.id)?`<h2 class="sec">Current lines</h2>${PREV.teamsHTML(l.id)}`:upcomingHTML(l));
-  else{html+=`<div class="list">${tpicks.map(([g])=>gameCard(g)).join('')}</div>`;if(tpass.length)html+=`<h2 class="sec">No edge</h2><div class="list">${tpass.map(([g])=>gameCard(g)).join('')}</div>`}
+  else{html+=tpicks.length?`<div class="list">${tpicks.map(([g])=>gameCard(g)).join('')}</div>${window.PREV&&PREV.practiceHTML?PREV.practiceHTML(l.id):''}`:`<div class="empty"><h3>No team picks</h3>${l.id==='nba'?'No game differs from its opening line by 5+ points in the tested model.':`${l.name} team picks are paused until a signal beats the market in testing.`}</div>`;
+   if(tpass.length)html+=`<h2 class="sec">${tpicks.length?'Other games':'Games'}</h2><div class="list">${tpass.map(([g])=>gameCard(g)).join('')}</div>`}
  }else if(state.view==='alts'){
   html+=altsHTML(l);
  }else if(state.view==='lineups'){
@@ -731,8 +737,10 @@ function rulesHTML(lg){
   <div class="rules"><h3>Team picks</h3><ul>
   <li>Current roster and current-season ratings come first. Last season is blended in early and fades to 0.</li>
   <li>A missing starter is priced from his team's on/off net rating this season (NBA.com), not a guess, whenever that split is available.</li>
-  <li>A side needs a 3-point edge over the book's no-vig chance.</li>
-  <li>Picks are moneylines at any price (no −160 cap). +300 or longer is still too long a shot.</li></ul></div>`;
+  <li>Team percentages are the market's no-vig chances. In a walk-forward test on 392 NFL and 1,354 NBA games they were better calibrated than any model of ours.</li>
+  <li>NFL and soccer team picks are information only until a signal beats the market in that test.</li>
+  <li>NBA: a Practice pick when the tested model (opening line plus this season's and last season's opponent-adjusted ratings, rest and back-to-backs) differs from the opening line by 5+ points. Every practice pick is logged at the opening price and graded on the closing line and the result.</li>
+  <li>Moneylines at any price (no −160 cap). +300 or longer is still too long a shot.</li></ul></div>`;
  const extra={
   soccer:`<div class="rules"><h3>Soccer <span class="pill p-long">New draft</span></h3><ul><li>Last 5 current-season matches across league and cups. A match under 60 minutes is flagged.</li><li>Props: shots, shots on target, anytime goal/assist, saves, tackles, fouls.</li><li>Starting XI must be confirmed before a pick is final.</li><li>Midweek Champions League or cup games drop the rating by 1 for rotation risk.</li></ul></div>`,
   golf:`<div class="rules"><h3>Golf <span class="pill p-long">New draft</span></h3><ul><li>Last 5 events played this season. A missed cut counts as a miss.</li><li>Props: make cut, top 20, top 10, top 5, round score, head-to-head matchups.</li><li>Top 5 and outright winner bets are always longshots, capped at 5.</li><li>Nothing after the first tee time of round 1.</li></ul></div>`,

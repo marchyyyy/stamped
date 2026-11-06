@@ -164,13 +164,21 @@ function teamRating(lg,g){const D=S[lg]&&S[lg].data;if(!D)return null;
  const G=D.games.find(x=>x.away.n===g.away.n&&x.home.n===g.home.n);if(!G||G.away.ppg==null||G.home.ppg==null||G.away.pa==null||G.home.pa==null)return null;
  const all=[...new Map(D.games.flatMap(x=>[x.away,x.home]).filter(t=>t.ppg!=null).map(t=>[t.abbr,t])).values()],lgAvg=all.reduce((a,t)=>a+t.ppg,0)/all.length;
  return{away:G.away,home:G.home,lg:lgAvg}}
+/* NBA team practice picks (tools/tune.js --today): today's signals and the running practice log. */
+const TS={},PL={};
+function teamSignal(lg,g){const D=TS[lg];return D?D.games.find(x=>x.away.n===g.away.n&&x.home.n===g.home.n)||null:null}
+const teamSignalChecked=lg=>TS[lg]&&TS[lg].checked||'latest';
+function practiceHTML(lg){const L=PL[lg];if(!L||!L.summary)return '';const s=L.summary,l=s.settled-s.wins;
+ return `<div class="cap">Practice record since ${s.since?new Date(s.since).toLocaleDateString('en-US',{month:'short',day:'numeric'}):'today'}: ${s.settled?`<b>${s.wins}-${l}</b>, ${s.units>=0?'+':''}${s.units.toFixed(2)} units at the opening price, line moved our way ${(s.clv*100).toFixed(1)} pts on average`:'no picks settled yet'} · ${s.picks} logged. It needs a few hundred picks before it counts as proven.</div>`}
 function teamEKG(lg,g,r){const D=K[lg];if(!D||!r||!r.M)return '';
- /* Follows the pick's side; before a price is posted (no pick yet) it follows the model's favorite. */
+ /* Follows the pick's side (or the market favorite). Dashed line: the practice model's chance on a practice pick,
+    otherwise the posted market chance. */
  const sd=r.side||(r.M.pH>=r.M.pA?'home':'away');
  const G=Object.values(D.games).find(x=>x.names[0]===g.away.n&&x.names[1]===g.home.n);if(!G||!G[sd]||G[sd].yb==null||G[sd].ya==null)return '';
- const q=G[sd],pts=(q.hist&&q.hist.length?q.hist:[[Date.now(),(q.yb+q.ya)/2]]).slice(-72),model=sd==='home'?r.M.pH:r.M.pA,t=g[sd];
+ const sigl=r.status==='practice'&&teamSignal(lg,g),P=r.mk||r.M;
+ const q=G[sd],pts=(q.hist&&q.hist.length?q.hist:[[Date.now(),(q.yb+q.ya)/2]]).slice(-72),model=sigl?(sd==='home'?sigl.model:1-sigl.model):(sd==='home'?P.pH:P.pA),t=g[sd];
  const e=ekgHTML(pts,model),now=Math.round(((q.yb+q.ya)/2)*100);
- return `${e.svg}<div class="lv-ekg-cap"><span>${e.dir==='flat'?`Steady ${e.hrs?`for ${e.hrs} h`:''}`:`${e.dir==='up'?'▲':'▼'} ${Math.abs(Math.round(e.ch*100))||'<1'}% in ${e.hrs} h`}</span><span>- - - Stamped ${Math.round(model*100)}%</span></div>
+ return `${e.svg}<div class="lv-ekg-cap"><span>${e.dir==='flat'?`Steady ${e.hrs?`for ${e.hrs} h`:''}`:`${e.dir==='up'?'▲':'▼'} ${Math.abs(Math.round(e.ch*100))||'<1'}% in ${e.hrs} h`}</span><span>- - - ${sigl?'Model':'Stamped'} ${Math.round(model*100)}%</span></div>
   <div class="cap">Kalshi market: ${esc(t.n)} ${now}% to win now (${q.yb!=null?Math.round(q.yb*100):'—'}–${q.ya!=null?Math.round(q.ya*100):'—'}¢, ≈ ${q.ya!=null?fo(kAm(q.ya)):'—'} incl. fee) · ${esc(D.checked)}</div></div>`}
 
 function sheetHTML(key){const [lg,id]=key.split('|'),D=S[lg]&&S[lg].data,p=D&&D.players.find(x=>x.id===id);if(!p)return '';const stats=[...new Set(p.props.map(x=>x.stat))];
@@ -183,7 +191,9 @@ function sheetHTML(key){const [lg,id]=key.split('|'),D=S[lg]&&S[lg].data,p=D&&D.
 
 function load(lg){return fetch(LG[lg].file+'?v='+Date.now()).then(r=>r.ok?r.json():null).then(d=>{if(d&&d.generated!==S[lg].sig){S[lg].data=d;S[lg].sig=d.generated;if(onChange)onChange(lg)}}).catch(()=>{})}
 function loadK(lg){return fetch(`data/kalshi_${lg}.json?v=`+Date.now()).then(r=>r.ok?r.json():null).then(d=>{if(d&&(!K[lg]||K[lg].generated!==d.generated)){K[lg]=d;if(onChange)onChange(lg)}}).catch(()=>{})}
-function start(h){h=h||{};onChange=h.onChange;const all=()=>{Object.keys(LG).forEach(load);['nfl','nba','soccer'].forEach(loadK)};all();setInterval(all,5*60e3);
+function loadJ(file,box,lg){return fetch(`${file}?v=`+Date.now()).then(r=>r.ok?r.json():null).then(d=>{const sig=d&&(d.generated||d.updated);if(d&&(!box[lg]||(box[lg].generated||box[lg].updated)!==sig)){box[lg]=d;if(onChange)onChange(lg)}}).catch(()=>{})}
+function start(h){h=h||{};onChange=h.onChange;const all=()=>{Object.keys(LG).forEach(load);['nfl','nba','soccer'].forEach(loadK);
+  loadJ('data/team_signals_nba.json',TS,'nba');loadJ('data/practice_nba_teams.json',PL,'nba')};all();setInterval(all,5*60e3);
  /* Opening a game fills in its cards (they are only built for open games, which keeps the page light). */
  document.addEventListener('toggle',e=>{const s=e.target&&e.target.dataset&&e.target.dataset.prevSec;if(!s||open.has(s)===e.target.open)return;
   if(e.target.open)open.add(s);else open.delete(s);if(e.target.open&&onChange)onChange()},true);
@@ -191,5 +201,5 @@ function start(h){h=h||{};onChange=h.onChange;const all=()=>{Object.keys(LG).for
 const norm=s=>String(s||'').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'').replace(/\b(jr|sr|ii|iii|iv|v)\b\.?/g,'').replace(/[^a-z]/g,'');
 /* A player's ESPN game log from this week's file, by name (used by the fantasy preview board). */
 function player(lg,name){const D=S[lg]&&S[lg].data;if(!D)return null;const k=norm(name);return D.players.find(p=>norm(p.name)===k)||(D.logs||[]).find(p=>norm(p.name)===k)||null}
-window.PREV={start,load,weekHTML,moreHTML,parlaysHTML,teamsHTML,injuriesHTML,next,player,teamEKG,teamRating,ready:lg=>!!(S[lg]&&S[lg].data),_lean:lean,_checks:checks};
+window.PREV={start,load,weekHTML,moreHTML,parlaysHTML,teamsHTML,injuriesHTML,next,player,teamEKG,teamRating,teamSignal,teamSignalChecked,practiceHTML,ready:lg=>!!(S[lg]&&S[lg].data),_lean:lean,_checks:checks};
 })();

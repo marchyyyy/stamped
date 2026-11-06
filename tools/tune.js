@@ -7,7 +7,11 @@
                  rest gap, back-to-backs (NBA), DvP matchup (NFL)
      Ours only   the same signals without the market (how much our information knows on its own)
      App now     the model running in the app today (season rating gap, home, form, logistic width 7 / 8.5)
-   Usage (repo root):  node tools/tune.js --sport nfl|nba [--from 2025] */
+   Usage (repo root):  node tools/tune.js --sport nfl|nba [--from 2025]
+                       node tools/tune.js --sport nba --today [--no-push]   practice picks for today's and tomorrow's games:
+     fits "Market+ (open)" on all history, prices upcoming games from their opening line plus our signals, flags a
+     Practice pick when the model differs from the opening line by 5+ points, and keeps data/practice_<sport>_teams.json
+     (every pick, then its closing line, line movement, result and units at the opening price). */
 'use strict';
 const fs=require('node:fs'),path=require('node:path');
 const arg=(k,d)=>{const i=process.argv.indexOf('--'+k);return i>0?process.argv[i+1]:d};
@@ -66,6 +70,48 @@ for(const s of seasons){const G=H.filter(g=>g.season===s),prev=finalSRS[String(+
   rows.push({g,season:s,key,x:{srs:(R[g.home.id]||0)-(R[g.away.id]||0),prev:prev?(prev[g.home.id]||0)-(prev[g.away.id]||0):0,hasPrev:prev?1:0,rest:rH-rA,
    b2b:SPORT==='nba'?(rA<=1.5?1:0)-(rH<=1.5?1:0):0,dvp:dvp(g.home.id,g.away.id)-dvp(g.away.id,g.home.id),home:g.neutral?0:1,games:Math.min(nH,nA)},appP:sig(appM/CFG.s)})}}
 
+/* ---------- Practice picks for upcoming games (--today) ---------- */
+async function today(){
+ const P={nba:['basketball/nba','basketball/leagues/nba'],nfl:['football/nfl','football/leagues/nfl']}[SPORT],J=async u=>{try{const r=await fetch(u);return r.ok?r.json():null}catch(e){return null}};
+ const ROOT=path.join(__dirname,'..'),cp=require('node:child_process'),git=a=>cp.execFileSync('git',a,{cwd:ROOT,encoding:'utf8',stdio:['ignore','pipe','pipe']}).trim();
+ const W=fit(usable.map(MODELS['Market+ (open)']),usable.map(r=>r.g.won),1);
+ const cur=seasons[seasons.length-1],G=H.filter(g=>g.season===cur),prev=finalSRS[String(+cur-1)]||null,R=srs(G,CFG.lam);
+ const day=t=>new Date(t).toLocaleDateString('en-CA',{timeZone:'America/New_York'}).replace(/-/g,''),up=[];
+ for(const d of [day(Date.now()),day(Date.now()+864e5)]){const s=await J(`https://site.api.espn.com/apis/site/v2/sports/${P[0]}/scoreboard?dates=${d}`);((s&&s.events)||[]).filter(e=>e.status.type.state==='pre').forEach(e=>up.push(e))}
+ const am=x=>x&&x.american!=null?parseFloat(x.american):null,games=[];
+ for(const e of up){const c=e.competitions[0],Hc=c.competitors.find(x=>x.homeAway==='home'),Ac=c.competitors.find(x=>x.homeAway==='away'),hid=Hc.team.id,aid=Ac.team.id;
+  const o=await J(`https://sports.core.api.espn.com/v2/sports/${P[1]}/events/${e.id}/competitions/${e.id}/odds`);
+  const it=((o&&o.items)||[]).find(x=>!/live/i.test((x.provider&&x.provider.name)||'')&&x.homeTeamOdds&&x.homeTeamOdds.open&&am(x.homeTeamOdds.open.moneyLine)!=null&&am(x.awayTeamOdds.open.moneyLine)!=null);
+  if(!it)continue;
+  const open={h:am(it.homeTeamOdds.open.moneyLine),a:am(it.awayTeamOdds.open.moneyLine)},now={h:it.homeTeamOdds.moneyLine,a:it.awayTeamOdds.moneyLine};
+  open.p=noVig(open.h,open.a);now.p=now.h!=null&&now.a!=null?noVig(now.h,now.a):null;
+  const n=tid=>G.filter(y=>y.home.id===tid||y.away.id===tid).length,last=tid=>{const x=G.filter(y=>y.home.id===tid||y.away.id===tid).pop();return x?Math.min(10,(Date.parse(e.date)-Date.parse(x.date))/864e5):7};
+  const rH=last(hid),rA=last(aid);
+  const r={g:{open,mkt:{p:open.p}},x:{srs:(R[hid]||0)-(R[aid]||0),prev:prev?(prev[hid]||0)-(prev[aid]||0):0,hasPrev:prev?1:0,rest:rH-rA,b2b:(rA<=1.5?1:0)-(rH<=1.5?1:0),dvp:0,home:c.neutralSite?0:1,games:Math.min(n(hid),n(aid))}};
+  const p=sig(MODELS['Market+ (open)'](r).reduce((a,v,j)=>a+v*W[j],0)),eh=p-open.p,ea=(1-p)-(1-open.p),side=eh>=ea?'home':'away',edge=Math.max(eh,ea),ml=open[side==='home'?'h':'a'];
+  games.push({id:e.id,date:e.date,away:{abbr:Ac.team.abbreviation,n:Ac.team.name},home:{abbr:Hc.team.abbreviation,n:Hc.team.name},open,now,model:p,side,edge,pick:edge>=.05&&ml<300,
+   book:it.provider&&it.provider.name,why:{rating:r.x.srs,lastSeason:r.x.prev,rest:r.x.rest,b2b:r.x.b2b}})}
+ /* Practice log: add new picks at the opening price; settle finished ones with the closing line, line movement and result. */
+ const logF=path.join(ROOT,'data',`practice_${SPORT}_teams.json`),L=fs.existsSync(logF)?JSON.parse(fs.readFileSync(logF,'utf8')):{picks:[]};
+ games.filter(g=>g.pick&&!L.picks.some(x=>x.id===g.id)).forEach(g=>{const s=g.side==='home'?'h':'a';
+  L.picks.push({id:g.id,date:g.date,team:g[g.side].n,opp:g[g.side==='home'?'away':'home'].n,side:g.side,openML:g.open[s],openP:s==='h'?g.open.p:1-g.open.p,modelP:g.side==='home'?g.model:1-g.model,edge:g.edge,logged:new Date().toISOString()})});
+ L.picks.filter(x=>x.result==null).forEach(x=>{const h=H.find(g=>g.id===x.id);if(!h||h.won==null)return;const won=x.side==='home'?h.won:1-h.won;
+  x.result=won?'win':'loss';x.units=won?dec(x.openML)-1:-1;if(h.mkt){x.closeP=x.side==='home'?h.mkt.p:1-h.mkt.p;x.closeML=x.side==='home'?h.mkt.h:h.mkt.a;x.clv=x.closeP-x.openP}});
+ const S=L.picks.filter(x=>x.result);L.summary={picks:L.picks.length,settled:S.length,wins:S.filter(x=>x.result==='win').length,units:S.reduce((a,x)=>a+x.units,0),
+  clv:S.filter(x=>x.clv!=null).reduce((a,x)=>a+x.clv,0)/Math.max(1,S.filter(x=>x.clv!=null).length),since:L.picks[0]&&L.picks[0].logged||null};
+ L.weights=W;L.updated=new Date().toISOString();
+ const sigF=path.join(ROOT,'data',`team_signals_${SPORT}.json`);
+ fs.writeFileSync(sigF,JSON.stringify({sport:SPORT,generated:new Date().toISOString(),checked:new Date().toLocaleString('en-US',{timeZone:'America/New_York',month:'short',day:'numeric',hour:'numeric',minute:'2-digit'})+' ET',
+  rule:'Practice pick when the tested model differs from the opening line by 5+ points (walk-forward test 2025-26: 229-147, +2.8% at the opening price, not yet proven)',games}));
+ fs.writeFileSync(logF,JSON.stringify(L,null,1));
+ console.log(`${SPORT.toUpperCase()} signals: ${games.length} upcoming games with an opening line, ${games.filter(g=>g.pick).length} practice picks. Log: ${L.summary.picks} picks, ${L.summary.settled} settled.`);
+ games.forEach(g=>console.log(`  ${g.away.abbr} @ ${g.home.abbr}: open ${g.open.h}/${g.open.a} (${Math.round(g.open.p*100)}% home) · model ${Math.round(g.model*100)}% · edge ${(g.edge*100).toFixed(1)} on ${g[g.side].abbr}${g.pick?'  << PRACTICE PICK':''}`));
+ if(process.argv.includes('--no-push'))return;
+ try{git(['pull','-q','--rebase','--autostash']);const f=[path.relative(ROOT,sigF),path.relative(ROOT,logF)].map(x=>x.replace(/\\/g,'/'));git(['add',...f]);
+  if(git(['status','--porcelain','--',...f])){git(['commit','-q','-m',`${SPORT.toUpperCase()} team signals and practice log`]);git(['push','-q','origin','main']);console.log('Pushed to GitHub.')}}
+ catch(e){console.log('Git step failed: '+String(e.stderr||e.message).trim());process.exit(1)}
+}
+
 /* ---------- 3. Logistic regression with ridge, fit by Newton steps ---------- */
 function fit(X,y,lam){const k=X[0].length;let w=new Array(k).fill(0);
  for(let it=0;it<25;it++){const g=new Array(k).fill(0),Hm=Array.from({length:k},()=>new Array(k).fill(0));
@@ -89,6 +135,7 @@ const usable=rows.filter(r=>r.g.mkt&&r.g.mkt.p>0&&r.g.mkt.p<1&&r.g.won!=null);
 const test=usable.filter(r=>r.season>=FROM);
 console.log(`${SPORT.toUpperCase()}: ${rows.length} games, ${usable.length} with a trusted pregame line; scored on ${test.length} games from season ${FROM} (walk-forward).`);
 console.log('Line audit (odds-history close vs DraftKings pregame, games with both):',Object.entries(audit).map(([k,a])=>`${k} ${a.n} games, ${Math.round(a.bad/a.n*100)}% off by >3%`).join(' · ')||'none',`→ trusted: ${[...okProv].join(', ')||'pickcenter only'}`);
+if(process.argv.includes('--today')){today().catch(e=>{console.error(e);process.exit(1)});return}
 const pred={Market:[],'App now':[]};Object.keys(MODELS).forEach(m=>pred[m]=[]);let lastW={};
 const keys=[...new Set(test.map(r=>`${r.season}|${r.key}`))];
 for(const k of keys){const T=test.filter(r=>`${r.season}|${r.key}`===k),t0=T.reduce((a,r)=>r.g.date<a?r.g.date:a,T[0].g.date),

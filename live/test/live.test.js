@@ -212,11 +212,13 @@ test('page files are clean UTF-8 (no double-encoded characters from a wrong-enco
   assert.equal(/Â|â€|Ã©/.test(t),false,`${f} contains garbled characters`);assert.notEqual(t.charCodeAt(0),0xFEFF,`${f} starts with a byte-order mark`)});
 });
 
-/* The rules may only change on purpose: the owner approves a change, then the rules-approved tag is moved to that commit
-   (first set at pre-live-v1; moved 2026-11-06 when the -160 cap was removed and the team rating was reworked). */
-test('betting rules in index.html match the last owner-approved version (tag rules-approved)',()=>{
+/* The rules may only change on purpose: each owner-approved change gets a new tag rules-approved[-N] on its commit, and
+   this compares against the newest one. rules-approved: -160 removed + team rating; rules-approved-2: market-based team
+   percentages, NFL/soccer team picks information only, NBA practice picks (2026-11-06). */
+test('betting rules in index.html match the last owner-approved version (newest rules-approved tag)',()=>{
  const root=path.join(__dirname,'..','..');let old;
- try{old=cp.execSync('git show rules-approved:index.html',{cwd:root,encoding:'utf8',maxBuffer:1<<26})}catch(e){test.skip?.('rules-approved tag not available');return}
+ try{const tag=cp.execSync('git tag -l "rules-approved*" --sort=-creatordate',{cwd:root,encoding:'utf8'}).split('\n').filter(Boolean)[0];
+  old=cp.execSync(`git show ${tag}:index.html`,{cwd:root,encoding:'utf8',maxBuffer:1<<26})}catch(e){test.skip?.('rules-approved tag not available');return}
  const cur=fs.readFileSync(path.join(root,'index.html'),'utf8');
  const block=(s,a,b)=>{s=s.replace(/\r\n/g,'\n');const i=s.indexOf(a),j=s.indexOf(b,i);assert.ok(i>=0&&j>i,`markers ${a}`);return s.slice(i,j)};
  [['/* ---------- prop rules ---------- */','/* ---------- state ---------- */'],['function rulesHTML(','/* ---------- alts ---------- */']].forEach(([a,b])=>
