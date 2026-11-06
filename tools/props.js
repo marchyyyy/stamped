@@ -36,7 +36,8 @@ function readDFF(){const f=path.join(ROOT,CFG.dff);if(!fs.existsSync(f))return[]
  return t.map(l=>{const c=l.split(',');return Object.fromEntries(h.map((k,i)=>[k,c[i]]))})}
 function gamelog(g){
  if(!g||!g.names||!g.seasonTypes||!g.seasonTypes.length)return[];
- const st=g.seasonTypes.find(s=>/regular/i.test(s.displayName))||g.seasonTypes[0],rows={};
+ /* "Regular Season", not the NBA's "Play In Regular Season" listed beside it. */
+ const st=g.seasonTypes.find(s=>/regular season/i.test(s.displayName)&&!/play.?in/i.test(s.displayName))||g.seasonTypes.find(s=>/regular/i.test(s.displayName))||g.seasonTypes[0],rows={};
  (st.categories||[]).forEach(c=>(c.events||[]).forEach(e=>{rows[e.eventId]=e.stats}));
  return Object.entries(rows).map(([id,stats])=>{const m=(g.events||{})[id]||{},s={};let min=null;
   g.names.forEach((n,i)=>{const k=CFG.log[n];if(k==null)return;const v=num(String(stats[i]).split('-')[0]);if(v==null)return;if(k==='min')min=v;else s[k]=v});
@@ -45,6 +46,8 @@ function gamelog(g){
   return{d:m.gameDate?et(m.gameDate).slice(0,10):'',vs:`${m.atVs==='@'?'@':'vs'} ${(m.opponent&&m.opponent.abbreviation)||''}`,res:m.gameResult?`${m.gameResult} ${m.score||''}`.trim():'',min,s}})
   .filter(x=>SPORT!=='nba'||x.min>0).sort((a,b)=>a.d<b.d?1:-1);
 }
+/* ESPN's season label for last season: NBA seasons are named by the year they end (2026-27 = 2027), NFL by the year they start. */
+const PREV_SEASON=(()=>{const d=new Date(),y=d.getFullYear(),m=d.getMonth()+1;return SPORT==='nba'?(m>=8?y+1:y)-1:(m>=3?y:y-1)-1})();
 function git(a){return cp.execFileSync('git',a,{cwd:ROOT,encoding:'utf8',stdio:['ignore','pipe','pipe']}).trim()}
 
 (async()=>{
@@ -101,12 +104,14 @@ function git(a){return cp.execFileSync('git',a,{cwd:ROOT,encoding:'utf8',stdio:[
    const a=await get(refs[aid]);await sleep(120);if(!a)continue;
    const tid=(String((a.team&&a.team.$ref)||'').match(/teams\/(\d+)/)||[])[1]||'',side=tid===g.home.id?'home':tid===g.away.id?'away':null;
    const gl=gamelog(await get(`https://site.web.api.espn.com/apis/common/v3/sports/${CFG.path}/athletes/${aid}/gamelog`));await sleep(120);
+   /* Last season's log, for Cheatsheet streaks and head-to-head (only the stats with a line here, to keep the file small). */
+   const past=gamelog(await get(`https://site.web.api.espn.com/apis/common/v3/sports/${CFG.path}/athletes/${aid}/gamelog?season=${PREV_SEASON}`)).map(x=>({d:x.d,vs:x.vs,s:Object.fromEntries(Object.keys(L).filter(k=>x.s[k]!=null).map(k=>[k,x.s[k]]))}));await sleep(120);
    const pos=a.position&&a.position.abbreviation,cand=byName[norm(a.displayName)]||[],d=cand.length>1?cand.find(r=>r.position===pos)||cand[0]:cand[0]||null;
    const me=side?g[side]:null,op=side?g[side==='home'?'away':'home']:null,inj=injuries[aid],M=miles[aid]||{};
    players.push({id:`espn-${SPORT}-${aid}`,espnId:aid,lg:SPORT,name:a.displayName,pos,gameId:g.id,when:g.when,team:me?me.n:'',abbr:me?me.abbr:'',logo:me?me.logo:null,
     opp:op?`${side==='home'?'vs':'@'} ${op.n}`:'',oppAbbr:op?op.abbr:'',
     status:inj?(INJ[inj.status]||'active'):(d&&d.injury_status==='O'?'out':d&&d.injury_status==='Q'?'questionable':'active'),injury:inj||null,
-    games:gl,
+    games:gl,past,
     /* Prices: the line's own Over/Under pair when posted (NBA); otherwise the Over from the "X or more" bet at the next
        whole number above the line (over 22.5 = 23+). */
     props:Object.entries(L).map(([stat,line])=>{const q=ou[aid]&&ou[aid][stat],op_=q?q.o:M[stat]&&M[stat][Math.floor(line)+1];

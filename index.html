@@ -201,7 +201,7 @@ button.lucell{cursor:pointer}button.lucell:hover{outline:1px solid var(--line)}
 .srcs{font-size:12px;color:var(--muted);word-break:break-all;display:grid;gap:3px}
 .srcs a{color:var(--muted)}
 </style>
-<link rel="stylesheet" href="live/live.css?v=20261106i">
+<link rel="stylesheet" href="live/live.css?v=20261106j">
 </head>
 <body>
 
@@ -231,7 +231,7 @@ button.lucell{cursor:pointer}button.lucell:hover{outline:1px solid var(--line)}
 <script src="live/espn.js?v=20261106a"></script>
 <script src="live/ui.js?v=20261106l"></script>
 <script src="live/dff.js?v=20261106i"></script>
-<script src="live/props-preview.js?v=20261106q"></script>
+<script src="live/props-preview.js?v=20261106r"></script>
 <script>
 fetch('./data.json?v='+Date.now()).then(r=>r.json()).then(DATA=>{
 
@@ -559,10 +559,12 @@ function upcomingHTML(l){
 }
 function renderMain(){
  const l=lgOf(state.lg),hasLive=l.id==='nba'&&!!window.LiveUI;
+ /* NFL and NBA: the Parlays tab is the Cheatsheet (owner, 2026-11-06). Other sports keep Parlays. */
+ const cheat=!!window.PREV&&!!PREV.cheatHTML&&['nfl','nba'].includes(l.id);
  if(state.mode==='live'&&!hasLive)state.mode='today';
- let html=`<div class="mode"${hasLive?' style="grid-template-columns:repeat(6,1fr)"':''}><button data-mode="today" aria-pressed="${state.mode==='today'}">Today</button><button data-mode="props" aria-pressed="${state.mode==='props'}">Props</button><button data-mode="fantasy" aria-pressed="${state.mode==='fantasy'}">Fantasy</button><button data-mode="parlays" aria-pressed="${state.mode==='parlays'}">Parlays</button>${hasLive?`<button data-mode="live" aria-pressed="${state.mode==='live'}">Live</button>`:''}<button data-mode="more" aria-pressed="${state.mode==='more'}">More</button></div>`;
+ let html=`<div class="mode"${hasLive?' style="grid-template-columns:repeat(6,1fr)"':''}><button data-mode="today" aria-pressed="${state.mode==='today'}">Today</button><button data-mode="props" aria-pressed="${state.mode==='props'}">Props</button><button data-mode="fantasy" aria-pressed="${state.mode==='fantasy'}">Fantasy</button><button data-mode="parlays" aria-pressed="${state.mode==='parlays'}">${cheat?'Cheatsheet':'Parlays'}</button>${hasLive?`<button data-mode="live" aria-pressed="${state.mode==='live'}">Live</button>`:''}<button data-mode="more" aria-pressed="${state.mode==='more'}">More</button></div>`;
  if(state.mode==='live'){$('#main').innerHTML=html+'<div id="live-root"></div>';LiveUI.mount($('#live-root'));return}
- if(state.mode==='parlays'){$('#main').innerHTML=html+parlaysHTML()+(window.PREV&&['nfl','nba'].includes(l.id)?PREV.parlaysHTML(l.id):'');return}
+ if(state.mode==='parlays'){$('#main').innerHTML=html+(cheat?PREV.cheatHTML(l.id):parlaysHTML());return}
  if(state.mode==='fantasy'){$('#main').innerHTML=html+fantasyHTML(l);return}
  const ps=P.filter(p=>p.lg===l.id&&onSlate(p));
  const good=ps.filter(p=>['pick','longshot'].includes(p.state)).sort((a,b)=>b.best.ev.stars-a.best.ev.stars);

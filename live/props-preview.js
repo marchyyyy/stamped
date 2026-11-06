@@ -153,6 +153,38 @@ function parlaysHTML(lg){const D=S[lg]&&S[lg].data;if(!D)return '';const now=Dat
  return `<h2 class="sec">${lg.toUpperCase()} parlays · Preview</h2><div class="cap">Built from ${LG[lg].label.toLowerCase()}'s best-supported leans, updated ${esc(D.checked)}. Every leg must clear Stamped's rules on its own; parlays multiply risk, so stakes should stay small.</div>
   <div class="list">${show('2-leg',two)}${show('3-leg',three)}${show('4-leg',four)}</div>`}
 
+/* Cheatsheet (replaces Parlays for NFL and NBA, owner 2026-11-06): lines on the upcoming slate that hit in every game shown.
+   Recent form = the Over hit in every game this season (5+ games); the count runs back into last season while the streak
+   holds. Versus opponent = hit in every game against tonight's opponent, this season and last (2+ games). Alternate lines =
+   the highest "X or more" rung he reached in every game this season, if priced no shorter than -400. Unders only = the Under at the posted line, like
+   recent form. Streaks are history: the NBA prop test found past hit rates add nothing beyond the price, so every row
+   also shows the price and Stamped % (fair chance from the price) when one is posted. */
+const SLAB={points:'Points',rebounds:'Rebounds',assists:'Assists',threes:'3-Pointers',PRA:'Pts+Reb+Ast','rec yds':'Rec Yards','rush yds':'Rush Yards','pass yds':'Pass Yards',receptions:'Receptions','pass TDs':'Pass TDs'};
+const short=n=>{const w=String(n).split(' ');return w.length>1?`${w[0][0]}. ${w.slice(1).join(' ')}`:n};
+const streak=(v,f)=>{let k=0;for(const x of v){if(!f(x))break;k++}return k};
+function cheatRows(lg){const D=S[lg]&&S[lg].data;if(!D)return null;const ids=new Set(upcoming(lg).map(g=>g.id)),R={form:[],opp:[],alt:[],under:[]};
+ D.players.filter(p=>ids.has(p.gameId)&&p.status!=='out'&&p.status!=='doubtful').forEach(p=>(p.props||[]).forEach(pr=>{
+  const st=pr.stat,cur=(p.games||[]).filter(g=>g.s&&g.s[st]!=null),all=cur.concat((p.past||[]).filter(g=>g.s&&g.s[st]!=null)),L=pr.line,n=cur.length;
+  const vals=a=>a.map(g=>g.s[st]),base={p,pr,lab:SLAB[st]||st};
+  if(n>=5){const ko=streak(vals(all),x=>x>L);if(ko>=n)R.form.push({...base,side:'Over',L,k:ko,n:ko});
+   const ku=streak(vals(all),x=>x<L);if(ku>=n)R.under.push({...base,side:'Under',L,k:ku,n:ku});
+   /* Highest rung reached in every game this season (other than the one that equals the posted Over). */
+   const lo=Math.min(...vals(cur)),rung=(pr.alts||[]).filter(a=>a.t<=lo&&a.t!==Math.floor(L)+1&&(a.odds==null||a.odds>=-400)).sort((a,b)=>b.t-a.t)[0];
+   if(rung){const k=streak(vals(all),x=>x>=rung.t);R.alt.push({...base,side:'Over',L:rung.t-.5,rung:rung.t,k,n:k})}}
+  const op=p.oppAbbr,vs=all.filter(g=>op&&new RegExp(`(^|\\s)${op}$`).test(g.vs||'')),hv=vals(vs);
+  if(hv.length>=2){const side=hv.every(x=>x>L)?'Over':hv.every(x=>x<L)?'Under':null;if(side)R.opp.push({...base,side,L,k:hv.length,n:hv.length})}}));
+ Object.values(R).forEach(a=>a.sort((x,y)=>y.k-x.k||x.p.name.localeCompare(y.p.name)));return R}
+function cheatRow(r){const pz=priceFor(r.p,r.pr,r.side,r.L),pct=r.L===r.pr.line?fair(r.p,r.pr,r.side):pz?Math.round(100*Math.min(.97,Math.max(.03,ip(pz.odds)-.035-(r.p.lg==='nba'?.01:0)))):null;
+ const what=r.rung!=null?`${r.rung}+ ${r.lab}`:`${r.side} ${r.L} ${r.lab}`;
+ return `<button class="cs-row" data-prev-p="${esc(r.p.lg+'|'+r.p.id)}">${logo(r.p.logo)}<span class="cs-what"><b>${esc(short(r.p.name))}:</b> ${esc(what)}
+  <small>${esc(r.p.opp)} · ${when(r.p.when)}${pz?` · ${fo(pz.odds)} ${esc(pz.src)}`:''}${pct!=null?` · Stamped ${pct}%`:''}</small></span><span class="cs-k">${r.k}/${r.n}</span></button>`}
+function cheatHTML(lg){const R=cheatRows(lg);if(!R)return '<div class="empty"><h3>Loading</h3>Prop lines are loading.</div>';const D=S[lg].data,MAX=8;
+ const box=(icon,title,sub,a)=>`<div class="cs-box"><div class="cs-h"><span aria-hidden="true">${icon}</span><b>${title}</b></div>${a.length?a.slice(0,MAX).map(cheatRow).join(''):`<div class="cap cs-none">${sub}</div>`}</div>`;
+ return `<h2 class="sec">${lg.toUpperCase()} cheatsheet</h2><div class="cap">${LG[lg].label}'s lines that hit in 100% of the games shown, updated ${esc(D.checked)}. Streaks are history, not a promise: in testing, past hit rates added nothing beyond the price, so each row also shows the price and the Stamped % (the fair chance from the price) when one is posted. Tap a row for his game log.</div>
+ <div class="cs">${box('⚡','100% recent form','No Over has hit in every game this season yet.',R.form)}
+ ${box('🛡','100% versus opponent','No line has hit in every game against this opponent (2+ games).',R.opp)}
+ ${box('⑂','100% alternate lines','No alt rung reached in every game this season.',R.alt)}
+ ${box('⬇','100% unders only','No Under has hit in every game this season yet.',R.under)}</div>`}
 /* Upcoming games for a league, so screens that only know about today can say what is coming instead of "no games". */
 function upcoming(lg){const D=S[lg]&&S[lg].data;if(!D)return[];const now=Date.now();return D.games.filter(g=>et(g.when).getTime()>now&&g.status!=='post').sort((a,b)=>a.when<b.when?-1:1)}
 function next(lg){const up=upcoming(lg);if(!up.length)return null;
@@ -218,5 +250,5 @@ function start(h){h=h||{};onChange=h.onChange;const all=()=>{Object.keys(LG).for
 const norm=s=>String(s||'').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'').replace(/\b(jr|sr|ii|iii|iv|v)\b\.?/g,'').replace(/[^a-z]/g,'');
 /* A player's ESPN game log from this week's file, by name (used by the fantasy preview board). */
 function player(lg,name){const D=S[lg]&&S[lg].data;if(!D)return null;const k=norm(name);return D.players.find(p=>norm(p.name)===k)||(D.logs||[]).find(p=>norm(p.name)===k)||null}
-window.PREV={start,load,weekHTML,moreHTML,parlaysHTML,teamsHTML,injuriesHTML,next,player,teamEKG,teamRating,teamSignal,teamSignalChecked,practiceHTML,ready:lg=>!!(S[lg]&&S[lg].data),_lean:lean,_checks:checks};
+window.PREV={start,load,weekHTML,moreHTML,parlaysHTML,cheatHTML,teamsHTML,injuriesHTML,next,player,teamEKG,teamRating,teamSignal,teamSignalChecked,practiceHTML,ready:lg=>!!(S[lg]&&S[lg].data),_lean:lean,_checks:checks};
 })();
