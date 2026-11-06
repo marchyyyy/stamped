@@ -246,7 +246,9 @@ function crowdHTML(lg,g){const D=KG[lg];if(!D)return '';const G=Object.values(D.
  const path=P=>P.map((p,i)=>i?`H${x(p[0]).toFixed(1)}V${y(p[1]).toFixed(1)}`:`M${x(p[0]).toFixed(1)} ${y(p[1]).toFixed(1)}`).join('');
  /* Now: the middle of the quote when it is tight, otherwise the last hourly value. */
  const nowP=s=>{const q=G[s],P=s==='away'?A:H;return q.yb!=null&&q.ya!=null&&q.ya-q.yb<=.1?Math.round((q.yb+q.ya)*50):P[P.length-1][1]};
- const ca=vis(g.away.color,'var(--accent)'),ch0=vis(g.home.color,'var(--warn)'),ch=ch0===ca?vis(g.home.alt,'var(--warn)'):ch0;
+ /* Two close colors (e.g. two reds): the home team uses its alternate color, or a theme color if that is close too. */
+ const dist=(p,q)=>{p=hex(p);q=hex(q);if(!p||!q)return 999;const P=parseInt(p.slice(1),16),Q=parseInt(q.slice(1),16);return Math.hypot((P>>16)-(Q>>16),(P>>8&255)-(Q>>8&255),(P&255)-(Q&255))};
+ const ca=vis(g.away.color,'var(--accent)'),hc=dist(g.away.color,g.home.color)>=120?g.home.color:dist(g.away.color,g.home.alt)>=120?g.home.alt:null,ch=hc?vis(hc,'var(--warn)'):(ca==='var(--accent)'?'var(--warn)':'var(--accent)');
  const lab=(s,c,P)=>{const v=nowP(s),yy=y(P[P.length-1][1]);return `<text x="${W-56}" y="${(yy-4).toFixed(1)}" fill="${c}" font-size="10" font-weight="700">${esc(g[s].abbr||g[s].n)}</text><text x="${W-56}" y="${(yy+12).toFixed(1)}" fill="${c}" font-size="16" font-weight="800">${v}%</text>`};
  const grid=[25,50,75].filter(v=>v>lo&&v<hi).map(v=>`<line x1="0" x2="${W}" y1="${y(v).toFixed(1)}" y2="${y(v).toFixed(1)}" stroke="var(--line)" stroke-dasharray="2 4"/>`).join('');
  const vol=(G.away.vol||0)+(G.home.vol||0),v24=(G.away.vol24||0)+(G.home.vol24||0),k=n=>n>=1e6?(n/1e6).toFixed(1)+'M':n>=1e3?Math.round(n/1e3)+'k':String(Math.round(n));
