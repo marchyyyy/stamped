@@ -96,7 +96,7 @@ function mline(r){if(r.grade==null)return '';const C=LG[r.p.lg],g=r.side==='Unde
 /* Readable stat names for the matchup line. */
 const STATW={points:'points',rebounds:'rebounds',assists:'assists',threes:'3-pointers',PRA:'points + rebounds + assists','rush yds':'rushing yards','rec yds':'receiving yards',receptions:'catches','pass yds':'passing yards','pass TDs':'passing TDs'};
 function spark(r){const mx=Math.max(...r.v,r.pr.line,1),s=[...r.v].reverse(),h=[...r.hits].reverse();
- return `<span class="spark" aria-hidden="true">${s.map((x,i)=>`<i style="height:${Math.round(Math.max(.12,x/mx)*22)}px;background:var(${h[i]?'--hit':'--miss'})"></i>`).join('')}</span>`}
+ return `<span class="spark" role="button" tabindex="0" aria-label="Bigger chart: last 5 games, ${esc(r.pr.stat)}" data-prev-chart="${esc([r.p.lg,r.p.id,r.pr.stat,r.side||''].join('|'))}">${s.map((x,i)=>`<i style="height:${Math.round(Math.max(.12,x/mx)*22)}px;background:var(${h[i]?'--hit':'--miss'})"></i>`).join('')}</span>`}
 /* inGame: the card sits in its game's section, which already shows the start time and the price source. */
 function card(r,inGame){const p=r.p,pill=r.review?'<span class="pill p-long">Under review</span>':r.side?`<span class="pill p-pick">Lean ${r.side}</span>`:'<span class="pill p-stay">No lean</span>';
  const pz=r.price||priceFor(p,r.pr,r.side||'Over'),price=pz?`<span class="odds">${fo(pz.odds)}</span>`:'',pct=fair(p,r.pr,r.side||'Over');
@@ -269,6 +269,23 @@ function crowdHTML(lg,g){const D=KG[lg];if(!D)return '';const G=Object.values(D.
 /* Wrapped so the range buttons can redraw every chart on screen. */
 const GL={};
 function crowd(lg,g){const h=crowdHTML(lg,g);if(!h)return '';const id=String(g.id);GL[id]=g;return `<div data-kc-for="${esc(lg+'|'+id)}">${h}</div>`}
+/* Tap a card's mini chart: the bet's own stat over his last 5 games, big, with the opponent, date and final score. */
+const tlogo=(lg,ab)=>ab?`https://a.espncdn.com/i/teamlogos/${lg}/500/${String(ab).toLowerCase()}.png`:'';
+function chartSheetHTML(key){const [lg,id,stat,side]=key.split('|'),D=S[lg]&&S[lg].data,p=D&&D.players.find(x=>x.id===id),pr=p&&p.props.find(x=>x.stat===stat);if(!pr)return '';
+ const G=(p.games||[]).filter(g=>g.s&&g.s[stat]!=null).slice(0,5).reverse(),L=pr.line,sd=side||'Over',hit=x=>sd==='Under'?x<L:x>L;if(!G.length)return '';
+ const W=340,H=210,top=26,bot=H-8,mx=Math.max(...G.map(g=>g.s[stat]),L)*1.15||1,y=v=>bot-(v/mx)*(bot-top),PW=W-36,bw=PW/G.length,b=Math.min(46,bw*.62);
+ const bars=G.map((g,i)=>{const v=g.s[stat],x=bw*i+(bw-b)/2,yy=y(v),c=hit(v)?'var(--hit)':'var(--miss)';
+  return `<rect x="${x.toFixed(1)}" y="${Math.min(yy,bot-2).toFixed(1)}" width="${b.toFixed(1)}" height="${Math.max(2,bot-yy).toFixed(1)}" rx="4" fill="${c}"/><text x="${(x+b/2).toFixed(1)}" y="${(Math.min(yy,bot-2)-7).toFixed(1)}" text-anchor="middle" class="pc-v">${v}</text>`}).join('');
+ const ly=y(L).toFixed(1),k=G.filter(g=>hit(g.s[stat])).length,avg=G.reduce((a,g)=>a+g.s[stat],0)/G.length,r=lean(p,pr);
+ return `<div class="grab"></div>
+ <div class="shead"><div style="min-width:0"><div class="pname">${esc(p.name)}</div><div class="team">${logo(p.logo)}${esc(p.team)} · ${esc(p.pos)} · ${esc(p.opp)}</div></div><button class="x" id="close" aria-label="Close">×</button></div>
+ <div class="panel"><div class="row between"><h4>${sd} ${L} ${esc(STATW[stat]||stat)} · last ${G.length}</h4><b class="pc-k">${k}/${G.length}</b></div>
+  <svg viewBox="0 0 ${W} ${H}" class="pc-svg" role="img" aria-label="${esc(stat)} in his last ${G.length} games: ${G.map(g=>g.s[stat]).join(', ')}; line ${L}">
+   ${bars}<line x1="0" x2="${PW}" y1="${ly}" y2="${ly}" class="pc-line"/><text x="${PW+4}" y="${(+ly+4).toFixed(1)}" class="pc-l">${L}</text></svg>
+  <div class="pc-x" style="grid-template-columns:repeat(${G.length},1fr);margin-right:${(36/W*100).toFixed(1)}%">${G.map(g=>{const ab=g.vs.replace(/^(vs|@) /,'');return `<div><img src="${esc(tlogo(lg,ab))}" alt="" width="22" height="22" loading="lazy"><b>${esc(g.vs)}</b><span>${esc(g.d.slice(5).replace('-','/'))}</span><span class="${/^W/.test(g.res)?'up':/^L/.test(g.res)?'dn':''}">${esc(g.res||'')}</span>${g.min!=null?`<span>${g.min} min</span>`:''}</div>`}).join('')}</div>
+  <div class="cap">${sd} ${L} in ${k} of ${G.length}, averaging ${avg.toFixed(1)}. Green cleared the ${sd}, red did not. Dashed line = tonight's line.</div>
+  ${r?mline(r):''}</div>
+ <button class="card" data-prev-back="${esc(lg+'|'+id)}"><span class="prop">All his props and game log →</span></button>`}
 function sheetHTML(key){const [lg,id]=key.split('|'),D=S[lg]&&S[lg].data,p=D&&D.players.find(x=>x.id===id);if(!p)return '';const stats=[...new Set(p.props.map(x=>x.stat))];
  return `<div class="grab"></div>
  <div class="shead"><div style="min-width:0"><div class="pname">${esc(p.name)}</div><div class="team">${logo(p.logo)}${esc(p.team)} · ${esc(p.pos)} · ${when(p.when)} · ${esc(p.opp)}</div></div><button class="x" id="close" aria-label="Close">×</button></div>
@@ -287,6 +304,10 @@ function start(h){h=h||{};onChange=h.onChange;const all=()=>{Object.keys(LG).for
   if(e.target.open)open.add(s);else open.delete(s);if(e.target.open&&onChange)onChange()},true);
  /* Chart range buttons work in the page and in the game sheet. */
  document.addEventListener('click',e=>{const b=e.target.closest('[data-kc-range]');if(!b)return;e.stopPropagation();CR=b.dataset.kcRange;document.querySelectorAll('[data-kc-for]').forEach(el=>{const [lg,id]=el.dataset.kcFor.split('|');const g=GL[id];if(g)el.innerHTML=crowdHTML(lg,g)})},true);
+ /* Mini chart -> big chart sheet (inside a card, which is a button itself, so caught first); its link -> all his props. */
+ document.addEventListener('click',e=>{const t=e.target.closest('[data-prev-chart],[data-prev-back]');if(!t||!h.showSheet)return;
+  const html=t.dataset.prevChart?chartSheetHTML(t.dataset.prevChart):sheetHTML(t.dataset.prevBack);if(!html)return;e.stopPropagation();e.preventDefault();
+  document.getElementById('sheet').innerHTML=html;h.showSheet()},true);
  document.getElementById('main').addEventListener('click',e=>{const c=e.target.closest('[data-prev-p]');if(c&&h.showSheet){document.getElementById('sheet').innerHTML=sheetHTML(c.dataset.prevP);h.showSheet()}})}
 const norm=s=>String(s||'').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'').replace(/\b(jr|sr|ii|iii|iv|v)\b\.?/g,'').replace(/[^a-z]/g,'');
 /* A player's ESPN game log from this week's file, by name (used by the fantasy preview board). */

@@ -110,3 +110,16 @@
 .kc-rs{display:flex;gap:2px}
 .kc-r{font:inherit;font-size:11px;font-weight:700;color:var(--muted);background:none;border:0;border-radius:6px;padding:3px 7px;cursor:pointer}
 .kc-r[aria-pressed="true"]{color:var(--ink);background:var(--chip)}
+/* Prop chart sheet (tap a card's mini chart) */
+.spark[data-prev-chart]{cursor:pointer;padding:4px;margin:-4px -4px -4px auto;border-radius:6px}
+.spark[data-prev-chart]:active{background:var(--line)}
+.pc-k{font-family:var(--f-mono);font-size:18px}
+.pc-svg{width:100%;height:auto;display:block;margin-top:6px;overflow:visible}
+.pc-v{font-family:var(--f-mono);font-weight:700;font-size:15px;fill:var(--ink)}
+.pc-line{stroke:var(--ink);stroke-width:1.5;stroke-dasharray:5 4;opacity:.7}
+.pc-l{font-family:var(--f-mono);font-size:12px;fill:var(--muted)}
+.pc-x{display:grid;gap:4px;margin:6px 0 4px;text-align:center}
+.pc-x>div{display:flex;flex-direction:column;align-items:center;gap:1px;min-width:0;font-size:11px;color:var(--muted)}
+.pc-x img{width:22px;height:22px;object-fit:contain;margin-bottom:2px}
+.pc-x b{color:var(--ink);font-size:12px;white-space:nowrap}
+.pc-x span{white-space:nowrap}
