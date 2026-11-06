@@ -215,7 +215,7 @@ test('page files are clean UTF-8 (no double-encoded characters from a wrong-enco
 /* The rules may only change on purpose: each owner-approved change gets a new tag rules-approved[-N] on its commit, and
    this compares against the newest one. rules-approved: -160 removed + team rating; rules-approved-2: market-based team
    percentages, NFL/soccer team picks information only, NBA practice picks (2026-11-06); rules-approved-3: injury signal;
-   rules-approved-4: Strong/Moderate prop label removed (2026-11-06). */
+   rules-approved-4: Strong/Moderate prop label removed; rules-approved-5: remaining "strong" wording removed (2026-11-06). */
 test('betting rules in index.html match the last owner-approved version (newest rules-approved tag)',()=>{
  const root=path.join(__dirname,'..','..');let old;
  try{const tag=cp.execSync('git tag -l "rules-approved*" --sort=-creatordate',{cwd:root,encoding:'utf8'}).split('\n').filter(Boolean)[0];

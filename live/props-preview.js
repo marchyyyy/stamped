@@ -149,8 +149,8 @@ function parlaysHTML(lg){const D=S[lg]&&S[lg].data;if(!D)return '';const now=Dat
    ${L.map(l=>`<div class="row between lv-leg"><span>${logo(l.r.p.logo)}<b>${esc(l.r.p.name)}</b> <span class="cap">${l.side} ${l.line}${l.rung?` (${l.rung})`:''} ${esc(l.r.pr.stat)}</span></span><span class="cap">${l.k}/${l.n}${l.odds!=null?` · ${fo(l.odds)}`:''}</span></div>`).join('')}
    <div class="cap">${priced?`DraftKings legs price to about <b>${fo(price)}</b> together; confirm the parlay price in your book.`:'Some legs have no posted price, so check the parlay price in your book.'} Each leg is from a different game.</div></div>`};
  const two=pick(2),three=pick(3),four=pick(4);
- if(!two)return `<h2 class="sec">${lg.toUpperCase()} parlays · Preview</h2><div class="empty"><h3>Not enough strong legs yet</h3>Parlays need leans from different games that hit in at least 4 of their last 5. Lines are still posting.</div>`;
- return `<h2 class="sec">${lg.toUpperCase()} parlays · Preview</h2><div class="cap">Built from ${LG[lg].label.toLowerCase()}'s strongest leans, updated ${esc(D.checked)}. Every leg must clear Stamped's rules on its own; parlays multiply risk, so stakes should stay small.</div>
+ if(!two)return `<h2 class="sec">${lg.toUpperCase()} parlays · Preview</h2><div class="empty"><h3>Not enough legs yet</h3>Parlays need leans from different games that hit in at least 4 of their last 5. Lines are still posting.</div>`;
+ return `<h2 class="sec">${lg.toUpperCase()} parlays · Preview</h2><div class="cap">Built from ${LG[lg].label.toLowerCase()}'s best-supported leans, updated ${esc(D.checked)}. Every leg must clear Stamped's rules on its own; parlays multiply risk, so stakes should stay small.</div>
   <div class="list">${show('2-leg',two)}${show('3-leg',three)}${show('4-leg',four)}</div>`}
 
 /* Upcoming games for a league, so screens that only know about today can say what is coming instead of "no games". */

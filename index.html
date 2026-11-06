@@ -231,7 +231,7 @@ button.lucell{cursor:pointer}button.lucell:hover{outline:1px solid var(--line)}
 <script src="live/espn.js?v=20261106a"></script>
 <script src="live/ui.js?v=20261106l"></script>
 <script src="live/dff.js?v=20261106i"></script>
-<script src="live/props-preview.js?v=20261106p"></script>
+<script src="live/props-preview.js?v=20261106q"></script>
 <script>
 fetch('./data.json?v='+Date.now()).then(r=>r.json()).then(DATA=>{
 
@@ -323,7 +323,7 @@ function evaluate(p,stat,line,odds){
  if(r.n<4&&st>7){st=7;r.notes.push(VETTING?`Only ${r.n} ${lgOf(p.lg).units} this season, capped at 7.`:`Only ${r.n} ${lgOf(p.lg).units} this season so far.`)}
  r.stars=Math.max(1,st);
  if(r.review.length&&(r.status==='pick'||r.status==='longshot')){r.status='review';r.reasons.unshift('Under review. Check back closer to game time.')}
- if(r.status==='pick'){if(long)r.status='longshot';else if(r.stars<6){r.status='stay';if(!r.reasons.length)r.reasons.push('Not strong enough to stamp.')}}
+ if(r.status==='pick'){if(long)r.status='longshot';else if(r.stars<6){r.status='stay';if(!r.reasons.length)r.reasons.push('Not enough support to stamp.')}}
  return r;
 }
 const rank={pick:3,longshot:2,review:1.5,stay:1,killed:0,blocked:0};
@@ -377,7 +377,7 @@ function leanBase(p,pr){
  if(k/n>=.6&&e.status==='killed'){const L=+(pr.line+st).toFixed(1),e2=evaluate(p,pr.stat,L,null);
   if(e2.k/e2.n<.6)return{side:'No lean',label:e.label,str:'',why:`The posted over is ${fo(pr.odds)}, priced too steep, and one line up he hit only ${e2.k} of ${e2.n} (${list}). Nothing to suggest.`,price:''};
   return{side:'Alt',label:propLabel(pr.stat,L),str:e2.k>=4?'Strong':'Moderate',why:`The posted over is ${fo(pr.odds)}, priced too steep. One line up he still hit ${e2.k} of ${e2.n} (${list}), averaging ${avg.toFixed(1)}.`,price:'Check the alt price in your book.'}}
- if(['finish','cut'].includes(pr.stat))return{side:'No lean',label:e.label,str:'',why:`${e.k} of ${n} (${e.vals.join(', ')}). Not strong enough to stamp.`,price:''};
+ if(['finish','cut'].includes(pr.stat))return{side:'No lean',label:e.label,str:'',why:`${e.k} of ${n} (${e.vals.join(', ')}). Not enough support to stamp.`,price:''};
  if(under/n>=.6&&avg<pr.line)return{side:'Under',label:`Under ${pr.line} ${pr.stat}`,str:S(under),why:`Stayed under ${pr.line} in ${under} of his last ${n} (${list}), averaging ${avg.toFixed(1)}.`,price:'Check the under price in your book.'};
  if(k/n>=.6){const L=+(pr.line-st).toFixed(1);if(L>=.5){const e2=evaluate(p,pr.stat,L,null);
   return{side:'Alt',label:propLabel(pr.stat,L),str:e2.k===n?'Strong':'Moderate',why:`Hit the posted ${pr.line} in ${k} of ${n} (${list}), which is not enough for a secure pick. One line down he hit ${e2.k} of ${e2.n}.`,price:'Check the alt price in your book.'}}}
@@ -756,7 +756,7 @@ function altsHTML(l){
  let html=`<div class="slate"><h1>${l.name} alts</h1><p>${ps.length} players with usable alts</p></div>
  <div class="warnbox"><b>How alts work</b><span>A lower line is easier to hit but pays less. A higher line is harder but pays more. Check the alt price in your book before betting.</span></div>`;
  if(l.off)return html+`<div class="empty"><h3>MLB is in the offseason</h3>No alts until the season starts.</div>`;
- if(!ps.length)return html+`<div class="empty"><h3>No usable alts</h3>No alt line in ${l.name} has a strong enough hit rate right now.</div>`;
+ if(!ps.length)return html+`<div class="empty"><h3>No usable alts</h3>No alt line in ${l.name} has a high enough hit rate right now.</div>`;
  return html+`<div class="list">${ps.map(p=>`<button class="card" data-id="${p.id}">
   <div class="row between"><div style="min-width:0"><div class="pname">${p.name}</div><div class="team">${teamLine(p)}</div><div class="team">${gameLine(p)}</div></div>${p.state==='pick'?sealPill:`<span class="pill ${STATUS[p.state][1]}">Main: ${STATUS[p.state][0]}</span>`}</div>
   <div class="cap">Posted line: ${p.best.ev.label} (${fo(p.best.odds)}, ${p.best.book})</div>
@@ -778,10 +778,10 @@ function parlaysHTML(){
  const legs=[];const seen=new Set();for(const p of pool){if(seen.has(p.team))continue;seen.add(p.team);legs.push(p);if(legs.length===6)break}
  const mls=GAMES.filter(g=>gameOnSlate(g)&&g.when.slice(0,10)===todayET()).map(g=>[g,decide(g)]).filter(([,d])=>d.status==='pick'&&!d.long).map(([g,d])=>({name:`${d.team} moneyline`,line:'',odds:g.ml[d.side],sub:`${g.away.n} at ${g.home.n} · ${fmtT(g.when)} ET · Secure Value ${d.sv} · ${g.ml.book}`}));
  let html=`<div class="slate"><h1>Parlay builder · ${fmtDay(todayET())}</h1><p>${pool.length} prop legs qualify today</p></div>
- <div class="warnbox"><b>Read this first</b><span>A parlay only pays if every leg hits. One miss and the whole thing loses. Even strong legs miss often, so a 6-leg parlay loses most of the time. Bet these small. They are not easy money.</span></div>
+ <div class="warnbox"><b>Read this first</b><span>A parlay only pays if every leg hits. One miss and the whole thing loses. Even legs on a hot streak miss often, so a 6-leg parlay loses most of the time. Bet these small. They are not easy money.</span></div>
  <div class="cap">Built from today's stamped picks, one leg per team.</div>
  <h2 class="sec">6-pick prop parlay</h2>`;
- html+=legs.length>=6?parlayCard('Highest Secure Value',legs.map(propLeg),'The six strongest legs on the board, one per team.')
+ html+=legs.length>=6?parlayCard('Highest Secure Value',legs.map(propLeg),'The six best-supported legs on the board, one per team.')
   :`<div class="empty"><h3>Not enough legs today</h3>A 6-pick parlay needs 6 stamped legs from games that haven't started. Today there ${legs.length===1?'is':'are'} ${legs.length}.${legs.length?` Here ${legs.length===1?'it is':'they are'} as a smaller parlay, if you want one:`:''}</div>`+(legs.length>=2?parlayCard(`${legs.length}-leg version`,legs.map(propLeg)):'');
  html+=`<h2 class="sec">4-team moneyline parlay</h2>`;
  html+=mls.length>=4?parlayCard('Best model odds',mls.slice(0,4),'Uses the posted prices from the Teams screen.')
