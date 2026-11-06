@@ -147,8 +147,8 @@ tr.dim td{color:var(--muted);text-decoration:line-through}
 tr.dim td:last-child{text-decoration:none}
 .tag{font-size:10px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;border-radius:4px;padding:1px 5px;margin-left:6px;vertical-align:middle}
 .t-best{background:var(--hit-bg);color:var(--hit)}.t-up{background:var(--warn-bg);color:var(--warn)}.t-main{background:var(--chip);color:var(--muted)}
-.mode{display:grid;grid-template-columns:repeat(5,1fr);border:1px solid var(--line);border-radius:10px;overflow:hidden;background:var(--surface)}
-.mode button{font-family:var(--f-disp);font-weight:800;font-size:14px;letter-spacing:.03em;text-transform:uppercase;padding:9px 2px;color:var(--muted);min-width:0;overflow:hidden}
+.mode{display:flex;border:1px solid var(--line);border-radius:10px;overflow:hidden;background:var(--surface)}
+.mode button{font-family:var(--f-disp);font-weight:800;font-size:clamp(12px,3.6vw,14px);letter-spacing:.03em;text-transform:uppercase;padding:9px 4px;flex:1 1 auto;white-space:nowrap;color:var(--muted);min-width:0;overflow:hidden}
 .mode button[aria-pressed="true"]{background:var(--ink);color:var(--bg)}
 .chartbox{position:relative}
 .tip{position:absolute;z-index:5;pointer-events:none;background:var(--ink);color:var(--bg);border-radius:8px;padding:7px 10px;font-size:12px;line-height:1.4;white-space:nowrap;transform:translate(-50%,-100%);box-shadow:0 6px 18px rgba(0,0,0,.25)}
@@ -562,7 +562,7 @@ function renderMain(){
  /* NFL and NBA: the Parlays tab is the Cheatsheet (owner, 2026-11-06). Other sports keep Parlays. */
  const cheat=!!window.PREV&&!!PREV.cheatHTML&&['nfl','nba'].includes(l.id);
  if(state.mode==='live'&&!hasLive)state.mode='today';
- let html=`<div class="mode"${hasLive?' style="grid-template-columns:repeat(6,1fr)"':''}><button data-mode="today" aria-pressed="${state.mode==='today'}">Today</button><button data-mode="props" aria-pressed="${state.mode==='props'}">Props</button><button data-mode="fantasy" aria-pressed="${state.mode==='fantasy'}">Fantasy</button><button data-mode="parlays" aria-pressed="${state.mode==='parlays'}">${cheat?'Cheatsheet':'Parlays'}</button>${hasLive?`<button data-mode="live" aria-pressed="${state.mode==='live'}">Live</button>`:''}<button data-mode="more" aria-pressed="${state.mode==='more'}">More</button></div>`;
+ let html=`<div class="mode"><button data-mode="today" aria-pressed="${state.mode==='today'}">Today</button><button data-mode="props" aria-pressed="${state.mode==='props'}">Props</button><button data-mode="fantasy" aria-pressed="${state.mode==='fantasy'}">Fantasy</button><button data-mode="parlays" aria-pressed="${state.mode==='parlays'}">${cheat?'Cheatsheet':'Parlays'}</button>${hasLive?`<button data-mode="live" aria-pressed="${state.mode==='live'}">Live</button>`:''}<button data-mode="more" aria-pressed="${state.mode==='more'}">More</button></div>`;
  if(state.mode==='live'){$('#main').innerHTML=html+'<div id="live-root"></div>';LiveUI.mount($('#live-root'));return}
  if(state.mode==='parlays'){$('#main').innerHTML=html+(cheat?PREV.cheatHTML(l.id):parlaysHTML());return}
  if(state.mode==='fantasy'){$('#main').innerHTML=html+fantasyHTML(l);return}
