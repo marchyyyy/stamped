@@ -3,7 +3,7 @@
    and re-checks it every 5 minutes. ESPN carries no NFL prop prices, so these are leans on the line, not priced picks. */
 (function(){
 'use strict';
-const W={data:null,sig:null,game:null,onChange:null};
+const W={data:null,sig:null,open:new Set(),onChange:null};
 const esc=s=>String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const et=w=>new Date(w+':00-05:00');
 const when=w=>et(w).toLocaleString('en-US',{weekday:'short',hour:'numeric',minute:'2-digit',timeZone:'America/New_York'})+' ET';
@@ -54,28 +54,25 @@ function card(r){const p=r.p,pill=r.review?'<span class="pill p-long">Under revi
   ${p.injury&&p.status!=='active'?`<div class="flag">${esc(p.status[0].toUpperCase()+p.status.slice(1))}${p.injury.detail?`: ${esc(p.injury.detail)}`:''}</div>`:''}
   <div class="cap">DraftKings line via ESPN · price not posted · Preview</div>
  </button>`}
-/* Compact game tile; tap to show only that game's props, tap again for all. */
-function gameRow(g){const sel=W.game===g.id;
- return `<button class="nflw-g${sel?' sel':''}" data-nflw-g="${esc(g.id)}" aria-pressed="${sel}">
-  <span class="nflw-m">${logo(g.away.logo)}<b>${esc(g.away.abbr)}</b><span class="cap">@</span>${logo(g.home.logo)}<b>${esc(g.home.abbr)}</b></span>
-  <span class="cap">${when(g.when).replace(' ET','')}${g.details?` · ${esc(g.details)}`:''}</span></button>`}
+/* Prop checks grouped by game: one collapsible section per game, leans strongest first. Open sections stay open across refreshes. */
+function checks(D,players){const all=leansFor(players);return{good:all.filter(r=>r.side&&!r.review).sort((a,b)=>b.score-a.score),rest:all.filter(r=>!r.side||r.review)}}
+function gameSec(g,players){const {good,rest}=checks(W.data,players),strong=good.filter(r=>r.str==='Strong').length,open=W.open.has(g.id);
+ return `<details class="lv-sec nflw-sec" data-nflw-sec="${esc(g.id)}" ${open?'open':''}><summary>
+  <span class="nflw-h"><span class="nflw-m">${logo(g.away.logo)}<b>${esc(g.away.abbr)}</b><span class="cap">@</span>${logo(g.home.logo)}<b>${esc(g.home.abbr)}</b></span>
+  <span class="cap">${when(g.when)}${g.details?` · ${esc(g.details)}`:''}${g.total?` · O/U ${g.total}`:''}</span></span>
+  <span class="pill ${good.length?'p-pick':'p-stay'}">${good.length?`${good.length} lean${good.length>1?'s':''}${strong?` · ${strong} strong`:''}`:'No leans'}</span></summary>
+  <div class="lv-secbody">${open?`${good.length?`<div class="list">${good.map(card).join('')}</div>`:`<div class="cap">None of this game's ${players.length?'lines':'players'} has enough support yet.</div>`}
+   ${rest.length?`<details class="lv-sec"><summary>No lean or under review (${rest.length})</summary><div class="lv-secbody"><div class="list">${rest.map(card).join('')}</div></div></details>`:''}`:''}</div></details>`}
 /* exclude: names already covered by Stamped's daily data (their own cards keep the full rules). */
-function listHTML(exclude){const D=W.data;if(!D)return '';
- const ex=new Set((exclude||[]).map(s=>s.toLowerCase())),now=Date.now();
- const players=D.players.filter(p=>!ex.has(p.name.toLowerCase())&&et(p.when).getTime()>now&&(!W.game||p.gameId===W.game));
- const all=leansFor(players),good=all.filter(r=>r.side&&!r.review).sort((a,b)=>b.score-a.score),rest=all.filter(r=>!r.side||r.review);
- const g=W.game&&D.games.find(x=>x.id===W.game);
- return `${g?`<div class="row between"><span class="cap">Showing ${esc(g.away.abbr)} @ ${esc(g.home.abbr)}</span><button class="chip nflw-clear" data-nflw-g="">All games</button></div>`:''}
-  ${good.length?`<div class="list">${good.slice(0,12).map(card).join('')}</div>`:`<div class="empty"><h3>No leans${g?' in this game':''} yet</h3>None of the posted lines has enough support in the last 5 games.</div>`}
-  ${good.length>12?`<details class="lv-sec"><summary>More leans (${good.length-12})</summary><div class="lv-secbody"><div class="list">${good.slice(12).map(card).join('')}</div></div></details>`:''}
-  ${rest.length?`<details class="lv-sec"><summary>No lean or under review (${rest.length})</summary><div class="lv-secbody"><div class="list">${rest.map(card).join('')}</div></div></details>`:''}`}
-/* Before game day: the whole weekend. */
-function weekHTML(){const D=W.data;if(!D)return '';const up=D.games.filter(g=>et(g.when).getTime()+4*3600e3>Date.now());if(!up.length)return '';
- return `<div class="cap">This week's games and prop leans, updated ${esc(D.checked)}. Preview: stamps still post on game day under the usual rules. Leans use his last 5 games, the matchup and DailyFantasyFuel's projection. NFL prop prices aren't available, so check the price in your book.</div>
- <h2 class="sec">Games</h2><div class="nflw-grid">${up.map(gameRow).join('')}</div>
- <h2 class="sec">Props</h2>${listHTML([])}`}
+function gamesHTML(exclude){const D=W.data;if(!D)return '';const ex=new Set((exclude||[]).map(s=>s.toLowerCase())),now=Date.now();
+ const up=D.games.filter(g=>et(g.when).getTime()>now);if(!up.length)return '';
+ return `<div class="list">${up.map(g=>gameSec(g,D.players.filter(p=>p.gameId===g.id&&!ex.has(p.name.toLowerCase())))).join('')}</div>`}
+/* Before game day: the whole week. */
+function weekHTML(){const h=gamesHTML([]);if(!h)return '';
+ return `<div class="cap">This week's prop checks by game, updated ${esc(W.data.checked)}. Preview: stamps still post on game day under the usual rules. Each lean uses his last 5 games, the matchup and DailyFantasyFuel's projection. NFL prop prices aren't available, so check the price in your book.</div>
+ <h2 class="sec">This week</h2>${h}`}
 /* On game day: players Stamped's daily data does not cover. */
-function moreHTML(exclude){if(!W.data)return '';const h=listHTML(exclude);return h?`<h2 class="sec">More props · Preview</h2><div class="cap">Players outside today's Stamped data: ESPN game logs, DraftKings lines and DFF. Not stamped.</div>${h}`:''}
+function moreHTML(exclude){const h=gamesHTML(exclude);return h?`<h2 class="sec">More props · Preview</h2><div class="cap">Players outside today's Stamped data: ESPN game logs, DraftKings lines and DFF. Not stamped.</div>${h}`:''}
 
 function sheetHTML(id){const p=W.data&&W.data.players.find(x=>x.id===id);if(!p)return '';const stats=[...new Set(p.props.map(x=>x.stat))];
  return `<div class="grab"></div>
@@ -87,7 +84,9 @@ function sheetHTML(id){const p=W.data&&W.data.players.find(x=>x.id===id);if(!p)r
 
 function load(){return fetch('data/nfl_week.json?v='+Date.now()).then(r=>r.ok?r.json():null).then(d=>{if(!d)return;const sig=d.generated;if(sig!==W.sig){W.data=d;W.sig=sig;if(W.onChange)W.onChange()}}).catch(()=>{})}
 function start(h){h=h||{};W.onChange=h.onChange;load();setInterval(load,5*60e3);
- document.getElementById('main').addEventListener('click',e=>{const g=e.target.closest('[data-nflw-g]');if(g){W.game=g.dataset.nflwG&&W.game!==g.dataset.nflwG?g.dataset.nflwG:null;if(W.onChange)W.onChange();return}
-  const c=e.target.closest('[data-nflw-p]');if(c&&h.showSheet){document.getElementById('sheet').innerHTML=sheetHTML(c.dataset.nflwP);h.showSheet()}})}
-window.NFLW={start,load,weekHTML,moreHTML,ready:()=>!!W.data,_lean:lean};
+ /* Opening a game fills in its cards (they are only built for open games, which keeps the page light). */
+ document.addEventListener('toggle',e=>{const s=e.target&&e.target.dataset&&e.target.dataset.nflwSec;if(!s||W.open.has(s)===e.target.open)return;
+  if(e.target.open)W.open.add(s);else W.open.delete(s);if(e.target.open&&W.onChange)W.onChange()},true);
+ document.getElementById('main').addEventListener('click',e=>{const c=e.target.closest('[data-nflw-p]');if(c&&h.showSheet){document.getElementById('sheet').innerHTML=sheetHTML(c.dataset.nflwP);h.showSheet()}})}
+window.NFLW={start,load,weekHTML,moreHTML,ready:()=>!!W.data,_lean:lean,_checks:checks};
 })();

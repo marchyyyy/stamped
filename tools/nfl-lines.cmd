@@ -1,5 +1,5 @@
 @echo off
-rem Hourly NFL lines and injuries refresh on game days ("Stamped NFL lines ..." tasks). Log: %LOCALAPPDATA%\Stamped\dff-nfl.log
+rem Every 3 hours: NFL games, odds, injuries and prop lines ("Stamped NFL refresh every 3h" task). Log: %LOCALAPPDATA%\Stamped\dff-nfl.log
 set "PATH=C:\Program Files\nodejs;C:\Program Files\Git\cmd;%PATH%"
 if not exist "%LOCALAPPDATA%\Stamped" mkdir "%LOCALAPPDATA%\Stamped"
 cd /d "%~dp0.."
