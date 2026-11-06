@@ -121,6 +121,22 @@ function parlaysHTML(lg){const D=S[lg]&&S[lg].data;if(!D)return '';const now=Dat
  return `<h2 class="sec">${lg.toUpperCase()} parlays · Preview</h2><div class="cap">Built from ${LG[lg].label.toLowerCase()}'s strongest leans, updated ${esc(D.checked)}. Every leg must clear Stamped's rules on its own; parlays multiply risk, so stakes should stay small.</div>
   <div class="list">${show('2-leg',two)}${show('3-leg',three)}${show('4-leg',four)}</div>`}
 
+/* Upcoming games for a league, so screens that only know about today can say what is coming instead of "no games". */
+function upcoming(lg){const D=S[lg]&&S[lg].data;if(!D)return[];const now=Date.now();return D.games.filter(g=>et(g.when).getTime()>now&&g.status!=='post').sort((a,b)=>a.when<b.when?-1:1)}
+function next(lg){const up=upcoming(lg);if(!up.length)return null;
+ const days=[...new Set(up.map(g=>et(g.when).toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric',timeZone:'America/New_York'})))];
+ return{n:up.length,first:up[0],when:when(up[0].when),label:days.length>1?`${days[0]} – ${days[days.length-1]}`:days[0]}}
+/* Teams view before game day: each game with spread, total, moneylines and injury counts. */
+function teamsHTML(lg){const up=upcoming(lg);if(!up.length)return '';
+ return `<div class="list">${up.map(g=>{const I=g.injuries||{away:[],home:[]},ml=s=>g.ml&&g.ml[s]!=null?fo(g.ml[s]):'—';
+  return `<div class="card lv-row"><div class="row between"><span class="nflw-m">${logo(g.away.logo)}<b>${esc(g.away.abbr)}</b><span class="cap">@</span>${logo(g.home.logo)}<b>${esc(g.home.abbr)}</b></span><span class="cap">${when(g.when)}</span></div>
+   <div class="row between"><span class="cap">${esc(g.away.n)} <b>${ml('away')}</b> · ${esc(g.home.n)} <b>${ml('home')}</b></span><span class="cap">${g.details?esc(g.details):''}${g.total?` · O/U ${g.total}`:''}</span></div>
+   <div class="cap">Injuries: ${esc(g.away.abbr)} ${I.away.length} · ${esc(g.home.abbr)} ${I.home.length}${g.book?` · odds ${esc(g.book)} via ESPN`:''}</div></div>`}).join('')}</div>
+  <div class="cap">Moneylines, spreads and totals update with every refresh. Team picks are stamped on game day.</div>`}
+/* Injuries view before game day: each upcoming game's injury report by team. */
+function injuriesHTML(lg){const up=upcoming(lg);if(!up.length)return '';
+ return `<p class="cap">Injury reports by team from ESPN, updated ${esc(S[lg].data.checked)}.</p><div class="list">${up.map(g=>`<div class="inj"><div class="row between"><span class="nflw-m">${logo(g.away.logo)}<b>${esc(g.away.abbr)}</b><span class="cap">@</span>${logo(g.home.logo)}<b>${esc(g.home.abbr)}</b></span><span class="cap">${when(g.when)}</span></div>${injHTML(g)}</div>`).join('')}</div>`}
+
 function sheetHTML(key){const [lg,id]=key.split('|'),D=S[lg]&&S[lg].data,p=D&&D.players.find(x=>x.id===id);if(!p)return '';const stats=[...new Set(p.props.map(x=>x.stat))];
  return `<div class="grab"></div>
  <div class="shead"><div style="min-width:0"><div class="pname">${esc(p.name)}</div><div class="team">${logo(p.logo)}${esc(p.team)} · ${esc(p.pos)} · ${when(p.when)} · ${esc(p.opp)}</div></div><button class="x" id="close" aria-label="Close">×</button></div>
@@ -138,5 +154,5 @@ function start(h){h=h||{};onChange=h.onChange;const all=()=>Object.keys(LG).forE
 const norm=s=>String(s||'').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'').replace(/\b(jr|sr|ii|iii|iv|v)\b\.?/g,'').replace(/[^a-z]/g,'');
 /* A player's ESPN game log from this week's file, by name (used by the fantasy preview board). */
 function player(lg,name){const D=S[lg]&&S[lg].data;if(!D)return null;const k=norm(name);return D.players.find(p=>norm(p.name)===k)||(D.logs||[]).find(p=>norm(p.name)===k)||null}
-window.PREV={start,load,weekHTML,moreHTML,parlaysHTML,player,ready:lg=>!!(S[lg]&&S[lg].data),_lean:lean,_checks:checks};
+window.PREV={start,load,weekHTML,moreHTML,parlaysHTML,teamsHTML,injuriesHTML,next,player,ready:lg=>!!(S[lg]&&S[lg].data),_lean:lean,_checks:checks};
 })();
