@@ -18,7 +18,8 @@ const ui={
  cfg:Object.assign({},E.ALERT_DEFAULTS,load('stamped-live-alerts',{})),
  paper:load('stamped-live-paper',[]),
  seen:new Set(load('stamped-live-seen',[])),anchor:{},log:[],
- view:{},status:null,accuracy:undefined,open:null,calc:{key:'game',line:'',price:''},data:null
+ view:{},status:null,accuracy:undefined,open:null,calc:{key:'game',line:'',price:''},data:null,
+ secs:load('stamped-live-secs',{})
 };
 let feed=null,root=null,hooks={};
 
@@ -34,7 +35,10 @@ function analyze(g){
  const sim=same?prev.sim:E.simulate(st,{n:4000});
  /* Feed age keeps moving even without new data, so freshness and the rule gate are re-checked on every paint. */
  const fr=g.fresh?Object.assign({},g.fresh,E.freshness(g.prevSummary,g.summary,now)):{stale:false,why:''};
- const rc=g.board&&g.summary&&Math.abs((g.board.fetched||0)-(g.summary.fetched||0))<10e3?E.reconcile(g.board,g.summary):{conflict:false};
+ /* The two ESPN feeds refresh at different moments, so a mismatch only counts once it survives two scoreboard updates in a row. */
+ const raw=g.board&&g.summary&&Math.abs((g.board.fetched||0)-(g.summary.fetched||0))<10e3?E.reconcile(g.board,g.summary):{conflict:false};
+ if(!raw.conflict)g.cf=0;else if(g.board.fetched!==g.cfAt){g.cf=(g.cf||0)+1;g.cfAt=g.board.fetched}
+ const rc=raw.conflict&&g.cf>=2?raw:{conflict:false,why:''};
  const mk=g.market&&g.market.available?g.market:null;
  const q={stale:!!fr.stale||!!(g.market&&g.market.stale),conflict:rc.conflict,why:[fr.why,rc.why].filter(Boolean)};
  const opps=st.status==='in'?E.opportunities(sim,mk,q,now,{minEdge:.03}):[];
@@ -86,13 +90,13 @@ function cell(v,k,s){const sim=v.sim,st=v.st;
  if(k==='ot'){const o=x=>(x.q||[]).slice(4).reduce((a,b)=>a+b,0);const val=s==='h'?o(st.home):s==='a'?o(st.away):o(st.home)+o(st.away);return `<td class="num lv-act">${val}</td>`}
  const key=s?k+':'+s:k;
  if(sim.done(k))return `<td class="num lv-act" title="Final">${sim.actual(k,s)}</td>`;
- const m=sim.summary(key);return `<td class="num" title="80% range ${m.lo}–${m.hi}">${r1(m.mean)}<small>${m.lo}–${m.hi}</small></td>`}
+ const m=sim.summary(key);return `<td class="num lv-proj" title="Likely range ${m.lo}–${m.hi}">${Math.round(m.mean)}</td>`}
 function qtable(v){const c=colsFor(v),st=v.st;
  return `<div class="chartbox"><table class="lv-q"><thead><tr><th></th>${c.map(k=>`<th class="num">${LBL[k]}</th>`).join('')}</tr></thead><tbody>
   <tr><td>${esc(st.away.abbr)}</td>${c.map(k=>cell(v,k,'a')).join('')}</tr>
   <tr><td>${esc(st.home.abbr)}</td>${c.map(k=>cell(v,k,'h')).join('')}</tr>
   <tr class="lv-tot"><td>Total</td>${c.map(k=>cell(v,k,'')).join('')}</tr></tbody></table></div>
-  <div class="cap"><span class="lv-act">Bold</span> = actual (completed). Others = projected mean with 80% range. Q4 excludes overtime; 2H and Game include it.${v.st.status!=='post'&&v.sim.otRate()>.01?` Overtime chance ${pc(v.sim.otRate())}.`:''}</div>`}
+  <div class="cap"><span class="lv-act">Bold</span> = final. Grey = the computer's guess.</div>`}
 function oppRow(o,full){return `<tr class="${o.qualifies?'':'dim'}"><td>${esc(o.side)} ${o.line!=null?(o.market==='Spread'&&o.line>0?'+':'')+o.line:''} <span class="cap">${o.market}</span></td><td class="num">${fo(o.price)}</td><td class="num">${pc(o.p)}</td><td class="num">${pc(o.novig)}</td><td class="num ${o.edge>0?'up':'dn'}">${pts(o.edge)}</td><td class="num ${o.ev>0?'up':'dn'}">${o.ev==null?'—':pc(o.ev)}</td>${full?`<td class="cap">${o.qualifies?'Qualifies (Paper)':esc([...o.rule.why,...o.gate.why].join(' '))}</td>`:''}</tr>`}
 const oppHead=full=>`<thead><tr><th>Market</th><th class="num">Price</th><th class="num">Model</th><th class="num">No-vig</th><th class="num">Edge</th><th class="num">EV</th>${full?'<th>Rules</th>':''}</tr></thead>`;
 function marketOk(o){const m=ui.filters.market,k=o.market==='Prop'?'props':o.market.toLowerCase();if(m!=='all'&&m!==k)return false;
@@ -101,18 +105,7 @@ function marketOk(o){const m=ui.filters.market,k=o.market==='Prop'?'props':o.mar
  if(o.edge==null||o.edge*100<(+ui.filters.minEdge||0))return false;
  if(ui.filters.conf==='medium'&&o.confidence==='Low')return false;if(ui.filters.conf==='high'&&o.confidence!=='High')return false;return true}
 function teamOk(v){const t=ui.filters.team;return !t||v.st.home.abbr===t||v.st.away.abbr===t}
-function freshBadge(v){const a=v.q;return a.stale||a.conflict?`<span class="pill p-stay" title="${esc(a.why.join(' '))}">${a.conflict?'Conflict':'Stale'}</span>`:v.st.status==='in'?'<span class="live">Live</span>':''}
-function gameCard(v){const st=v.st,mk=v.market;
- const show=o=>o.ev>0&&marketOk(o);
- return `<div class="card lv-card">
-  <div class="row between"><div style="min-width:0"><div class="pname">${esc(st.away.name)} at ${esc(st.home.name)}</div><div class="team">${statusLine(st)} · updated ${tm(v.at)}</div></div>${freshBadge(v)}</div>
-  <div class="lv-score"><span>${esc(st.away.abbr)} <b>${st.away.pts}</b></span><span>${esc(st.home.abbr)} <b>${st.home.pts}</b></span></div>
-  ${qtable(v)}
-  ${st.status==='in'?(mk&&mk.available&&!mk.suspended?`<div class="chartbox"><table>${oppHead(false)}<tbody>${v.opps.filter(show).map(o=>oppRow(o,false)).join('')||'<tr><td colspan="6" class="cap">No line here pays more than it should.</td></tr>'}</tbody></table></div><div class="cap">${esc(mk.book)} · odds ${tm(mk.fetched)}. Only lines with positive expected value are listed; dimmed ones still fail a rule. ${(v.propOpps||[]).length} live player milestones checked.</div>`
-   :`<div class="flag">${esc(mk&&mk.why||'Live odds not posted yet.')} Projections only; no edge without a price.</div>`):''}
-  ${v.q.why.length?`<div class="cap">${esc(v.q.why.join(' '))}</div>`:''}
-  <button class="btn" data-lv-game="${v.id}">Open live analysis</button>
- </div>`}
+function freshBadge(v){const a=v.q;return a.stale||a.conflict?`<span class="pill p-long" title="${esc(a.why.join(' '))}">${a.conflict?'Syncing':'Delayed'}</span>`:v.st.status==='in'?'<span class="live">Live</span>':''}
 /* "Good bets right now": only picks with positive expected value that pass every rule, written in plain words. */
 const KSTAT={points:'points',rebounds:'rebounds',assists:'assists',threes:'three-pointers',PRA:'points, rebounds and assists added together'};
 const outOf=p=>Math.max(1,Math.min(99,Math.round(p*100)));
@@ -129,20 +122,29 @@ function kidGuess(v,o){const sim=v.sim,st=v.st;
  if(o.market==='Prop')return `Our computer guesses he ends with about <b>${Math.round(o.proj.mean)}</b>.`;
  if(o.market==='Total')return `Our computer guesses about <b>${Math.round(sim.mean('game'))}</b> points in all.`;
  const m=sim.mean('game:m'),lead=m>=0?st.home.name:st.away.name;return Math.abs(m)<1?'Our computer guesses a very close finish.':`Our computer guesses the ${esc(lead)} win by about <b>${Math.round(Math.abs(m))}</b>.`}
-function kidCard(v,o){const back=10*E.dec(o.price),avg=10*o.ev;
+function kidLine(v,o){const st=v.st,score=`${esc(st.away.abbr)} ${st.away.pts}–${st.home.pts} ${esc(st.home.abbr)}, ${statusLine(st)}`;
+ if(o.market==='Prop')return `Has ${o.now} now · computer guesses ${Math.round(o.proj.mean)} · ${score}`;
+ if(o.market==='Total')return `Computer guesses ${Math.round(v.sim.mean('game'))} total · ${score}`;
+ return score}
+function kidCard(v,o){
  return `<button class="card lv-kid" data-lv-game="${v.id}">
-  <div class="row between"><div class="lv-ask">${kidAsk(v,o)}</div><span class="pill p-long">Practice pick</span></div>
-  <div class="why">${kidNow(v,o)}</div>
-  <div class="why">${kidGuess(v,o)}</div>
-  <div class="lv-odds2"><div><span>Our computer says</span><b>${outOf(o.p)} out of 100</b></div><div><span>The price acts like</span><b>${outOf(o.novig)} out of 100</b></div></div>
-  <div class="why">Bet ${usd(10)} at ${fo(o.price)} on ${esc(String(o.book||'').replace(/\s*\(live\)/,''))}: if it happens you get <b>${usd(back)}</b> back. If not, you lose the ${usd(10)}.</div>
-  <div class="cap">If you made lots of bets just like this, each ${usd(10)} would earn about <b>${usd(avg)}</b> on average. That is the computer's math, not a promise. This one can still lose.</div>
+  <div class="lv-ask">${kidAsk(v,o)}</div>
+  <div class="cap">${kidLine(v,o)}</div>
+  <div class="lv-odds2"><div><span>Computer</span><b>${outOf(o.p)} in 100</b></div><div><span>Price says</span><b>${outOf(o.novig)} in 100</b></div></div>
+  <div class="row between"><span class="why">${usd(10)} at ${fo(o.price)} wins <b>${usd(10*(E.dec(o.price)-1))}</b></span><span class="pill p-long">Practice</span></div>
  </button>`}
 function oppList(vs){
  const qs=vs.flatMap(v=>[...v.opps,...(v.propOpps||[])].filter(o=>o.qualifies&&o.ev>0&&marketOk(o)&&playerOk(o)).map(o=>[v,o])).sort((a,b)=>b[1].ev-a[1].ev);
- const intro=`<div class="cap">These are the only bets right now where our computer thinks the sportsbook's price is better than it should be. The computer is still learning, so these are practice picks: we keep score to find out if it is really right. Never bet money you can't afford to lose.</div>`;
- return intro+(qs.length?`<div class="list">${qs.map(([v,o])=>kidCard(v,o)).join('')}</div>`
-  :`<div class="empty"><h3>No good bets right now</h3>Right now every price is fair or worse, so the smart move is to wait. Most of the time this is what you will see.</div>`)}
+ return qs.length?`<div class="list">${qs.map(([v,o])=>kidCard(v,o)).join('')}</div><div class="cap">Only bets the computer thinks are priced too generously. It is still learning and can be wrong, so these are practice picks.</div>`
+  :`<div class="empty"><h3>No good bets right now</h3>Every price is fair or worse. Waiting is the right move.</div>`}
+/* Collapsible sections keep their open/closed state across live repaints. */
+const secOpen=(k,title)=>`<details class="lv-sec" data-lv-sec="${k}" ${ui.secs[k]?'open':''}><summary>${title}</summary><div class="lv-secbody">`;
+const sec=(k,title,inner)=>`${secOpen(k,title)}${inner}</div></details>`;
+function gameRow(v){const st=v.st,sim=v.sim,wh=sim.prob('game:m',0).over,fav=wh>=.5?st.home:st.away,fp=Math.max(wh,1-wh);
+ const top=st.status==='pre'?`${esc(st.away.abbr)} at ${esc(st.home.abbr)}`:`${esc(st.away.abbr)} ${st.away.pts} · ${esc(st.home.abbr)} ${st.home.pts}`;
+ const sub=st.status==='post'?`Final ${esc(st.away.abbr)} ${st.away.pts}, ${esc(st.home.abbr)} ${st.home.pts}`
+  :`Projected ${esc(st.away.abbr)} ${Math.round(sim.mean('game:a'))}, ${esc(st.home.abbr)} ${Math.round(sim.mean('game:h'))} · ${esc(fav.abbr)} ${outOf(fp)}% to win`;
+ return `<button class="card lv-row" data-lv-game="${v.id}"><div class="row between"><b class="lv-teams">${top}</b>${v.q.stale||v.q.conflict?freshBadge(v):`<span class="${st.status==='in'?'live':'cap'}">${statusLine(st)}</span>`}</div><div class="cap">${sub}</div></button>`}
 function playerOk(o){const t=ui.filters.player.trim().toLowerCase();return !t||(o.market==='Prop'&&o.player.toLowerCase().includes(t))}
 function playerPanel(vs){const t=ui.filters.player.trim().toLowerCase();if(!t&&ui.filters.market!=='props')return '';
  const rows=vs.flatMap(v=>players(v).filter(p=>!t||p.name.toLowerCase().includes(t)).map(p=>[v,p]));
@@ -174,9 +176,8 @@ function alertsPanel(){const c=ui.cfg,ck=(k,t)=>`<label class="lv-ck"><input typ
 function shell(){const f=ui.filters,teams=[...new Set(Object.values(ui.view).flatMap(v=>[v.st.away.abbr,v.st.home.abbr]))].sort();
  const sel=(k,opts)=>`<select data-lv-f="${k}" aria-label="${k}">${opts.map(([v,t])=>`<option value="${v}" ${String(f[k])===String(v)?'selected':''}>${t}</option>`).join('')}</select>`;
  return `<div class="lv">
- <div class="slate"><h1>NBA Live Intelligence</h1><p id="lv-fresh"></p></div>
- <div class="warnbox"><b>Paper only.</b><span>Live picks are logged and graded here but not stamped. Model ${E.VERSION} has not been validated yet. It never places a bet. Confirm every price in your book.</span></div>
- <div class="lv-filters">
+ <div class="slate"><h1>NBA Live</h1><p id="lv-fresh"></p></div>
+ <details class="lv-sec" data-lv-sec="filters" ${ui.secs.filters?'open':''}><summary>Filters</summary><div class="lv-secbody lv-filters">
   ${sel('period',[['all','All periods'],['q1','Q1'],['q2','Q2'],['q3','Q3'],['q4','Q4'],['h1','1st half'],['h2','2nd half'],['game','Full game']])}
   <span id="lv-teamsel">${sel('team',[['','All teams'],...teams.map(t=>[t,t])])}</span>
   ${sel('market',[['all','All markets'],['total','Totals'],['spread','Spreads'],['moneyline','Moneylines'],['props','Player props']])}
@@ -184,7 +185,7 @@ function shell(){const f=ui.filters,teams=[...new Set(Object.values(ui.view).fla
   ${sel('conf',[['any','Any confidence'],['medium','Medium+'],['high','High']])}
   <label class="cap">Min edge <input type="number" class="lv-num" step="0.5" min="0" max="20" value="${f.minEdge}" data-lv-f="minEdge"> pts</label>
   <input type="search" placeholder="Player" value="${esc(f.player)}" data-lv-f="player" class="lv-search" aria-label="Player">
- </div>
+ </div></details>
  <div id="lv-body"></div></div>`}
 function body(){
  const vs=Object.values(feed?feed.games:{}).map(analyze).filter(Boolean).sort((a,b)=>({in:0,pre:1,post:2}[a.st.status]-{in:0,pre:1,post:2}[b.st.status])||(a.st.start<b.st.start?-1:1));
@@ -193,13 +194,11 @@ function body(){
  const ts=root.querySelector('[data-lv-f="team"]'),teams=[...new Set(vs.flatMap(v=>[v.st.away.abbr,v.st.home.abbr]))].sort();
  if(ts&&ts.options.length-1!==teams.length)ts.innerHTML=`<option value="">All teams</option>`+teams.map(t=>`<option value="${esc(t)}" ${ui.filters.team===t?'selected':''}>${esc(t)}</option>`).join('');
  let h='';
- h+=`<h2 class="sec">Good bets right now</h2>${oppList(live)}`;
+ h+=`<h2 class="sec">Good bets right now</h2>${live.length?oppList(live):`<div class="empty"><h3>No games on right now</h3>${pre.length?`Next tip: ${esc(pre[0].st.away.name)} at ${esc(pre[0].st.home.name)}, ${statusLine(pre[0].st)}. This page starts watching automatically.`:'No more games today.'}</div>`}`;
  h+=playerPanel([...live,...pre]);
- if(live.length)h+=`<h2 class="sec">Live now</h2><div class="list">${live.map(gameCard).join('')}</div>`;
- else h+=`<div class="empty"><h3>No NBA games live right now</h3>${pre.length?`Next tip: ${esc(pre[0].st.away.name)} at ${esc(pre[0].st.home.name)}, ${statusLine(pre[0].st)}. This page starts tracking automatically.`:'No more games on today\'s ESPN scoreboard.'}</div>`;
- if(pre.length)h+=`<h2 class="sec">Upcoming (pregame projection)</h2><div class="list">${pre.map(gameCard).join('')}</div>`;
- if(fin.length)h+=`<h2 class="sec">Final</h2><div class="list">${fin.map(gameCard).join('')}</div>`;
- h+=accuracyPanel()+alertsPanel();
+ const all=[...live,...pre,...fin];
+ if(all.length)h+=`<h2 class="sec">Games</h2><div class="list">${all.map(gameRow).join('')}</div><div class="cap">Tap a game for the full breakdown.</div>`;
+ h+=sec('more','Track record, accuracy and alerts',accuracyPanel()+alertsPanel());
  return h;
 }
 function paint(){const mark=$('#sheet [data-lv-sheet]');
@@ -222,26 +221,29 @@ function sheet(id,refresh){const v=ui.view[id];if(!v)return;const st=v.st,R=v.si
  ui.open=id;
  $('#sheet').innerHTML=`<div class="grab" data-lv-sheet="${id}"></div>
  <div class="shead"><div style="min-width:0"><div class="pname">${esc(st.away.name)} at ${esc(st.home.name)}</div><div class="team">${statusLine(st)} · ${esc(st.away.abbr)} ${st.away.pts}, ${esc(st.home.abbr)} ${st.home.pts}</div></div><button class="x" id="close" aria-label="Close">×</button></div>
- <div class="warnbox"><b>Paper only.</b><span>Model ${E.VERSION}. Confidence: ${cf.level}${cf.why.length?` (${esc(cf.why.join(', '))})`:''}.</span></div>
- <div class="panel"><h4>Scoring by period</h4>${qtable(v)}</div>
- <div class="panel"><h4>Live markets</h4>${st.status!=='in'?'<div class="cap">Live recommendations only run while the game is in progress.</div>':v.opps.length?`<div class="chartbox"><table>${oppHead(true)}<tbody>${v.opps.map(o=>oppRow(o,true)).join('')}</tbody></table></div><div class="cap">Edge = model chance minus the book's no-vig chance. Existing Stamped rules apply: −160 or worse is killed, +300 or longer is too long, 3-point minimum edge. Live rules: odds under 90 s old, feed not stale, no conflict, not inside the last 2:00, confidence Medium or better, and no edge above 10 points (a gap that big against a live market usually means the model is missing something).</div>${v.opps.filter(o=>o.qualifies).map(o=>`<div class="why"><b>${esc(o.side)} ${o.line!=null?o.line:''} ${o.market}:</b> ${o.why.map(esc).join(' ')}</div>`).join('')}`:`<div class="flag">${esc(v.market&&v.market.why||'No live market posted.')}</div>`}</div>
- ${(()=>{const good=[...v.opps,...(v.propOpps||[])].filter(o=>o.qualifies&&o.ev>0);return good.length?`<div class="panel"><h4>Good bets in this game</h4><div class="list">${good.map(o=>kidCard(v,o)).join('')}</div></div>`:''})()}
- <div class="panel"><h4>Live player props</h4>${st.status!=='in'?'<div class="cap">Live props only run while the game is in progress.</div>':!v.props?'<div class="cap">No live player props posted.</div>':(()=>{const pos=(v.propOpps||[]).filter(o=>o.ev>0);
+ ${(()=>{const good=[...v.opps,...(v.propOpps||[])].filter(o=>o.qualifies&&o.ev>0);return good.length?`<h2 class="sec">Good bets in this game</h2><div class="list">${good.map(o=>kidCard(v,o)).join('')}</div>`:''})()}
+ <div class="panel"><h4>Score by quarter</h4>${qtable(v)}</div>
+ ${secOpen('s-markets','Every line checked')}
+ <div class="panel"><h4>Game lines</h4>${st.status!=='in'?'<div class="cap">Live recommendations only run while the game is in progress.</div>':v.opps.length?`<div class="chartbox"><table>${oppHead(true)}<tbody>${v.opps.filter(o=>o.ev>0).map(o=>oppRow(o,true)).join('')||'<tr><td colspan="7" class="cap">No game line pays more than it should.</td></tr>'}</tbody></table></div><div class="cap">Only lines with positive expected value are listed. Edge = model chance minus the book's no-vig chance. Existing Stamped rules apply: −160 or worse is killed, +300 or longer is too long, 3-point minimum edge. Live rules: odds under 90 s old, feed not stale, no conflict, not inside the last 2:00, confidence Medium or better, and no edge above 10 points (a gap that big against a live market usually means the model is missing something).</div>${v.opps.filter(o=>o.qualifies).map(o=>`<div class="why"><b>${esc(o.side)} ${o.line!=null?o.line:''} ${o.market}:</b> ${o.why.map(esc).join(' ')}</div>`).join('')}`:`<div class="flag">${esc(v.market&&v.market.why||'No live market posted.')}</div>`}</div>
+ <div class="panel"><h4>Player props</h4>${st.status!=='in'?'<div class="cap">Live props only run while the game is in progress.</div>':!v.props?'<div class="cap">No live player props posted.</div>':(()=>{const pos=(v.propOpps||[]).filter(o=>o.ev>0);
   return `${pos.length?`<div class="chartbox"><table><thead><tr><th>Bet</th><th class="num">Price</th><th class="num">Model</th><th class="num">Implied</th><th class="num">EV</th><th>Rules</th></tr></thead><tbody>${pos.map(o=>`<tr class="${o.qualifies?'':'dim'}"><td>${esc(o.player)} ${o.target}+ ${esc(o.stat)} <span class="cap">now ${o.now}, proj ${r1(o.proj.mean)}</span></td><td class="num">${fo(o.price)}</td><td class="num">${pc(o.p)}</td><td class="num">${pc(o.novig)}</td><td class="num up">${pc(o.ev)}</td><td class="cap">${o.qualifies?'Qualifies (Paper)':esc([...o.rule.why,...o.gate.why].join(' '))}</td></tr>`).join('')}</tbody></table></div>`:'<div class="cap">No live prop pays more than the model thinks it should.</div>'}
   <div class="cap">${v.propOpps.length} DraftKings "X or more" milestones checked · ${tm(v.props.fetched)}${v.props.frozen?' · prices not moving':''}. Only bets with positive expected value are listed. Over/under prop pairs are skipped because the feed does not label which side is which. Implied includes the book's margin.</div>`})()}</div>
- <div class="panel"><h4>Check a line from your book</h4>
+ </div></details>
+ ${secOpen('s-calc','Check a line from your book')}
   <div class="row lv-calc"><select data-lv-calc="key">${CALC_KEYS.map(([k,t])=>`<option value="${k}" ${ui.calc.key===k?'selected':''}>${t}</option>`).join('')}</select>
   <input data-lv-calc="line" class="lv-num" inputmode="decimal" placeholder="Line" value="${esc(ui.calc.line)}"><input data-lv-calc="price" class="lv-num" inputmode="numeric" placeholder="Price" value="${esc(ui.calc.price)}"></div>
-  <div id="lv-calc-out">${calcOut(v)}</div></div>
- <div class="panel"><h4>Player projections</h4><div class="chartbox">${ptable(players(v).map(p=>[v,p]))}</div>${propNote}</div>
- <div class="panel"><h4>Model inputs</h4><table><tbody>
+  <div id="lv-calc-out">${calcOut(v)}</div></div></details>
+ ${secOpen('s-players','Player projections')}<div class="chartbox">${ptable(players(v).map(p=>[v,p]))}</div>${propNote}</div></details>
+ ${secOpen('s-how','How the computer got this')}
+ <div class="cap">Model ${E.VERSION} · confidence ${cf.level}${cf.why.length?` (${esc(cf.why.join(', '))})`:''} · practice picks only, never places a bet.</div>
+ <table><tbody>
   <tr><td>Pregame baseline</td><td>${esc(R.base.src||'none')} → total ${r1(R.base.T)}, ${esc(st.home.abbr)} margin ${R.base.M>=0?'+':''}${r1(R.base.M)}</td></tr>
   <tr><td>Pace (poss / 48)</td><td>${R.obsPace!=null?`observed ${r1(R.obsPace)} · `:''}pregame ${r1(R.pace0)} · used ${r1(R.pace)} (${Math.round(R.wPace*100)}% live)</td></tr>
   <tr><td>Scoring rate (pts / min)</td><td>${R.obsPpm!=null?`observed ${R.obsPpm.toFixed(2)} · `:''}pregame ${R.ppm0.toFixed(2)} · used ${R.ppm.toFixed(2)} (${Math.round(R.wRate*100)}% live)</td></tr>
   <tr><td>Points / possession</td><td>${esc(st.away.abbr)} ${R.obsPppA!=null?`${R.obsPppA.toFixed(3)} live → `:''}${R.pppA.toFixed(3)} · ${esc(st.home.abbr)} ${R.obsPppH!=null?`${R.obsPppH.toFixed(3)} live → `:''}${R.pppH.toFixed(3)}</td></tr>
   <tr><td>Simulation</td><td>${v.sim.n.toLocaleString()} seeded runs, possession by possession; Q4 bench units in blowouts (18+), intentional fouling in the last minute</td></tr>
-  ${R.flags.length?`<tr><td>Flags</td><td>${esc(R.flags.join(' '))}</td></tr>`:''}</tbody></table></div>
- <div class="panel"><h4>Sources</h4><div class="srcs">${v.sources.map(s=>`<div>${esc(s[0])} · ${s[2]?tm(s[2]):'—'} · <a href="${esc(s[1])}" target="_blank" rel="noopener">${esc(s[1])}</a></div>`).join('')}${v.q.why.length?`<div class="wn">${esc(v.q.why.join(' '))}</div>`:''}</div></div>`;
+  ${R.flags.length?`<tr><td>Flags</td><td>${esc(R.flags.join(' '))}</td></tr>`:''}</tbody></table>
+ <h4>Sources</h4><div class="srcs">${v.sources.map(s=>`<div>${esc(s[0])} · ${s[2]?tm(s[2]):'—'} · <a href="${esc(s[1])}" target="_blank" rel="noopener">${esc(s[1])}</a></div>`).join('')}${v.q.why.length?`<div class="wn">${esc(v.q.why.join(' '))}</div>`:''}</div></div></details>`;
  if(!refresh)hooks.showSheet();
  else if(aid){const el=$('#sheet').querySelector(`[data-lv-calc="${aid}"]`);if(el){el.focus();try{el.setSelectionRange(pos,pos)}catch(e){}}}}
 
@@ -262,6 +264,7 @@ function start(data,h){ui.data=data;hooks=h||{};if(feed)return;
  const m=$('#main');m.addEventListener('change',onMainInput);m.addEventListener('input',e=>{if(e.target.matches('input[type=search],input[type=number]'))onMainInput(e)});m.addEventListener('click',onMainClick);
  $('#sheet').addEventListener('input',onSheetInput);$('#sheet').addEventListener('change',onSheetInput);
  document.addEventListener('visibilitychange',()=>{if(!document.hidden)paint()});
+ document.addEventListener('toggle',e=>{const k=e.target&&e.target.dataset&&e.target.dataset.lvSec;if(!k||!!ui.secs[k]===e.target.open)return;ui.secs[k]=e.target.open;store('stamped-live-secs',ui.secs)},true);
 }
 function mount(el){root=el;el.innerHTML=shell();paint()}
 window.LiveUI={start,mount,_ui:ui};
