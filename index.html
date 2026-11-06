@@ -201,7 +201,7 @@ button.lucell{cursor:pointer}button.lucell:hover{outline:1px solid var(--line)}
 .srcs{font-size:12px;color:var(--muted);word-break:break-all;display:grid;gap:3px}
 .srcs a{color:var(--muted)}
 </style>
-<link rel="stylesheet" href="live/live.css?v=20261106a">
+<link rel="stylesheet" href="live/live.css?v=20261106b">
 </head>
 <body>
 
@@ -229,7 +229,8 @@ button.lucell{cursor:pointer}button.lucell:hover{outline:1px solid var(--line)}
 <!-- Bump ?v= on every live release so browsers and the home-screen app pick up new files right away. -->
 <script src="live/engine.js?v=20261106a"></script>
 <script src="live/espn.js?v=20261106a"></script>
-<script src="live/ui.js?v=20261106a"></script>
+<script src="live/ui.js?v=20261106b"></script>
+<script src="live/dff.js?v=20261106b"></script>
 <script>
 fetch('./data.json?v='+Date.now()).then(r=>r.json()).then(DATA=>{
 
@@ -636,6 +637,7 @@ function fanCard(p){const F=p.fan,e=F.ev,st=e?e.status:'noline';
   <div class="stats"><div class="stat"><span>Last 5 avg</span><b>${F.l5.toFixed(1)}</b></div><div class="stat"><span>Last ${F.n10} avg</span><b>${F.l10.toFixed(1)}</b></div><div class="stat"><span>Projected</span><b>${F.proj.toFixed(1)}</b></div></div>
   ${e?`<div class="row"><span class="prop">Over ${F.prop.line} fantasy pts</span><span class="odds">${fo(F.prop.odds)}</span></div><div class="${st==='pick'||st==='longshot'?'why':'reason'}">${st==='pick'||st==='longshot'?`Beat ${F.prop.line} in <strong>${e.k} of his last ${e.n}</strong>`:e.reasons[0]||''}</div><div class="cap">${F.prop.book}</div>`:`<div class="cap">No fantasy line posted, so no stamp. Projection only.</div>`}
   <div class="row" style="flex-wrap:wrap">${fanDvp(p)}</div>
+  ${window.DFF?DFF.fanLine(p,F,FSYSSEL):''}
   ${p.status==='blocked'?`<div class="reason">${p.note||'Blocked by a standing rule.'}</div>`:p.status==='questionable'?`<div class="flag">Questionable. No stamp until he is cleared to play.</div>`:''}
   ${e&&e.stars&&(st==='pick'||st==='longshot')?`<div class="row"><span class="sv">Secure Value <b>${e.stars}</b></span>${meter(e.stars)}</div>`:''}
  </button>`}
@@ -644,7 +646,7 @@ function fantasyHTML(l){
  let html=`<div class="slate"><h1>${l.name} fantasy</h1><p>${withF.length} players · ${withF.filter(p=>p.fan.ev&&p.fan.ev.status==='pick').length} stamped</p></div>
  <div class="row between"><span class="cap">Scoring</span><div class="toggle"><button data-fsys="dk" aria-pressed="${FSYSSEL==='dk'}">DraftKings</button><button data-fsys="ud" aria-pressed="${FSYSSEL==='ud'}">Underdog</button></div></div>`;
  if(!sys[l.id])return html+`<div class="empty"><h3>Fantasy scoring for ${l.name} comes next</h3>NBA and NFL use DraftKings and Underdog scoring now. ${l.name} scoring is next on the list.</div>`+upcomingHTML(l);
- if(!ps.length)return html+noSlate(l)+upcomingHTML(l);
+ if(!ps.length)return html+noSlate(l)+(l.id==='nfl'&&window.DFF?DFF.previewHTML():'')+upcomingHTML(l);
  html+=`<div class="cap">Today's games only. Projection is his recent average, adjusted for expected minutes. Stamps appear when a fantasy line is posted.${withF.some(p=>p.fan.noTO)?' Turnovers not included yet.':''}</div>`;
  if(withF.length)html+=`<div class="list">${withF.map(fanCard).join('')}</div>`;
  if(without.length)html+=`<div class="empty"><h3>${without.length} player${without.length>1?'s':''} waiting on a full stat line</h3>${without.map(p=>p.name).join(', ')}. Fantasy points need every scoring stat (for NFL: passing, rushing and receiving yards, touchdowns, catches, interceptions). The next data run collects them.</div>`;
@@ -859,6 +861,7 @@ $('#checked').textContent=DATA.checked;
 render();
 setInterval(()=>{if(state.mode!=='live')renderMain()},60000);
 if(window.LiveUI)LiveUI.start(DATA,{showSheet});
+if(window.DFF)DFF.load().then(()=>{if(state.mode==='fantasy')renderMain()});
 
 }).catch(e=>{document.getElementById('main').innerHTML='<div class="empty"><h3>Could not load today\'s data</h3>Check your connection and pull to refresh.</div>'});
 </script>
