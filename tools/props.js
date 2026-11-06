@@ -49,7 +49,7 @@ function git(a){return cp.execFileSync('git',a,{cwd:ROOT,encoding:'utf8',stdio:[
  /* --date YYYY-MM-DD --test rebuilds a past day (finished games included, nothing pushed) to check the pipeline. */
  const TEST=process.argv.includes('--test'),dates=arg('date')?[arg('date')]:[...new Set(dff.map(r=>r.game_date))].filter(d=>d&&d>=today).sort();if(!dates.length)dates.push(today);
  const byName={};dff.forEach(r=>{if(r.position!=='DST'){const k=norm(r.first_name+' '+r.last_name);(byName[k]=byName[k]||[]).push(r)}});
- const games=[],players=[],injuries={};
+ const games=[],players=[],injuries={};let boardItems=0;
  for(const d of dates){const sb=await get(`${SITE}/scoreboard?dates=${d.replace(/-/g,'')}`);
   for(const ev of (sb&&sb.events)||[]){const c=ev.competitions[0],T=x=>{const t=c.competitors.find(k=>k.homeAway===x).team;return{id:t.id,abbr:t.abbreviation,n:t.name||t.shortDisplayName,city:t.location,logo:t.logo}};
    const o=(c.odds||[])[0]||{};games.push({id:ev.id,when:et(ev.date),status:c.status&&c.status.type&&c.status.type.state,away:T('away'),home:T('home'),details:o.details||null,total:o.overUnder!=null?o.overUnder:null,book:o.provider&&o.provider.name||null})}}
@@ -58,6 +58,7 @@ function git(a){return cp.execFileSync('git',a,{cwd:ROOT,encoding:'utf8',stdio:[
   const sum=await get(`${SITE}/summary?event=${g.id}`);await sleep(150);
   ((sum&&sum.injuries)||[]).forEach(t=>(t.injuries||[]).forEach(i=>{const id=i.athlete&&i.athlete.id;if(id)injuries[id]={status:(i.status||'').toLowerCase(),detail:[i.type&&i.type.description,i.details&&i.details.type].filter(Boolean).join(', ')}}));
   const items=[];for(let pg=1;pg<=4;pg++){const p=await get(`${CORE}/events/${g.id}/competitions/${g.id}/odds/100/propBets?lang=en&region=us&limit=1000&page=${pg}`);await sleep(150);if(!p)break;items.push(...(p.items||[]));if(pg>=(p.pageCount||1))break}
+  boardItems+=items.length;
   /* The prop's athlete link is season-specific, and only that record carries the player's current team. */
   const lines={},refs={},miles={};
   items.forEach(x=>{const ref=String((x.athlete&&x.athlete.$ref)||''),id=(ref.match(/athletes\/(\d+)/)||[])[1];if(!id)return;const tn=x.type&&x.type.name,T=x.current&&x.current.target&&x.current.target.value;
@@ -82,7 +83,11 @@ function git(a){return cp.execFileSync('git',a,{cwd:ROOT,encoding:'utf8',stdio:[
  }
  const out={sport:SPORT,generated:new Date().toISOString(),checked:new Date().toLocaleString('en-US',{timeZone:'America/New_York',month:'short',day:'numeric',hour:'numeric',minute:'2-digit'})+' ET',
   slate:dff[0]&&dff[0].slate||'',dates,games,players};
- if(players.length<CFG.min&&games.some(g=>g.status!=='post')){log(`Only ${players.length} players with lines. Keeping the previous file.`);process.exit(1)}
+ /* No props on any board yet (DraftKings posts NBA props in the morning): publish the games so they still show.
+    Props on the board but none read: something broke, so keep the previous file. */
+ if(!games.length){log('No games found. Keeping the previous file.');process.exit(1)}
+ if(boardItems>0&&players.length<CFG.min){log(`Only ${players.length} players read from ${boardItems} props. Keeping the previous file.`);process.exit(1)}
+ if(!boardItems)log('No player props posted yet for these games; publishing the games so they show as "No lines yet".');
  if(TEST){const f=path.join(require('node:os').tmpdir(),`props-${SPORT}-test.json`);fs.writeFileSync(f,JSON.stringify(out));log(`Test build: ${games.length} games, ${players.length} players -> ${f}`);return}
  fs.mkdirSync(path.join(ROOT,'data'),{recursive:true});fs.writeFileSync(path.join(ROOT,CFG.out),JSON.stringify(out));
  log(`Wrote ${CFG.out}: ${games.length} games, ${players.length} players, ${players.reduce((a,p)=>a+p.props.length,0)} lines (old file replaced).`);
