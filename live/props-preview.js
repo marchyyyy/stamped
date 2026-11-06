@@ -61,7 +61,8 @@ function lean(p,pr){const C=LG[p.lg];
  /* The side's price (DraftKings or Kalshi). No price cap: the -160 rule was removed (owner, 2026-11-06). */
  r.price=priceFor(p,pr,side);
  const k=side==='Over'?over:under,against=(grade&&((side==='Over'&&grade==='hostile')||(side==='Under'&&grade==='favorable'))?1:0)+(dffSide&&dffSide!==side?1:0);
- /* Like Stamped's leans: disagreement drops Strong to Moderate and Moderate to no lean. Longshots (+150 or longer) cap at Moderate. */
+ /* Internal levels (not shown on cards since the owner dropped the Strong/Moderate label, 2026-11-06): disagreement drops a
+    4-of-5 lean to a 3-of-5 level and a 3-of-5 lean to no lean; longshots (+150 or longer) cap at the lower level. */
  let lvl=(k>=4?2:1)-against;const long=!!(r.price&&r.price.odds>=150);if(long)lvl=Math.min(lvl,1);
  r.str=lvl>=2?'Strong':lvl===1?'Moderate':'';if(!r.str){r.side=null;r.why=`${side} ${L} in ${k} of ${n}, but the matchup${dffSide&&dffSide!==side?' and DFF':''} point the other way. No lean.`;return r}
  r.k=k;r.long=long;r.why=`${side} ${L} in ${k} of his last ${n} (${v.join(', ')}), averaging ${avg.toFixed(1)}.${long?' Longshot price: small stakes only.':''}`;
@@ -98,7 +99,7 @@ function card(r){const p=r.p,pill=r.review?'<span class="pill p-long">Under revi
  const pz=r.price||priceFor(p,r.pr,r.side||'Over'),price=pz?`<span class="odds">${fo(pz.odds)}</span>`:'',pct=fair(p,r.pr,r.side||'Over');
  return `<button class="card" data-prev-p="${esc(p.lg+'|'+p.id)}">
   <div class="row between"><div style="min-width:0"><div class="pname">${esc(p.name)}</div><div class="team">${logo(p.logo)}${esc(p.team)} · ${esc(p.pos)}</div><div class="team">${when(p.when)} · ${esc(p.opp)}</div></div>${pill}</div>
-  <div class="row"><span class="prop">${r.side||'Over'} ${r.pr.line} ${esc(r.pr.stat)}</span>${price}${r.str?`<span class="odds">${r.str}</span>`:''}${spark(r)}</div>
+  <div class="row"><span class="prop">${r.side||'Over'} ${r.pr.line} ${esc(r.pr.stat)}</span>${price}${spark(r)}</div>
   ${pct!=null?`<div class="cap"><b>Stamped ${pct}%</b> chance of ${r.side||'Over'} ${r.pr.line} · Vegas says ${fo(pz?pz.odds:r.pr.odds)}</div>`:''}
   <div class="${r.side?'why':'reason'}">${esc(r.review||r.why)}</div>
   ${mline(r)}${dffLine(r)}
@@ -115,11 +116,11 @@ function injHTML(g){const I=g.injuries;if(!I)return '';
  return ['away','home'].map(s=>{const L=I[s]||[],t=g[s];
   return sub(`${g.id}|inj|${s}`,`${logo(t.logo)}${esc(t.n)} injuries (${L.length})`,L.length?L.map(x=>`<div class="lv-dffrow"><div class="row between"><span><b>${esc(x.name)}</b> <span class="cap">${esc(x.pos||'')}</span></span><span class="${/out|reserve/i.test(x.status)?'dn':'wn'}">${esc(x.status)}</span></div>${x.why||x.ret?`<div class="cap">${esc(x.why||'Reason not given')}${x.ret?` · expected back ${esc(x.ret.slice(5).replace('-','/'))}`:''}</div>`:''}</div>`).join(''):'<div class="cap">No injuries reported.</div>')}).join('')}
 const mlTxt=g=>g.ml&&(g.ml.away!=null||g.ml.home!=null)?` · ML ${esc(g.away.abbr)} ${g.ml.away!=null?fo(g.ml.away):'—'} / ${esc(g.home.abbr)} ${g.ml.home!=null?fo(g.ml.home):'—'}`:'';
-function gameSec(g,players){const {good,rest}=checks(players),strong=good.filter(r=>r.str==='Strong').length,isOpen=open.has(g.id);
+function gameSec(g,players){const {good,rest}=checks(players),isOpen=open.has(g.id);
  return `<details class="lv-sec nflw-sec" data-prev-sec="${esc(g.id)}" ${isOpen?'open':''}><summary>
   <span class="nflw-h"><span class="nflw-m">${logo(g.away.logo)}<b>${esc(g.away.abbr)}</b><span class="cap">@</span>${logo(g.home.logo)}<b>${esc(g.home.abbr)}</b></span>
   <span class="cap">${when(g.when)}${g.details?` · ${esc(g.details)}`:''}${g.total?` · O/U ${g.total}`:''}</span>${mlTxt(g)?`<span class="cap">${mlTxt(g).slice(3)}</span>`:''}</span>
-  <span class="pill ${good.length?'p-pick':'p-stay'}">${good.length?`${good.length} lean${good.length>1?'s':''}${strong?` · ${strong} strong`:''}`:players.length?'No leans':'No lines yet'}</span></summary>
+  <span class="pill ${good.length?'p-pick':'p-stay'}">${good.length?`${good.length} lean${good.length>1?'s':''}`:players.length?'No leans':'No lines yet'}</span></summary>
   <div class="lv-secbody">${isOpen?`${injHTML(g)}${good.length?`<div class="list">${good.map(card).join('')}</div>`:`<div class="cap">${players.length?"None of this game's lines has enough support yet.":'DraftKings has not posted player props for this game yet.'}</div>`}
    ${rest.length?sub(`${g.id}|rest`,`No lean or under review (${rest.length})`,`<div class="list">${rest.map(card).join('')}</div>`):''}`:''}</div></details>`}
 /* exclude: names already covered by Stamped's daily data (their own cards keep the full rules). */

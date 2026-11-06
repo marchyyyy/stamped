@@ -231,7 +231,7 @@ button.lucell{cursor:pointer}button.lucell:hover{outline:1px solid var(--line)}
 <script src="live/espn.js?v=20261106a"></script>
 <script src="live/ui.js?v=20261106l"></script>
 <script src="live/dff.js?v=20261106i"></script>
-<script src="live/props-preview.js?v=20261106o"></script>
+<script src="live/props-preview.js?v=20261106p"></script>
 <script>
 fetch('./data.json?v='+Date.now()).then(r=>r.json()).then(DATA=>{
 
@@ -433,7 +433,7 @@ const SIDE={Over:'p-pick',Under:'p-pick','Alt Over':'p-pick','Alt Under':'p-pick
 function leanCard(p){const pr=p.best,L=lean(p,pr);if(!L)return '';
  return `<button class="card" data-id="${p.id}">
   <div class="row between"><div style="min-width:0"><div class="pname">${p.name}</div><div class="team">${teamLine(p)}</div><div class="team">${gameLine(p)}</div></div><span class="pill ${SIDE[L.side]}">${['No lean','Under review'].includes(L.side)?L.side:`Lean ${L.side}`}</span></div>
-  <div class="row"><span class="prop">${L.label}</span>${L.str?`<span class="odds">${L.str}</span>`:''}</div>
+  <div class="row"><span class="prop">${L.label}</span></div>
   <div class="why">${L.why}</div>${dvpLine(pr.ev,L.dside,L.dg)}${(L.ctx||[]).length?`<div class="cap">${L.ctx.join(' ')}</div>`:''}${L.price?`<div class="cap">${L.price}</div>`:''}${(L.considered||[]).length?`<div class="cap">Also weighed: ${L.considered.join(' · ')}</div>`:''}
   ${p.props.length>1?`<div class="cap">Also posted: ${p.props.slice(1).map(x=>`${x.ev.label} (${fo(x.odds)}) ${x.ev.k}/${x.ev.n}`).join(' · ')}</div>`:''}
   ${minLine(p)}${trust(p)}${p.pending?`<div class="flag">${p.pending}</div>`:''}
@@ -731,9 +731,9 @@ function rulesHTML(lg){
   <li>Every prop is played out as scenarios: over and under at the posted line and at alt lines one and two steps each way, weighed on the last 5, the cushion, DvP, teammates out, back-to-backs and this season's head-to-head. The best-supported line wins.</li>
   <li>A favorable matchup moves us to a higher-paying alt only if he still cleared it in 4 of his last 5. A hostile matchup moves us to a safer alt only if he cleared it in all 5.</li>
   <li>DvP is judged for the side we recommend. A stingy defense (ranked 1st–10th fewest allowed) helps an Under and hurts an Over; a generous one (bottom 10) does the opposite.</li>
-  <li>When the matchup agrees with the form, the card says so. When it disagrees, Strong drops to Moderate and Moderate becomes No lean. The matchup never raises a lean above what the last 5 games show.</li>
+  <li>When the matchup agrees with the form, the card says so. When it disagrees, the lean needs 4 of 5 at the posted line, or a safer alt he cleared in all 5; otherwise No lean. The matchup never raises a lean above what the last 5 games show.</li>
   <li>Split samples get no lean. Out players go to Stay away.</li>
-  <li>Strong = 4 or 5 of 5. Moderate = 3 of 5.</li></ul></div>
+  <li>Each lean shows how many of his last 5 it hit. There is no Strong or Moderate label: tested on 12,339 past NBA props, 4-of-5 leans hit no more often than 3-of-5 (about 53% each).</li></ul></div>
   <div class="rules"><h3>Team picks</h3><ul>
   <li>Current roster and current-season ratings come first. Last season is blended in early and fades to 0.</li>
   <li>A missing starter is priced from his team's on/off net rating this season (NBA.com), not a guess, whenever that split is available.</li>
