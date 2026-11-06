@@ -231,7 +231,7 @@ button.lucell{cursor:pointer}button.lucell:hover{outline:1px solid var(--line)}
 <script src="live/espn.js?v=20261106a"></script>
 <script src="live/ui.js?v=20261106b"></script>
 <script src="live/dff.js?v=20261106i"></script>
-<script src="live/props-preview.js?v=20261106j"></script>
+<script src="live/props-preview.js?v=20261106k"></script>
 <script>
 fetch('./data.json?v='+Date.now()).then(r=>r.json()).then(DATA=>{
 
@@ -522,6 +522,7 @@ function gameCard(g){const r=decide(g),[lab,cls]=STATUS[r.status];
   ${probBar(g,r)}
   ${r.status==='pass'?`<div class="reason">${r.why}</div>`:`<div class="row"><span class="prop">${r.label}</span></div><div class="row"><span class="sv">Secure Value <b>${r.sv}</b></span>${meter(r.sv)}</div>`}
   <div class="cap">${g.ml.home!=null?`${g.ml.book}: ${g.away.n} ${fo(g.ml.away)}${g.ml.draw!=null?` · Draw ${fo(g.ml.draw)}`:''} · ${g.home.n} ${fo(g.ml.home)}`:'No price posted yet'} · as of ${DATA.checked}</div>
+  ${window.PREV?PREV.teamEKG(g.lg,g,r):''}
  </button>`}
 
 /* ---------- screens ---------- */
@@ -901,7 +902,7 @@ render();
 setInterval(()=>{if(state.mode!=='live')renderMain()},60000);
 if(window.LiveUI)LiveUI.start(DATA,{showSheet});
 if(window.DFF){DFF.load().then(()=>{if(state.mode==='fantasy')renderMain()});setInterval(()=>DFF.load().then(()=>{if(state.mode==='fantasy'&&$('#scrim').hidden)renderMain()}),5*60e3)}
-if(window.PREV)PREV.start({showSheet,onChange:()=>{if(['nfl','nba'].includes(state.lg)&&state.mode!=='live'&&$('#scrim').hidden)renderMain()}});
+if(window.PREV)PREV.start({showSheet,onChange:()=>{if(['nfl','nba','soccer'].includes(state.lg)&&state.mode!=='live'&&$('#scrim').hidden)renderMain()}});
 /* New data from the daily pipeline: reload so every rule reruns on it, but never while a sheet is open or someone is typing. */
 setInterval(()=>fetch('./data.json?v='+Date.now()).then(r=>r.json()).then(d=>{if(d.checked===DATA.checked&&d.lineups_checked===DATA.lineups_checked&&d.dvp_checked===DATA.dvp_checked)return;
  const go=()=>{if($('#scrim').hidden&&!/INPUT|SELECT|TEXTAREA/.test((document.activeElement||{}).tagName||''))location.reload()};go();setInterval(go,15e3)}).catch(()=>{}),5*60e3);

@@ -18,6 +18,18 @@ const fo=o=>o>0?'+'+o:String(o);
 const logo=u=>u?`<img class="tlogo" src="${esc(u)}" alt="" width="20" height="20" loading="lazy">`:'';
 const ord=n=>{const s=['th','st','nd','rd'],v=n%100;return n+(s[(v-20)%10]||s[v]||s[0])};
 
+/* Kalshi prices (data/kalshi_<sport>.json). A contract pays $1; buying at the ask plus Kalshi's taker fee
+   (about 7% x p x (1-p)) gives the cost, converted to American odds. Quotes wider than 5 cents are ignored as too thin. */
+const K={};
+const kAm=ask=>{const p=Math.min(.99,ask+.07*ask*(1-ask));return p>=.5?Math.round(-100*p/(1-p)):Math.round(100*(1-p)/p)};
+function kQuote(lg,name,stat,T,side){const P=K[lg]&&K[lg].props[`${norm(name)}|${stat}`],q=P&&P[T];if(!q)return null;
+ const ask=side==='Under'?q.na:q.ya,bid=side==='Under'?q.nb:q.yb;if(ask==null||bid==null||ask-bid>.05||ask<.03||ask>.97)return null;
+ return{odds:kAm(ask),cents:Math.round(ask*100),src:'Kalshi'}}
+/* Price for a side of a line: DraftKings via ESPN when posted (Overs), otherwise Kalshi (Over = Yes, Under = No on "line+" ). */
+function priceFor(p,pr,side,L){L=L==null?pr.line:L;const T=Math.floor(L)+1;
+ if(side==='Over'&&L===pr.line&&pr.odds!=null)return{odds:pr.odds,src:'DraftKings',book:pr.book};
+ if(side==='Over'){const a=(pr.alts||[]).find(x=>x.t===T&&x.odds!=null);if(a)return{odds:a.odds,src:'DraftKings',book:`DraftKings (${T}+ via ESPN)`}}
+ const k=kQuote(p.lg,p.name,pr.stat,T,side);return k?Object.assign(k,{book:`Kalshi ${side==='Under'?'No':'Yes'} on ${T}+ at ${k.cents}¢ incl. fee`}):null}
 function lean(p,pr){const C=LG[p.lg];
  if(p.status==='out'||p.status==='doubtful')return null;
  const smp=(p.games||[]).filter(g=>g.s&&g.s[pr.stat]!=null).slice(0,5),n=smp.length;if(n<3)return null;
@@ -31,11 +43,12 @@ function lean(p,pr){const C=LG[p.lg];
  /* Stamped's rule: nothing is recommended until the matchup is checked. DFF supplies it, so games off the DFF slate wait. */
  if(rank==null){r.review='Matchup not checked yet: this game is not on the DailyFantasyFuel slate.';return r}
  if(!side){r.why=`Split: ${over} over and ${under} under ${L} in his last ${n} (${v.join(', ')}), averaging ${avg.toFixed(1)}. Nothing to suggest.`;return r}
- /* Stamped's price rule on the posted Over price: worse than -160 is killed. */
- if(side==='Over'&&pr.odds!=null&&pr.odds<-160){r.side=null;r.why=`Over ${L} hit in ${over} of ${n}, but it is priced at ${fo(pr.odds)}, past −160. No pick.`;return r}
+ /* Stamped's price rule on the side's price (DraftKings or Kalshi): worse than -160 is killed. */
+ r.price=priceFor(p,pr,side);
+ if(r.price&&r.price.odds<-160){r.side=null;r.why=`${side} ${L} hit in ${side==='Over'?over:under} of ${n}, but it is priced at ${fo(r.price.odds)} (${r.price.src}), past −160. No pick.`;return r}
  const k=side==='Over'?over:under,against=(grade&&((side==='Over'&&grade==='hostile')||(side==='Under'&&grade==='favorable'))?1:0)+(dffSide&&dffSide!==side?1:0);
  /* Like Stamped's leans: disagreement drops Strong to Moderate and Moderate to no lean. Longshots (+150 or longer) cap at Moderate. */
- let lvl=(k>=4?2:1)-against;const long=side==='Over'&&pr.odds!=null&&pr.odds>=150;if(long)lvl=Math.min(lvl,1);
+ let lvl=(k>=4?2:1)-against;const long=!!(r.price&&r.price.odds>=150);if(long)lvl=Math.min(lvl,1);
  r.str=lvl>=2?'Strong':lvl===1?'Moderate':'';if(!r.str){r.side=null;r.why=`${side} ${L} in ${k} of ${n}, but the matchup${dffSide&&dffSide!==side?' and DFF':''} point the other way. No lean.`;return r}
  r.k=k;r.long=long;r.why=`${side} ${L} in ${k} of his last ${n} (${v.join(', ')}), averaging ${avg.toFixed(1)}.${long?' Longshot price: small stakes only.':''}`;
  const agree=(dffSide===side?1:0)+((side==='Over'&&grade==='favorable')||(side==='Under'&&grade==='hostile')?1:0);
@@ -46,13 +59,16 @@ function lean(p,pr){const C=LG[p.lg];
    Safer: an easier line he cleared every time. A priced rung must be -160 or better and under +300 (Stamped rules). */
 function alt(r){if(!r||!r.side||r.review)return null;const p=r.pr,v=r.v,n=r.n,st=LG[r.p.lg].STEP[p.stat]||1,need=Math.ceil(.8*n),ok=o=>o==null||(o>=-160&&o<300);
  const helps=r.side==='Over'?r.grade!=='hostile':r.grade!=='favorable';let up=null,safe=null;
- if(r.side==='Over'){const lad=(p.alts||[]).filter(a=>a.t!==Math.floor(p.line)+1&&ok(a.odds)),hit=t=>v.filter(x=>x>=t).length;
+ if(r.side==='Over'){const kl=K[r.p.lg]&&K[r.p.lg].props[`${norm(r.p.name)}|${p.stat}`]||{};
+  /* Rungs from DraftKings' ladder and Kalshi's; each priced by DraftKings when it has a price, otherwise Kalshi. */
+  const ts=[...new Set([...(p.alts||[]).map(a=>a.t),...Object.keys(kl).map(Number)])];
+  const lad=ts.filter(t=>t!==Math.floor(p.line)+1).map(t=>{const pz=priceFor(r.p,p,'Over',t-.5);return{t,odds:pz?pz.odds:null,src:pz&&pz.src}}).filter(a=>ok(a.odds)),hit=t=>v.filter(x=>x>=t).length;
   if(helps)up=lad.filter(a=>a.t>p.line+.5&&hit(a.t)>=need).sort((a,b)=>b.t-a.t)[0];
   safe=lad.filter(a=>a.t<p.line&&hit(a.t)===n).sort((a,b)=>b.t-a.t)[0];
-  const mk=(a,kind)=>a&&{kind,side:'Over',line:a.t-.5,rung:`${a.t}+`,k:hit(a.t),n,odds:a.odds};up=mk(up,'Pays more');safe=mk(safe,'Safer')}
- else{const hit=L=>v.filter(x=>x<L).length,dn=+(p.line-st).toFixed(1),upL=+(p.line+st).toFixed(1);
-  if(helps&&dn>0&&hit(dn)>=need)up={kind:'Pays more',side:'Under',line:dn,k:hit(dn),n,odds:null};
-  if(hit(upL)===n)safe={kind:'Safer',side:'Under',line:upL,k:n,n,odds:null}}
+  const mk=(a,kind)=>a&&{kind,side:'Over',line:a.t-.5,rung:`${a.t}+`,k:hit(a.t),n,odds:a.odds,src:a.src};up=mk(up,'Pays more');safe=mk(safe,'Safer')}
+ else{const hit=L=>v.filter(x=>x<L).length,dn=+(p.line-st).toFixed(1),upL=+(p.line+st).toFixed(1),pz=L=>priceFor(r.p,p,'Under',L);
+  if(helps&&dn>0&&hit(dn)>=need){const z=pz(dn);if(ok(z&&z.odds))up={kind:'Pays more',side:'Under',line:dn,k:hit(dn),n,odds:z?z.odds:null,src:z&&z.src}}
+  if(hit(upL)===n){const z=pz(upL);if(ok(z&&z.odds))safe={kind:'Safer',side:'Under',line:upL,k:n,n,odds:z?z.odds:null,src:z&&z.src}}}
  return r.str==='Strong'?(up||safe):(safe||up)}
 const leansFor=players=>{const out=[];players.forEach(p=>(p.props||[]).forEach(pr=>{const r=lean(p,pr);if(r)out.push(r)}));return out};
 function mline(r){if(r.grade==null)return '';const C=LG[r.p.lg],g=r.side==='Under'?(r.grade==='favorable'?'hostile':r.grade==='hostile'?'favorable':r.grade):r.grade;
@@ -65,15 +81,15 @@ function dffLine(r){const d=r.p.dff;if(!d)return '';const t=r.ratio>=1.05?'above
 function spark(r){const mx=Math.max(...r.v,r.pr.line,1),s=[...r.v].reverse(),h=[...r.hits].reverse();
  return `<span class="spark" aria-hidden="true">${s.map((x,i)=>`<i style="height:${Math.round(Math.max(.12,x/mx)*22)}px;background:var(${h[i]?'--hit':'--miss'})"></i>`).join('')}</span>`}
 function card(r){const p=r.p,pill=r.review?'<span class="pill p-long">Under review</span>':r.side?`<span class="pill p-pick">Lean ${r.side}</span>`:'<span class="pill p-stay">No lean</span>';
- const price=r.pr.odds!=null&&(r.side||'Over')==='Over'?`<span class="odds">${fo(r.pr.odds)}</span>`:'';
+ const pz=r.price||priceFor(p,r.pr,r.side||'Over'),price=pz?`<span class="odds">${fo(pz.odds)}</span>`:'';
  return `<button class="card" data-prev-p="${esc(p.lg+'|'+p.id)}">
   <div class="row between"><div style="min-width:0"><div class="pname">${esc(p.name)}</div><div class="team">${logo(p.logo)}${esc(p.team)} · ${esc(p.pos)}</div><div class="team">${when(p.when)} · ${esc(p.opp)}</div></div>${pill}</div>
   <div class="row"><span class="prop">${r.side||'Over'} ${r.pr.line} ${esc(r.pr.stat)}</span>${price}${r.str?`<span class="odds">${r.str}</span>`:''}${spark(r)}</div>
   <div class="${r.side?'why':'reason'}">${esc(r.review||r.why)}</div>
   ${mline(r)}${dffLine(r)}
-  ${(a=>a?`<div class="cap"><span class="pill p-long">Alt</span> ${a.side} ${a.line}${a.rung?` (${a.rung})`:''} ${esc(r.pr.stat)}${a.odds!=null?` at <b>${fo(a.odds)}</b>`:''} · ${a.k} of ${a.n} · ${a.kind.toLowerCase()}${a.odds==null?' · check the alt price':''}</div>`:'')(alt(r))}
+  ${(a=>a?`<div class="cap"><span class="pill p-long">Alt</span> ${a.side} ${a.line}${a.rung?` (${a.rung})`:''} ${esc(r.pr.stat)}${a.odds!=null?` at <b>${fo(a.odds)}</b> ${esc(a.src||'')}`:''} · ${a.k} of ${a.n} · ${a.kind.toLowerCase()}${a.odds==null?' · check the alt price':''}</div>`:'')(alt(r))}
   ${p.injury&&p.status!=='active'?`<div class="flag">${esc(p.status[0].toUpperCase()+p.status.slice(1))}${p.injury.detail?`: ${esc(p.injury.detail)}`:''}</div>`:''}
-  <div class="cap">${r.pr.odds!=null&&(r.side||'Over')==='Over'?`${esc(r.pr.book)}`:'DraftKings line via ESPN · price not posted'} · Preview</div>
+  <div class="cap">${pz?esc(pz.book):'DraftKings line via ESPN · price not posted'} · Preview</div>
  </button>`}
 /* Prop checks grouped by game: one collapsible section per game, leans strongest first. Open sections stay open across refreshes. */
 function checks(players){const all=leansFor(players);return{good:all.filter(r=>r.side&&!r.review).sort((a,b)=>b.score-a.score),rest:all.filter(r=>!r.side||r.review)}}
@@ -106,7 +122,7 @@ function moreHTML(lg,exclude){const h=gamesHTML(lg,exclude);return h?`<h2 class=
    every time when there is one), every leg cleared in at least 4 of 5, no priced leg worse than -160 (Stamped rule).
    Combined price only when every leg is priced. */
 const dec=o=>o>0?1+o/100:1+100/-o,am=d=>d>=2?Math.round((d-1)*100):Math.round(-100/(d-1));
-function legOf(r){const a=alt(r),use=a&&a.kind==='Safer'?a:null,k=use?use.k:r.k,odds=use?use.odds:(r.side==='Over'?r.pr.odds:null);
+function legOf(r){const a=alt(r),use=a&&a.kind==='Safer'?a:null,k=use?use.k:r.k,odds=use?use.odds:(r.price?r.price.odds:null);
  if(!k||k<Math.ceil(.8*r.n)||(odds!=null&&odds<-160))return null;
  return{r,side:use?use.side:r.side,line:use?use.line:r.pr.line,rung:use&&use.rung,k,n:r.n,odds,score:k/r.n*10+r.score}}
 function parlaysHTML(lg){const D=S[lg]&&S[lg].data;if(!D)return '';const now=Date.now(),games=D.games.filter(g=>et(g.when).getTime()>now&&g.status!=='post');
@@ -137,6 +153,21 @@ function teamsHTML(lg){const up=upcoming(lg);if(!up.length)return '';
 function injuriesHTML(lg){const up=upcoming(lg);if(!up.length)return '';
  return `<p class="cap">Injury reports by team from ESPN, updated ${esc(S[lg].data.checked)}.</p><div class="list">${up.map(g=>`<div class="inj"><div class="row between"><span class="nflw-m">${logo(g.away.logo)}<b>${esc(g.away.abbr)}</b><span class="cap">@</span>${logo(g.home.logo)}<b>${esc(g.home.abbr)}</b></span><span class="cap">${when(g.when)}</span></div>${injHTML(g)}</div>`).join('')}</div>`}
 
+/* Heartbeat line under a team pick: Kalshi's market chance for the picked side over the last ~3 days (hourly),
+   with Stamped's model chance as the dashed line. Green when the market is moving toward the pick, red when away. */
+function ekgHTML(pts,dash){const W=300,H=46,ys=[...pts.map(x=>x[1]),dash].filter(x=>x!=null),lo=Math.max(0,Math.min(...ys)-.03),hi=Math.min(1,Math.max(...ys)+.03),Y=p=>(H-5-(p-lo)/((hi-lo)||1)*(H-10)).toFixed(1);
+ let d;if(pts.length<2)d=`M0 ${Y(pts[0][1])} H${W}`;else{const dx=W/(pts.length-1);d=`M0 ${Y(pts[0][1])}`;pts.slice(1).forEach((x,i)=>{const x0=i*dx;d+=` H${(x0+dx*.7).toFixed(1)} L${(x0+dx).toFixed(1)} ${Y(x[1])}`})}
+ const ch=pts.length>1?pts[pts.length-1][1]-pts[0][1]:0,dir=ch>.005?'up':ch<-.005?'dn':'flat',hrs=pts.length>1?Math.round((pts[pts.length-1][0]-pts[0][0])/3600e3):0;
+ return{dir,ch,hrs,svg:`<div class="lv-ekg ${dir}"><div class="lv-ekg-plot"><svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" aria-hidden="true">${dash!=null?`<line x1="0" x2="${W}" y1="${Y(dash)}" y2="${Y(dash)}" class="lv-ekg-book"/>`:''}<path d="${d}" class="lv-ekg-line"/></svg><span class="lv-ekg-dot" style="top:${(Y(pts[pts.length-1][1])/H*100).toFixed(1)}%"></span></div>`}}
+function teamEKG(lg,g,r){const D=K[lg];if(!D||!r||!r.M)return '';
+ /* Follows the pick's side; before a price is posted (no pick yet) it follows the model's favorite. */
+ const sd=r.side||(r.M.pH>=r.M.pA?'home':'away');
+ const G=Object.values(D.games).find(x=>x.names[0]===g.away.n&&x.names[1]===g.home.n);if(!G||!G[sd]||G[sd].yb==null||G[sd].ya==null)return '';
+ const q=G[sd],pts=(q.hist&&q.hist.length?q.hist:[[Date.now(),(q.yb+q.ya)/2]]).slice(-72),model=sd==='home'?r.M.pH:r.M.pA,t=g[sd];
+ const e=ekgHTML(pts,model),now=Math.round(((q.yb+q.ya)/2)*100);
+ return `${e.svg}<div class="lv-ekg-cap"><span>${e.dir==='flat'?`Steady ${e.hrs?`for ${e.hrs} h`:''}`:`${e.dir==='up'?'▲':'▼'} ${Math.abs(Math.round(e.ch*100))||'<1'}% in ${e.hrs} h`}</span><span>- - - Stamped ${Math.round(model*100)}%</span></div>
+  <div class="cap">Kalshi market: ${esc(t.n)} ${now}% to win now (${q.yb!=null?Math.round(q.yb*100):'—'}–${q.ya!=null?Math.round(q.ya*100):'—'}¢, ≈ ${q.ya!=null?fo(kAm(q.ya)):'—'} incl. fee) · ${esc(D.checked)}</div></div>`}
+
 function sheetHTML(key){const [lg,id]=key.split('|'),D=S[lg]&&S[lg].data,p=D&&D.players.find(x=>x.id===id);if(!p)return '';const stats=[...new Set(p.props.map(x=>x.stat))];
  return `<div class="grab"></div>
  <div class="shead"><div style="min-width:0"><div class="pname">${esc(p.name)}</div><div class="team">${logo(p.logo)}${esc(p.team)} · ${esc(p.pos)} · ${when(p.when)} · ${esc(p.opp)}</div></div><button class="x" id="close" aria-label="Close">×</button></div>
@@ -146,7 +177,8 @@ function sheetHTML(key){const [lg,id]=key.split('|'),D=S[lg]&&S[lg].data,p=D&&D.
  <div class="panel"><h4>Sources</h4><div class="srcs">${p.sources.map(s=>`<div>${esc(s[0])}: ${esc(s[2])}</div>`).join('')}<div>Updated ${esc(D.checked)}</div></div></div>`}
 
 function load(lg){return fetch(LG[lg].file+'?v='+Date.now()).then(r=>r.ok?r.json():null).then(d=>{if(d&&d.generated!==S[lg].sig){S[lg].data=d;S[lg].sig=d.generated;if(onChange)onChange(lg)}}).catch(()=>{})}
-function start(h){h=h||{};onChange=h.onChange;const all=()=>Object.keys(LG).forEach(load);all();setInterval(all,5*60e3);
+function loadK(lg){return fetch(`data/kalshi_${lg}.json?v=`+Date.now()).then(r=>r.ok?r.json():null).then(d=>{if(d&&(!K[lg]||K[lg].generated!==d.generated)){K[lg]=d;if(onChange)onChange(lg)}}).catch(()=>{})}
+function start(h){h=h||{};onChange=h.onChange;const all=()=>{Object.keys(LG).forEach(load);['nfl','nba','soccer'].forEach(loadK)};all();setInterval(all,5*60e3);
  /* Opening a game fills in its cards (they are only built for open games, which keeps the page light). */
  document.addEventListener('toggle',e=>{const s=e.target&&e.target.dataset&&e.target.dataset.prevSec;if(!s||open.has(s)===e.target.open)return;
   if(e.target.open)open.add(s);else open.delete(s);if(e.target.open&&onChange)onChange()},true);
@@ -154,5 +186,5 @@ function start(h){h=h||{};onChange=h.onChange;const all=()=>Object.keys(LG).forE
 const norm=s=>String(s||'').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'').replace(/\b(jr|sr|ii|iii|iv|v)\b\.?/g,'').replace(/[^a-z]/g,'');
 /* A player's ESPN game log from this week's file, by name (used by the fantasy preview board). */
 function player(lg,name){const D=S[lg]&&S[lg].data;if(!D)return null;const k=norm(name);return D.players.find(p=>norm(p.name)===k)||(D.logs||[]).find(p=>norm(p.name)===k)||null}
-window.PREV={start,load,weekHTML,moreHTML,parlaysHTML,teamsHTML,injuriesHTML,next,player,ready:lg=>!!(S[lg]&&S[lg].data),_lean:lean,_checks:checks};
+window.PREV={start,load,weekHTML,moreHTML,parlaysHTML,teamsHTML,injuriesHTML,next,player,teamEKG,ready:lg=>!!(S[lg]&&S[lg].data),_lean:lean,_checks:checks};
 })();

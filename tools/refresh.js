@@ -11,7 +11,9 @@ const STATE=path.join(process.env.LOCALAPPDATA||os.tmpdir(),'Stamped','pregame.j
 const log=m=>console.log(`[${new Date().toLocaleString('en-US',{timeZone:'America/New_York'})} ET] refresh: ${m}`);
 const SPORTS={nba:'basketball/nba',nfl:'football/nfl'};
 const run=args=>{log('node '+args.join(' '));const r=cp.spawnSync(process.execPath,args,{cwd:ROOT,stdio:'inherit'});return r.status===0};
-const full=s=>{const a=run(['tools/dff.js','--sport',s]),b=run(['tools/props.js','--sport',s]);return a&&b};
+/* Kalshi runs after the props builder, which it reads to match games. Soccer has no props builder, so it rides along. */
+const kalshi=s=>run(['tools/kalshi.js','--sport',s]);
+const full=s=>{const a=run(['tools/dff.js','--sport',s]),b=run(['tools/props.js','--sport',s]),c=kalshi(s);if(s==='nfl'||s==='nba')kalshi('soccer');return a&&b&&c};
 const ymd=t=>new Date(t).toLocaleDateString('en-CA',{timeZone:'America/New_York'}).replace(/-/g,'');
 
 async function pregame(){
@@ -36,7 +38,7 @@ async function pregame(){
 
 (async()=>{
  if(arg('sport'))full(arg('sport'));
- else if(has('props'))Object.keys(SPORTS).forEach(s=>run(['tools/props.js','--sport',s]));
+ else if(has('props')){Object.keys(SPORTS).forEach(s=>{run(['tools/props.js','--sport',s]);kalshi(s)});kalshi('soccer')}
  else if(has('pregame'))await pregame();
  else log('Nothing to do. Use --sport nba|nfl, --props or --pregame.');
 })().catch(e=>{log('Failed: '+(e&&e.message||e));process.exit(1)});
