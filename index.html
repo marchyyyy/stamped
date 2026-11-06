@@ -1,4 +1,4 @@
-﻿<!doctype html>
+<!doctype html>
 <html lang="en">
 <head>
 <meta charset="utf-8">
@@ -201,7 +201,7 @@ button.lucell{cursor:pointer}button.lucell:hover{outline:1px solid var(--line)}
 .srcs{font-size:12px;color:var(--muted);word-break:break-all;display:grid;gap:3px}
 .srcs a{color:var(--muted)}
 </style>
-<link rel="stylesheet" href="live/live.css?v=20261106d">
+<link rel="stylesheet" href="live/live.css?v=20261106e">
 </head>
 <body>
 
@@ -218,7 +218,7 @@ button.lucell{cursor:pointer}button.lucell:hover{outline:1px solid var(--line)}
     </div>
     <nav class="pad tabs" id="tabs" role="tablist" aria-label="Sports"></nav>
   </header>
-  <div class="pad demo"><span class="ok">âœ“</span> Verified <span id="checked"></span> Â· prices move, so confirm in your book before betting.</div>
+  <div class="pad demo"><span class="ok">✓</span> Verified <span id="checked"></span> · prices move, so confirm in your book before betting.</div>
   <main class="pad" id="main"></main>
 </div>
 
@@ -230,8 +230,8 @@ button.lucell{cursor:pointer}button.lucell:hover{outline:1px solid var(--line)}
 <script src="live/engine.js?v=20261106a"></script>
 <script src="live/espn.js?v=20261106a"></script>
 <script src="live/ui.js?v=20261106b"></script>
-<script src="live/dff.js?v=20261106c"></script>
-<script src="live/nflweek.js?v=20261106d"></script>
+<script src="live/dff.js?v=20261106e"></script>
+<script src="live/props-preview.js?v=20261106e"></script>
 <script>
 fetch('./data.json?v='+Date.now()).then(r=>r.json()).then(DATA=>{
 
@@ -281,9 +281,9 @@ function nextDay(lg){const t=todayET();return [...new Set(allWhen(lg).map(w=>w.s
 const onSlate=p=>!!p.when&&p.when.slice(0,10)===slateDay(p.lg)&&!started(p.when);
 const gameOnSlate=g=>g.when.slice(0,10)===slateDay(g.lg)&&!started(g.when);
 const dayWord=d=>d===todayET()?(hourET()>=16?'Tonight':'Today'):fmtDay(d).split(',')[0];
-const gameLine=p=>p.when?`${dayWord(p.when.slice(0,10))} ${fmtT(p.when)} ET Â· ${p.opp}`:'';
+const gameLine=p=>p.when?`${dayWord(p.when.slice(0,10))} ${fmtT(p.when)} ET · ${p.opp}`:'';
 const posOf=p=>p.pos||(p.matchup&&p.matchup.dvp&&Object.values(p.matchup.dvp).map(d=>d&&d.pos).find(Boolean))||(()=>{const t=(DATA.lineups||[]).find(x=>x.team===p.team);const r=t&&t.players.find(x=>x.name===p.name);return r&&r.pos})()||'';
-const teamLine=p=>p.team+(posOf(p)?' Â· '+posOf(p):'')+(p.div?' Â· '+p.div:'');
+const teamLine=p=>p.team+(posOf(p)?' · '+posOf(p):'')+(p.div?' · '+p.div:'');
 const meter=n=>`<span class="meter" aria-label="${n} of 10">${Array.from({length:10},(_,i)=>`<i class="${i<n?'on':''}"></i>`).join('')}</span>`;
 const SEAL=`<svg viewBox="0 0 150 150" aria-hidden="true"><circle cx="75" cy="75" r="70" fill="var(--hdr)"/><circle cx="75" cy="75" r="60" fill="none" stroke="var(--mint)" stroke-width="5" stroke-dasharray="3 6" stroke-linecap="round"/><circle cx="75" cy="75" r="47" fill="none" stroke="var(--mint)" stroke-width="5"/><text x="75" y="99" text-anchor="middle" font-family="Big Shoulders Display, Arial Narrow, sans-serif" font-weight="900" font-size="72" fill="var(--mint)">S</text><path d="M98 48 l7 7 l14 -16" fill="none" stroke="var(--mint)" stroke-width="7" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
 const sealPill=`<span class="seal">${SEAL}Stamped</span>`;
@@ -362,8 +362,8 @@ P.forEach(p=>{
 let FSYSSEL='dk';try{FSYSSEL=localStorage.getItem('stamped-fsys')||'dk'}catch(e){}
 P.forEach(p=>setFantasy(p,FSYSSEL));
 const MINLBL={nba:['Minutes','min'],nfl:['Snap share','%'],soccer:['Minutes','min'],tennis:['Match length','min']};
-const minLine=p=>{if(!p.mn)return p.lg==='nfl'?`<div class="cap">Snap share: not found on the sources checked.</div>`:'';const [l,u]=MINLBL[p.lg];return `<div class="cap">${l}: avg ${Math.round(p.mn.avg*10)/10}${u==='%'?'%':' '+u} last ${Math.min(5,p.games.length)} Â· projected ${p.mn.proj}${u==='%'?'%':' '+u}</div>`};
-const trust=p=>VETTING?`<div class="cap"><span class="ok">âœ“</span> ${p.sources.filter(s=>!/^Props/.test(s[0])).map(s=>s[0]).join(' + ')} Â· ${DATA.checked}</div>`:'';
+const minLine=p=>{if(!p.mn)return p.lg==='nfl'?`<div class="cap">Snap share: not found on the sources checked.</div>`:'';const [l,u]=MINLBL[p.lg];return `<div class="cap">${l}: avg ${Math.round(p.mn.avg*10)/10}${u==='%'?'%':' '+u} last ${Math.min(5,p.games.length)} · projected ${p.mn.proj}${u==='%'?'%':' '+u}</div>`};
+const trust=p=>VETTING?`<div class="cap"><span class="ok">✓</span> ${p.sources.filter(s=>!/^Props/.test(s[0])).map(s=>s[0]).join(' + ')} · ${DATA.checked}</div>`:'';
 function mDesc(opp,stat,d,tot){const pos=POSN[d.pos]||(d.pos?d.pos+'s':'his position'),st=STATN[stat]||stat;tot=tot||30;return d.rank<=10?`${opp} allow the ${d.rank===1?'':ordinal(d.rank)+'-'}fewest ${st} to ${pos}`:d.rank>=tot-9?`${opp} allow the ${tot+1-d.rank===1?'':ordinal(tot+1-d.rank)+'-'}most ${st} to ${pos}`:`${opp} are about average against ${pos} (${ordinal(d.rank)} of ${tot})`}
 const dvpLine=(e,side,dg)=>{if(!e||!e.dvp)return '';let g=dg||e.grade;if(!dg&&side==='Under')g=g==='favorable'?'hostile':g==='hostile'?'favorable':g;return `<div class="mline"><span class="pill ${GC(g)}">${GL(g)}${side==='Under'?' (Under)':''}</span><span class="cap">${mDesc(e.opp||'Opponent',e.stat,e.dvp,e.tot)}.</span></div>`};
 const why=(p,e)=>`${e.stat==='finish'?`Top ${e.line} in`:e.stat==='cut'?'Made the cut in':'Hit in'} <strong>${e.k} of his last ${e.n}</strong> ${lgOf(p.lg).units} (${e.vals.join(', ')})`;
@@ -435,8 +435,8 @@ function leanCard(p){const pr=p.best,L=lean(p,pr);if(!L)return '';
  return `<button class="card" data-id="${p.id}">
   <div class="row between"><div style="min-width:0"><div class="pname">${p.name}</div><div class="team">${teamLine(p)}</div><div class="team">${gameLine(p)}</div></div><span class="pill ${SIDE[L.side]}">${['No lean','Under review'].includes(L.side)?L.side:`Lean ${L.side}`}</span></div>
   <div class="row"><span class="prop">${L.label}</span>${L.str?`<span class="odds">${L.str}</span>`:''}</div>
-  <div class="why">${L.why}</div>${dvpLine(pr.ev,L.dside,L.dg)}${(L.ctx||[]).length?`<div class="cap">${L.ctx.join(' ')}</div>`:''}${L.price?`<div class="cap">${L.price}</div>`:''}${(L.considered||[]).length?`<div class="cap">Also weighed: ${L.considered.join(' Â· ')}</div>`:''}
-  ${p.props.length>1?`<div class="cap">Also posted: ${p.props.slice(1).map(x=>`${x.ev.label} (${fo(x.odds)}) ${x.ev.k}/${x.ev.n}`).join(' Â· ')}</div>`:''}
+  <div class="why">${L.why}</div>${dvpLine(pr.ev,L.dside,L.dg)}${(L.ctx||[]).length?`<div class="cap">${L.ctx.join(' ')}</div>`:''}${L.price?`<div class="cap">${L.price}</div>`:''}${(L.considered||[]).length?`<div class="cap">Also weighed: ${L.considered.join(' · ')}</div>`:''}
+  ${p.props.length>1?`<div class="cap">Also posted: ${p.props.slice(1).map(x=>`${x.ev.label} (${fo(x.odds)}) ${x.ev.k}/${x.ev.n}`).join(' · ')}</div>`:''}
   ${minLine(p)}${trust(p)}${p.pending?`<div class="flag">${p.pending}</div>`:''}
  </button>`}
 
@@ -449,7 +449,7 @@ P.forEach(p=>{p.alts=[];if(!p.best||p.best.ev.status==='blocked')return;const b=
 });
 function altTable(p,all){const rows=all?p.alts:p.alts.filter(a=>a.ok);const b=p.best;
  return `<div class="chartbox"><table><thead><tr><th>Line</th><th class="num">Last 5</th><th class="num">SV</th><th>Price</th></tr></thead><tbody>
- ${rows.map(a=>`<tr class="${a.ok?'':'dim'}"><td>${propLabel(b.stat,a.line)}${a.main?'<span class="tag t-main">Main</span>':''}${a===p.bestAlt?'<span class="tag t-best">Best</span>':''}</td><td class="num">${a.ev.k}/${a.ev.n}</td><td class="num">${a.ok?a.ev.stars:'â€”'}</td><td class="cap">${a.main?`${fo(b.odds)} Â· ${b.book}`:'Check your book'}</td></tr>`).join('')}
+ ${rows.map(a=>`<tr class="${a.ok?'':'dim'}"><td>${propLabel(b.stat,a.line)}${a.main?'<span class="tag t-main">Main</span>':''}${a===p.bestAlt?'<span class="tag t-best">Best</span>':''}</td><td class="num">${a.ev.k}/${a.ev.n}</td><td class="num">${a.ok?a.ev.stars:'—'}</td><td class="cap">${a.main?`${fo(b.odds)} · ${b.book}`:'Check your book'}</td></tr>`).join('')}
  </tbody></table></div>`}
 
 /* ---------- team model ---------- */
@@ -459,7 +459,7 @@ function model(g){
  const c=TEAM_CFG[g.lg],n=Math.min(gp(g.home)||c.fade,gp(g.away)||c.fade),w=g.home.prior!=null&&g.away.prior!=null?+(0.3*Math.max(0,1-n/c.fade)).toFixed(3):0;
  const rate=t=>(1-w)*t.net+w*(t.prior||0);
  const parts=[[`Season rating${w?` (${Math.round(w*100)}% last season)`:''}`,rate(g.away).toFixed(2),rate(g.home).toFixed(2),rate(g.home)-rate(g.away)],
-  ['Home edge','â€”','â€”',c.home],['Availability',g.away.inj,g.home.inj,g.home.inj-g.away.inj],
+  ['Home edge','—','—',c.home],['Availability',g.away.inj,g.home.inj,g.home.inj-g.away.inj],
   ['Rest days',g.away.rest,g.home.rest,c.rest*(g.home.rest-g.away.rest)+(g.lg==='nba'?(g.home.rest===0?-1:0)-(g.away.rest===0?-1:0):0)],
   ['Wins in last 5',wins(g.away),wins(g.home),c.form*(wins(g.home)-wins(g.away))]];
  const m=parts.reduce((a,p)=>a+p[3],0);let pH,pA,pD=0;
@@ -509,7 +509,7 @@ function card(p){const b=p.best,e=b&&b.ev,[lab,cls]=STATUS[p.state];
   ${e&&(p.state==='pick'||p.state==='longshot')?`<div class="why">${why(p,e)}</div>`:e?e.reasons.map(x=>`<div class="reason">${x}</div>`).join(''):''}
   ${dvpLine(e)}
   ${(()=>{if(p.state!=='pick'||!e)return '';const L=lean(p,b);return L&&/^Alt/.test(L.side)?`<div class="flag">Best line: ${L.label} (alt). ${L.why.split('. ').slice(-1)[0]}</div>`:''})()}
-  ${e?`<div class="cap">${b.book} ${p.props.length>1?` Â· +${p.props.length-1} more line${p.props.length>2?'s':''}`:''}</div>`:''}
+  ${e?`<div class="cap">${b.book} ${p.props.length>1?` · +${p.props.length-1} more line${p.props.length>2?'s':''}`:''}</div>`:''}
   ${p.pending?`<div class="flag">${p.pending}</div>`:''}
   ${e&&e.stars&&(p.state==='pick'||p.state==='longshot')?`<div class="row"><span class="sv">Secure Value <b>${e.stars}</b></span>${meter(e.stars)}</div>`:''}
  </button>`}
@@ -518,16 +518,16 @@ function probBar(g,r){const a=Math.round(r.M.pA*100),d=Math.round(r.M.pD*100),hm
  <div class="row between cap"><span>${g.away.n}</span>${g.ml.draw!=null?'<span>Draw</span>':''}<span>${g.home.n}</span></div>`}
 function gameCard(g){const r=decide(g),[lab,cls]=STATUS[r.status];
  return `<button class="card" data-game="${g.id}">
-  <div class="row between"><div style="min-width:0"><div class="pname">${g.away.n} at ${g.home.n}</div><div class="team">${dayWord(g.when.slice(0,10))} Â· ${fmtT(g.when)} ET${g.div?' Â· '+g.div:''}</div></div>${pill(r.status)}</div>
+  <div class="row between"><div style="min-width:0"><div class="pname">${g.away.n} at ${g.home.n}</div><div class="team">${dayWord(g.when.slice(0,10))} · ${fmtT(g.when)} ET${g.div?' · '+g.div:''}</div></div>${pill(r.status)}</div>
   ${probBar(g,r)}
   ${r.status==='pass'?`<div class="reason">${r.why}</div>`:`<div class="row"><span class="prop">${r.label}</span></div><div class="row"><span class="sv">Secure Value <b>${r.sv}</b></span>${meter(r.sv)}</div>`}
-  <div class="cap">${g.ml.home!=null?`${g.ml.book}: ${g.away.n} ${fo(g.ml.away)}${g.ml.draw!=null?` Â· Draw ${fo(g.ml.draw)}`:''} Â· ${g.home.n} ${fo(g.ml.home)}`:'No price posted yet'} Â· as of ${DATA.checked}</div>
+  <div class="cap">${g.ml.home!=null?`${g.ml.book}: ${g.away.n} ${fo(g.ml.away)}${g.ml.draw!=null?` · Draw ${fo(g.ml.draw)}`:''} · ${g.home.n} ${fo(g.ml.home)}`:'No price posted yet'} · as of ${DATA.checked}</div>
  </button>`}
 
 /* ---------- screens ---------- */
-function slateTitle(l){const d=slateDay(l.id);return d?`${l.name} Â· ${fmtDay(d)}`:`${l.name} Â· No games today`}
+function slateTitle(l){const d=slateDay(l.id);return d?`${l.name} · ${fmtDay(d)}`:`${l.name} · No games today`}
 function noSlate(l){const d=slateDay(l.id);
- if(l.id==='golf'){const ev=(DATA.golf||[]);return `<div class="empty"><h3>${ev.some(x=>x.started)?'This week\'s events have started':'No golf this week'}</h3>${ev.map(x=>`<div><b>${x.tour}:</b> ${x.event} Â· ${x.course.split(',')[0]}</div>`).join('')}<div style="margin-top:6px">Golf picks post before the first tee time of round 1 (usually Wednesday night). Next week's card: top-10, top-20, make-the-cut and head-to-head matchups.</div></div>`}
+ if(l.id==='golf'){const ev=(DATA.golf||[]);return `<div class="empty"><h3>${ev.some(x=>x.started)?'This week\'s events have started':'No golf this week'}</h3>${ev.map(x=>`<div><b>${x.tour}:</b> ${x.event} · ${x.course.split(',')[0]}</div>`).join('')}<div style="margin-top:6px">Golf picks post before the first tee time of round 1 (usually Wednesday night). Next week's card: top-10, top-20, make-the-cut and head-to-head matchups.</div></div>`}
  const nd=nextDay(l.id);
  if(allWhen(l.id).some(w=>w.slice(0,10)===todayET()))return `<div class="empty"><h3>Today's ${l.name} games have started</h3>Picks are pregame only. Tomorrow's slate shows after the next data run.</div>`;
  return `<div class="empty"><h3>No ${l.name} games today</h3>Stamped only shows picks for the current day.${nd?` Next ${l.name} slate: ${fmtDay(nd)}. Those picks appear that morning.`:''}</div>`}
@@ -536,10 +536,10 @@ function upcomingHTML(l){
  const nd=nextDay(l.id);if(!nd)return '';
  const gs=GAMES.filter(g=>g.lg===l.id&&g.when.slice(0,10)===nd).sort((a,b)=>a.when<b.when?-1:1),tm=(DATA.tennis_matches||[]).filter(m=>l.id==='tennis'&&m.start&&m.start.slice(0,10)===nd);
  const ps=P.filter(p=>p.lg===l.id&&p.when&&p.when.slice(0,10)===nd);
- const rows=[...gs.map(g=>`<div class="row between"><span>${g.away.n} at ${g.home.n}${g.div?` <span class="cap">Â· ${g.div}</span>`:''}</span><span class="cap">${fmtT(g.when)} ET</span></div>`),
-  ...tm.map(m=>`<div class="row between"><span>${m.p1} vs ${m.p2}<span class="cap"> Â· ${m.event}</span></span><span class="cap">${fmtT(m.start)} ET</span></div>`)];
+ const rows=[...gs.map(g=>`<div class="row between"><span>${g.away.n} at ${g.home.n}${g.div?` <span class="cap">· ${g.div}</span>`:''}</span><span class="cap">${fmtT(g.when)} ET</span></div>`),
+  ...tm.map(m=>`<div class="row between"><span>${m.p1} vs ${m.p2}<span class="cap"> · ${m.event}</span></span><span class="cap">${fmtT(m.start)} ET</span></div>`)];
  if(!rows.length&&!ps.length)return '';
- return `<div class="inj"><div class="row between"><b>Next up Â· ${fmtDay(nd)}</b><span class="pill p-long">Preview</span></div>${rows.join('')}${!rows.length?ps.map(p=>`<div class="row between"><span>${p.name} <span class="cap">${p.team}</span></span><span class="cap">${p.opp} Â· ${fmtT(p.when)} ET</span></div>`).join(''):''}<div class="cap">Not picks. Stamped only picks the current day, so these post the morning of the games, once lines and lineups are out.</div></div>`;
+ return `<div class="inj"><div class="row between"><b>Next up · ${fmtDay(nd)}</b><span class="pill p-long">Preview</span></div>${rows.join('')}${!rows.length?ps.map(p=>`<div class="row between"><span>${p.name} <span class="cap">${p.team}</span></span><span class="cap">${p.opp} · ${fmtT(p.when)} ET</span></div>`).join(''):''}<div class="cap">Not picks. Stamped only picks the current day, so these post the morning of the games, once lines and lineups are out.</div></div>`;
 }
 function renderMain(){
  const l=lgOf(state.lg),hasLive=l.id==='nba'&&!!window.LiveUI;
@@ -553,30 +553,30 @@ function renderMain(){
  const bad=ps.filter(p=>['killed','blocked'].includes(p.state)),none=ps.filter(p=>p.state==='noline');
  const gs=GAMES.filter(g=>g.lg===l.id&&gameOnSlate(g)),rs=gs.map(g=>[g,decide(g)]),tpicks=rs.filter(([,r])=>r.status!=='pass').sort((a,b)=>b[1].sv-a[1].sv),tpass=rs.filter(([,r])=>r.status==='pass');
  if(state.mode==='today'){
-  html+=`<div class="slate"><h1>${slateTitle(l)}</h1><p>${ps.length||gs.length?`${good.filter(p=>p.state==='pick').length+tpicks.length} stamped Â· ${ps.length} players Â· ${gs.length} games`:''}</p></div>`;
+  html+=`<div class="slate"><h1>${slateTitle(l)}</h1><p>${ps.length||gs.length?`${good.filter(p=>p.state==='pick').length+tpicks.length} stamped · ${ps.length} players · ${gs.length} games`:''}</p></div>`;
   if(l.off)html+=`<div class="empty"><h3>MLB is in the offseason</h3>Picks return when the new season has games.</div>`;
-  else if(!ps.length&&!gs.length)html+=(l.id==='nfl'&&window.NFLW&&NFLW.weekHTML())||noSlate(l)+upcomingHTML(l);
+  else if(!ps.length&&!gs.length)html+=(window.PREV&&PREV.weekHTML(l.id))||noSlate(l)+upcomingHTML(l);
   else{const picks=good.filter(p=>p.state==='pick'),longs=good.filter(p=>p.state==='longshot');
    html+=picks.length?`<div class="list">${picks.map(card).join('')}</div>`:`<div class="empty"><h3>No stamped props${none.length&&!ps.filter(p=>p.best).length?' yet':''}</h3>${ps.filter(p=>p.best).length?'Nothing earned a stamp today. See Props for leans.':'No book had a line for these players when we checked.'}</div>`;
    if(tpicks.length)html+=`<h2 class="sec">Team picks</h2><div class="list">${tpicks.map(([g])=>gameCard(g)).join('')}</div>`;
    if(longs.length)html+=`<h2 class="sec">Small-stakes longshots</h2><div class="list">${longs.map(card).join('')}</div>`;
    const rev=ps.filter(p=>p.state==='review');if(rev.length)html+=`<h2 class="sec">Under review</h2><div class="cap">${rev.map(p=>p.name).join(', ')}. Check back closer to game time.</div>`;
-   if(l.id==='nfl'&&window.NFLW)html+=NFLW.moreHTML(P.filter(p=>p.lg==='nfl').map(p=>p.name))}
+   if(window.PREV)html+=PREV.moreHTML(l.id,P.filter(p=>p.lg===l.id).map(p=>p.name))}
   $('#main').innerHTML=html;return;
  }
  if(state.mode==='props'){
   html+=`<div class="slate"><h1>${l.name} leans</h1><p>${ps.filter(p=>p.best&&p.state!=='blocked').length} players with lines</p></div>`;
   const withLine=ps.filter(p=>p.best&&p.state!=='blocked');
   html+=`<div class="cap">Every player on today's slate with a posted line, with a lean and the reason. Leans are not stamped picks; nothing here is a lock.</div>`;
-  html+=withLine.length?`<div class="list">${withLine.map(leanCard).join('')}</div>`:ps.length?`<div class="empty"><h3>No lines posted yet</h3>${ps.length} players are on today's slate but no book had a line when we checked.</div>`:(l.id==='nfl'&&window.NFLW&&NFLW.weekHTML())||noSlate(l)+upcomingHTML(l);
-  if(l.id==='nfl'&&window.NFLW&&ps.length)html+=NFLW.moreHTML(P.filter(p=>p.lg==='nfl').map(p=>p.name));
+  html+=withLine.length?`<div class="list">${withLine.map(leanCard).join('')}</div>`:ps.length?`<div class="empty"><h3>No lines posted yet</h3>${ps.length} players are on today's slate but no book had a line when we checked.</div>`:(window.PREV&&PREV.weekHTML(l.id))||noSlate(l)+upcomingHTML(l);
+  if(window.PREV&&ps.length)html+=PREV.moreHTML(l.id,P.filter(p=>p.lg===l.id).map(p=>p.name));
   $('#main').innerHTML=html;return;
  }
  const views=[['teams','Teams'],['alts','Alts'],['lineups','Lineups'],['inj','Injuries'],['stay','Stay away'],...(VETTING?[['rules','Rules']]:[])];
  if(!views.some(v=>v[0]===state.view))state.view='teams';
  html+=`<div class="seg" style="grid-template-columns:repeat(3,1fr)">${views.map(([k,t])=>`<button data-view="${k}" aria-pressed="${state.view===k}">${t}${k==='stay'&&bad.length?` (${bad.length})`:''}</button>`).join('')}</div>`;
  if(state.view==='teams'){
-  html+=`<div class="slate"><h1>${l.name} games</h1><p>${gs.length} today Â· ${tpicks.length} picks</p></div>`;
+  html+=`<div class="slate"><h1>${l.name} games</h1><p>${gs.length} today · ${tpicks.length} picks</p></div>`;
   if(l.off)html+=`<div class="empty"><h3>MLB is in the offseason</h3>Team predictions return when the new season has games.</div>`;
   else if(l.id==='golf'||l.id==='tennis')html+=`<div class="empty"><h3>No teams in ${l.name}</h3>Head-to-head matchups use this same model once lines are posted.</div>`;
   else if(!gs.length)html+=noSlate(l)+upcomingHTML(l);
@@ -590,7 +590,7 @@ function renderMain(){
  }else if(state.view==='inj'){
   const tm=new Set([...ps.map(p=>p.team),...GAMES.filter(g=>g.lg===l.id&&gameOnSlate(g)).flatMap(g=>[g.home.n,g.away.n])]);
   const list=(INJ[l.id]||[]).filter(x=>tm.has(x[1]));
-  html+=list.length?`<p class="cap">Teams in this slate only. From ESPN, CBS and Rotowire (NBA, NFL) and the official Premier League injury list (soccer), checked ${DATA.checked}.</p><div class="list">${list.map(([n,t,s,d])=>`<div class="inj"><div class="row between"><b>${n} <span class="team">Â· ${t}</span></b><span class="pill ${s==='Out'?'p-stay':'p-long'}">${s}</span></div><div class="mu">${d}</div></div>`).join('')}</div>`
+  html+=list.length?`<p class="cap">Teams in this slate only. From ESPN, CBS and Rotowire (NBA, NFL) and the official Premier League injury list (soccer), checked ${DATA.checked}.</p><div class="list">${list.map(([n,t,s,d])=>`<div class="inj"><div class="row between"><b>${n} <span class="team">· ${t}</span></b><span class="pill ${s==='Out'?'p-stay':'p-long'}">${s}</span></div><div class="mu">${d}</div></div>`).join('')}</div>`
    :`<div class="empty"><h3>No injuries to show</h3>No injuries listed for teams in this slate.</div>`;
  }else html+=rulesHTML(l.id);
  $('#main').innerHTML=html;
@@ -608,17 +608,17 @@ function slotOf(x,lg){const n=(x.note||'').replace(/^projected /i,'');if(lg==='n
  const m=n.match(/^(QB\d?|RB\d?|WR\d|TE\d?|FB|LT|LG|C|RG|RT|[LR]?DE|[LR]?DT|NT|[WMS]LB|[LR]?OLB|[LR]?ILB|MLB|LB|[LR]CB|CB\d?|NB|SS|FS|S\d?|K|P)\b/);let s=m?m[1]:x.pos;if(/^QB\d|^RB\d|^TE\d/.test(s))s=s.replace(/\d$/,'');return s}
 function luPlayer(x,lg,side){const p=P.find(q=>q.name===x.name);const proj=p&&p.fan?p.fan.proj.toFixed(1):null;const st=p&&p.state==='pick';
  const chg=(DATA.lineup_changes||[]).find(c=>c.player===x.name);
- return `<${p?`button data-id="${p.id}"`:'div'} class="lucell ${side}">${chg?'<span class="tag t-up">Changed</span>':''}<span class="lunm">${x.name}</span><span class="lusub">${x.pos||''}${proj?` Â· ${proj} FP`:''}${st?' Â· <b class="lust">Stamped</b>':''}${x.role==='questionable'?' Â· <b class="luq">Q</b>':''}</span></${p?'button':'div'}>`}
+ return `<${p?`button data-id="${p.id}"`:'div'} class="lucell ${side}">${chg?'<span class="tag t-up">Changed</span>':''}<span class="lunm">${x.name}</span><span class="lusub">${x.pos||''}${proj?` · ${proj} FP`:''}${st?' · <b class="lust">Stamped</b>':''}${x.role==='questionable'?' · <b class="luq">Q</b>':''}</span></${p?'button':'div'}>`}
 function luTeamHead(t){if(!t)return '<div></div>';const c=t.lineup_status==='confirmed';return `<div class="luth"><b>${t.team}</b><span class="pill ${c?'p-pick':'p-long'}">${c?'Confirmed':t.lineup_status==='expected'?'Expected':'Not posted'}</span></div>`}
 const lastName=n=>{const w=n.replace(/\s+(Jr\.?|Sr\.?|II|III|IV|V)$/i,'').split(' ');return w[w.length-1]};
 function luOut(t){if(!t)return '<div></div>';const o=t.players.filter(x=>x.role==='out'),q=t.players.filter(x=>x.role==='questionable'&&!x._starter);
- const chips=[...o.map(x=>`<span class="pill p-stay">${lastName(x.name)} Â· Out</span>`),...q.map(x=>`<span class="pill p-long">${lastName(x.name)} Â· Q</span>`)];
+ const chips=[...o.map(x=>`<span class="pill p-stay">${lastName(x.name)} · Out</span>`),...q.map(x=>`<span class="pill p-long">${lastName(x.name)} · Q</span>`)];
  return `<div class="luout">${chips.slice(0,4).join('')}${chips.length>4?`<details><summary class="cap" style="cursor:pointer">+${chips.length-4} more</summary><div class="luout">${chips.slice(4).join('')}</div></details>`:''}</div>`}
 function luGame(l,a,h){
  const g=h||a,lg=l.id,starters=t=>t?t.players.filter(x=>x.role==='starter'||(x.role==='questionable'&&/^projected /i.test(x.note||''))):[];
  const sa=starters(a),sh=starters(h);sa.forEach(x=>x._starter=1);sh.forEach(x=>x._starter=1);
  const find=(arr,slot)=>arr.find(x=>slotOf(x,lg)===slot);
- const rows=(slots,A,H)=>slots.map(sl=>{const pa=find(A,sl),ph=find(H,sl);if(!pa&&!ph)return '';return `${pa?luPlayer(pa,lg,'a'):'<div class="lucell a empty">â€”</div>'}<div class="luslot">${sl}</div>${ph?luPlayer(ph,lg,'h'):'<div class="lucell h empty">â€”</div>'}`}).join('');
+ const rows=(slots,A,H)=>slots.map(sl=>{const pa=find(A,sl),ph=find(H,sl);if(!pa&&!ph)return '';return `${pa?luPlayer(pa,lg,'a'):'<div class="lucell a empty">—</div>'}<div class="luslot">${sl}</div>${ph?luPlayer(ph,lg,'h'):'<div class="lucell h empty">—</div>'}`}).join('');
  let body='';
  if(lg==='nba')body=`<div class="lugrid">${rows(NBASLOTS,sa,sh)}</div>`;
  else{const rest=t=>t?t.players.filter(x=>x._starter&&!NFLOFF.includes(slotOf(x,lg))):[];
@@ -630,7 +630,7 @@ function luGame(l,a,h){
   <div class="lusplit">${luTeamHead(a)}${luTeamHead(h)}</div>
   ${body}
   <div class="lusplit">${luOut(a)}${luOut(h)}</div>
-  <details><summary class="cap" style="cursor:pointer">Bench</summary><div class="lusplit">${[a,h].map(t=>`<div>${bench(t).map(x=>`<div class="cap">${x.name} Â· ${x.pos||''}</div>`).join('')}</div>`).join('')}</div></details>
+  <details><summary class="cap" style="cursor:pointer">Bench</summary><div class="lusplit">${[a,h].map(t=>`<div>${bench(t).map(x=>`<div class="cap">${x.name} · ${x.pos||''}</div>`).join('')}</div>`).join('')}</div></details>
  </div>`;
 }
 function fanDvp(p){const d=p.fan&&p.fan.dvp;if(!d)return '';const tot=p.lg==='nfl'?32:30,g=d.rank>=tot-9?'favorable':d.rank<=10?'hostile':'neutral';return `<div class="mline"><span class="pill ${GC(g)}">${GL(g)}</span><span class="cap">${mDesc((p.opp||'').replace(/^(vs|@) /,''),'fantasy',d,tot)}.</span></div>`}
@@ -646,17 +646,17 @@ function fanCard(p){const F=p.fan,e=F.ev,st=e?e.status:'noline';
  </button>`}
 function fantasyHTML(l){
  const sys=FSYS[FSYSSEL],ps=P.filter(p=>p.lg===l.id&&onSlate(p)),withF=ps.filter(p=>p.fan).sort((a,b)=>(rank[(b.fan.ev||{}).status]||0)-(rank[(a.fan.ev||{}).status]||0)||b.fan.proj-a.fan.proj),without=ps.filter(p=>!p.fan);
- let html=`<div class="slate"><h1>${l.name} fantasy</h1><p>${withF.length} players Â· ${withF.filter(p=>p.fan.ev&&p.fan.ev.status==='pick').length} stamped</p></div>
+ let html=`<div class="slate"><h1>${l.name} fantasy</h1><p>${withF.length} players · ${withF.filter(p=>p.fan.ev&&p.fan.ev.status==='pick').length} stamped</p></div>
  <div class="row between"><span class="cap">Scoring</span><div class="toggle"><button data-fsys="dk" aria-pressed="${FSYSSEL==='dk'}">DraftKings</button><button data-fsys="ud" aria-pressed="${FSYSSEL==='ud'}">Underdog</button></div></div>`;
  if(!sys[l.id])return html+`<div class="empty"><h3>Fantasy scoring for ${l.name} comes next</h3>NBA and NFL use DraftKings and Underdog scoring now. ${l.name} scoring is next on the list.</div>`+upcomingHTML(l);
- if(!ps.length)return html+noSlate(l)+(l.id==='nfl'&&window.DFF?DFF.previewHTML():'')+upcomingHTML(l);
+ if(!ps.length)return html+noSlate(l)+(window.DFF&&['nfl','nba'].includes(l.id)?DFF.previewHTML(l.id):'')+upcomingHTML(l);
  html+=`<div class="cap">Today's games only. Projection is his recent average, adjusted for expected minutes. Stamps appear when a fantasy line is posted.${withF.some(p=>p.fan.noTO)?' Turnovers not included yet.':''}</div>`;
  if(withF.length)html+=`<div class="list">${withF.map(fanCard).join('')}</div>`;
  if(without.length)html+=`<div class="empty"><h3>${without.length} player${without.length>1?'s':''} waiting on a full stat line</h3>${without.map(p=>p.name).join(', ')}. Fantasy points need every scoring stat (for NFL: passing, rushing and receiving yards, touchdowns, catches, interceptions). The next data run collects them.</div>`;
  return html;
 }
 function fantasyPanel(p){const F=p.fan;if(!F)return '';const ch=chartSVG(p,Math.min(state.count,p.games.length),'fantasy',F.prop?F.prop.line:F.proj,F.prop?'Line':'Projected');
- return `<div class="panel"><div class="row between"><h4>Fantasy points Â· ${FSYS[F.sys].name}</h4><div class="toggle"><button data-count="5" aria-pressed="${state.count===5}">Last 5</button><button data-count="10" aria-pressed="${state.count===10}">Last 10</button></div></div>
+ return `<div class="panel"><div class="row between"><h4>Fantasy points · ${FSYS[F.sys].name}</h4><div class="toggle"><button data-count="5" aria-pressed="${state.count===5}">Last 5</button><button data-count="10" aria-pressed="${state.count===10}">Last 10</button></div></div>
   <div class="chartbox">${ch.svg}<div class="tip" hidden></div></div>
   <div class="stats"><div class="stat"><span>Last 5 avg</span><b>${F.l5.toFixed(1)}</b></div><div class="stat"><span>Last ${F.n10} avg</span><b>${F.l10.toFixed(1)}</b></div><div class="stat"><span>Projected</span><b>${F.proj.toFixed(1)}</b></div></div>
   <div class="row" style="flex-wrap:wrap">${fanDvp(p)}</div>
@@ -666,9 +666,9 @@ function rulesHTML(lg){
   <li>Current season only. No prior-season, career or preseason stats for props.</li>
   <li>Hit rate uses the last 5 games at most. A thin sample stays thin.</li>
   <li>Zero current-season games means ineligible.</li>
-  <li>Anything worse than âˆ’160 is killed, repriced to an alt line or spread, or replaced. That includes parlay legs.</li>
+  <li>Anything worse than −160 is killed, repriced to an alt line or spread, or replaced. That includes parlay legs.</li>
   <li>Out or questionable players get nothing until they clear.</li>
-  <li>Secure Value: 5/5 â†’ 10, 4/5 â†’ 8â€“9, 3/5 â†’ 6â€“7, 1â€“2/5 â†’ 3â€“5 only with a favorable matchup. Longshots cap at 5, heavy juice (âˆ’140 or worse) caps at 8, samples under 4 cap at 7.</li>
+  <li>Secure Value: 5/5 → 10, 4/5 → 8–9, 3/5 → 6–7, 1–2/5 → 3–5 only with a favorable matchup. Longshots cap at 5, heavy juice (−140 or worse) caps at 8, samples under 4 cap at 7.</li>
   <li>Nothing is recommended until everything is reviewed: stats confirmed on two sources, and DvP checked for that exact stat. Until then the card says Under review.</li>
   <li>A prop needs Secure Value 6 or better to make the board.</li>
   <li>Cushion: his last-5 average must sit at least half a step above the line (1 point, half a rebound, 5 rush yards). Barely-over is not a stamp.</li>
@@ -682,12 +682,12 @@ function rulesHTML(lg){
   <li>Current day only. No future picks. Lineups refresh before every game; starters are confirmed about 20 minutes before tip.</li></ul></div>
   <div class="rules"><h3>Props leans <span class="pill p-long">New draft</span></h3><ul>
   <li>Stamped picks pass the full rules. Props is every player on today's slate with a line, each with a lean and the reason.</li>
-  <li>Lean Over: went over the line in 3+ of the last 5 and the price is âˆ’160 or better.</li>
-  <li>Lean Under: stayed under in 3+ of the last 5 and his average is below the line. The under price must still be âˆ’160 or better.</li>
-  <li>Lean Alt: the over hits but the price is past âˆ’160, so one line up; or the over hit 3 of 5, so one line down. Alt prices are checked in the book.</li>
+  <li>Lean Over: went over the line in 3+ of the last 5 and the price is −160 or better.</li>
+  <li>Lean Under: stayed under in 3+ of the last 5 and his average is below the line. The under price must still be −160 or better.</li>
+  <li>Lean Alt: the over hits but the price is past −160, so one line up; or the over hit 3 of 5, so one line down. Alt prices are checked in the book.</li>
   <li>Every prop is played out as scenarios: over and under at the posted line and at alt lines one and two steps each way, weighed on the last 5, the cushion, DvP, teammates out, back-to-backs and this season's head-to-head. The best-supported line wins.</li>
   <li>A favorable matchup moves us to a higher-paying alt only if he still cleared it in 4 of his last 5. A hostile matchup moves us to a safer alt only if he cleared it in all 5.</li>
-  <li>DvP is judged for the side we recommend. A stingy defense (ranked 1stâ€“10th fewest allowed) helps an Under and hurts an Over; a generous one (bottom 10) does the opposite.</li>
+  <li>DvP is judged for the side we recommend. A stingy defense (ranked 1st–10th fewest allowed) helps an Under and hurts an Over; a generous one (bottom 10) does the opposite.</li>
   <li>When the matchup agrees with the form, the card says so. When it disagrees, Strong drops to Moderate and Moderate becomes No lean. The matchup never raises a lean above what the last 5 games show.</li>
   <li>Split samples get no lean. Out players go to Stay away.</li>
   <li>Strong = 4 or 5 of 5. Moderate = 3 of 5.</li></ul></div>
@@ -695,7 +695,7 @@ function rulesHTML(lg){
   <li>Current roster and current-season ratings come first. Last season is blended in early and fades to 0.</li>
   <li>A missing starter is priced from his team's on/off net rating this season (NBA.com), not a guess, whenever that split is available.</li>
   <li>A side needs a 3-point edge over the book's no-vig chance.</li>
-  <li>Moneylines past âˆ’160 are repriced to the spread, and kept only if the projected margin clears it.</li></ul></div>`;
+  <li>Moneylines past −160 are repriced to the spread, and kept only if the projected margin clears it.</li></ul></div>`;
  const extra={
   soccer:`<div class="rules"><h3>Soccer <span class="pill p-long">New draft</span></h3><ul><li>Last 5 current-season matches across league and cups. A match under 60 minutes is flagged.</li><li>Props: shots, shots on target, anytime goal/assist, saves, tackles, fouls.</li><li>Starting XI must be confirmed before a pick is final.</li><li>Midweek Champions League or cup games drop the rating by 1 for rotation risk.</li></ul></div>`,
   golf:`<div class="rules"><h3>Golf <span class="pill p-long">New draft</span></h3><ul><li>Last 5 events played this season. A missed cut counts as a miss.</li><li>Props: make cut, top 20, top 10, top 5, round score, head-to-head matchups.</li><li>Top 5 and outright winner bets are always longshots, capped at 5.</li><li>Nothing after the first tee time of round 1.</li></ul></div>`,
@@ -720,7 +720,7 @@ function altsHTML(l){
 /* ---------- parlays ---------- */
 const legP=o=>imp(o)/1.045;
 const propPool=()=>P.filter(p=>onSlate(p)&&p.when.slice(0,10)===todayET()&&p.state==='pick'&&p.best.ev.stars>=7&&!p.pending);
-const propLeg=p=>({name:`${p.name} (${p.team})`,line:p.best.ev.label,odds:p.best.odds,sub:`Hit in ${p.best.ev.k} of last ${p.best.ev.n} Â· Secure Value ${p.best.ev.stars} Â· ${p.best.book} Â· ${lgOf(p.lg).name}`});
+const propLeg=p=>({name:`${p.name} (${p.team})`,line:p.best.ev.label,odds:p.best.odds,sub:`Hit in ${p.best.ev.k} of last ${p.best.ev.n} · Secure Value ${p.best.ev.stars} · ${p.best.book} · ${lgOf(p.lg).name}`});
 function parlayCard(title,legs,note){
  const d=legs.reduce((a,l)=>a*dec(l.odds),1),pr=legs.reduce((a,l)=>a*legP(l.odds),1);
  return `<div class="panel"><div class="row between"><h4>${title}</h4><span class="odds">${fo(am(d))}</span></div>${note?`<div class="mu">${note}</div>`:''}
@@ -730,8 +730,8 @@ function parlayCard(title,legs,note){
 function parlaysHTML(){
  const pool=propPool().sort((a,b)=>b.best.ev.stars-a.best.ev.stars||b.best.odds-a.best.odds);
  const legs=[];const seen=new Set();for(const p of pool){if(seen.has(p.team))continue;seen.add(p.team);legs.push(p);if(legs.length===6)break}
- const mls=GAMES.filter(g=>gameOnSlate(g)&&g.when.slice(0,10)===todayET()).map(g=>[g,decide(g)]).filter(([,d])=>d.status==='pick'&&!d.long).map(([g,d])=>({name:`${d.team} moneyline`,line:'',odds:g.ml[d.side],sub:`${g.away.n} at ${g.home.n} Â· ${fmtT(g.when)} ET Â· Secure Value ${d.sv} Â· ${g.ml.book}`}));
- let html=`<div class="slate"><h1>Parlay builder Â· ${fmtDay(todayET())}</h1><p>${pool.length} prop legs qualify today</p></div>
+ const mls=GAMES.filter(g=>gameOnSlate(g)&&g.when.slice(0,10)===todayET()).map(g=>[g,decide(g)]).filter(([,d])=>d.status==='pick'&&!d.long).map(([g,d])=>({name:`${d.team} moneyline`,line:'',odds:g.ml[d.side],sub:`${g.away.n} at ${g.home.n} · ${fmtT(g.when)} ET · Secure Value ${d.sv} · ${g.ml.book}`}));
+ let html=`<div class="slate"><h1>Parlay builder · ${fmtDay(todayET())}</h1><p>${pool.length} prop legs qualify today</p></div>
  <div class="warnbox"><b>Read this first</b><span>A parlay only pays if every leg hits. One miss and the whole thing loses. Even strong legs miss often, so a 6-leg parlay loses most of the time. Bet these small. They are not easy money.</span></div>
  <div class="cap">Built from today's stamped picks, one leg per team.</div>
  <h2 class="sec">6-pick prop parlay</h2>`;
@@ -753,7 +753,7 @@ function chartSVG(p,count,ostat,oline,olabel){
  const maxv=Math.max(...vals.map(g=>sc(g.s[stat])),line!=null?sc(line):0,1)*1.18;
  let g=`<line x1="${left}" x2="${W-right}" y1="${top+ph}" y2="${top+ph}" stroke="var(--line)"/>`;
  vals.forEach((row,i)=>{const v=row.s[stat],x=left+i*sw+(sw-bw)/2,bh=Math.max(2,sc(v)/maxv*ph),y=top+ph-bh,hit=line!=null?isHit(stat,v,line):null;
-  const tip=`${fmtD(row.d)} Â· ${row.res}|${row.vs}|${fmtV(stat,v)}${stat==='finish'||stat==='cut'?'':' '+stat}${hit==null?'':hit?' Â· Hit':' Â· Miss'}${row.min!=null?` Â· ${row.min}${p.lg==='nfl'?'% snaps':' min'}`:''}`;
+  const tip=`${fmtD(row.d)} · ${row.res}|${row.vs}|${fmtV(stat,v)}${stat==='finish'||stat==='cut'?'':' '+stat}${hit==null?'':hit?' · Hit':' · Miss'}${row.min!=null?` · ${row.min}${p.lg==='nfl'?'% snaps':' min'}`:''}`;
   g+=`<rect x="${x.toFixed(1)}" y="${y.toFixed(1)}" width="${bw.toFixed(1)}" height="${bh.toFixed(1)}" rx="3" fill="var(${hit==null?'--muted':hit?'--hit':'--miss'})"/>
   <text x="${(x+bw/2).toFixed(1)}" y="${(y-6).toFixed(1)}" text-anchor="middle" font-family="${MONO}" font-size="11" fill="var(--ink)">${fmtV(stat,v)}</text>
   <text x="${(x+bw/2).toFixed(1)}" y="${H-10}" text-anchor="middle" font-size="10" fill="var(--muted)">${md(row.d)}</text>
@@ -779,34 +779,34 @@ function teamChart(g,side){
 const crowdPanel=()=>`<div class="panel"><h4>What other bettors are doing</h4><div class="mu">Not available yet. This needs a betting-splits feed (number of bets and dollars on each side). It is in the build plan. Nothing here is guessed.</div></div>`;
 function playerSheet(p){
  const b=p.best,e=b&&b.ev,lg=lgOf(p.lg),[lab,cls]=STATUS[p.state],total=p.games.length,ch=chartSVG(p,Math.min(state.count,total));
- const l5=p.games.filter(g=>g.s[ch.stat]!=null).slice(0,5).map(g=>g.s[ch.stat]),avg=l5.length?(l5.reduce((a,b)=>a+b,0)/l5.length).toFixed(1):'â€”';
+ const l5=p.games.filter(g=>g.s[ch.stat]!=null).slice(0,5).map(g=>g.s[ch.stat]),avg=l5.length?(l5.reduce((a,b)=>a+b,0)/l5.length).toFixed(1):'—';
  const [ml,mu]=MINLBL[p.lg]||['',''];
  return `<div class="grab"></div>
- <div class="shead"><div style="min-width:0"><div class="pname">${p.name}</div><div class="team">${teamLine(p)} Â· ${lg.name}</div><div class="team">${gameLine(p)}</div></div><button class="x" id="close" aria-label="Close">Ã—</button></div>
+ <div class="shead"><div style="min-width:0"><div class="pname">${p.name}</div><div class="team">${teamLine(p)} · ${lg.name}</div><div class="team">${gameLine(p)}</div></div><button class="x" id="close" aria-label="Close">×</button></div>
  <div class="panel">
   <div class="row between"><div class="row" style="flex-wrap:wrap">${e?`<span class="prop">${e.label}</span><span class="odds">${fo(b.odds)}</span><span class="cap">${b.book}</span>`:'<span class="mu">No prop line found yet</span>'}</div>${pill(p.state)}</div>
   ${e&&e.stars&&(p.state==='pick'||p.state==='longshot')?`<div class="row"><span class="sv">Secure Value <b>${e.stars}</b></span>${meter(e.stars)}</div>`:''}
   ${e?`<div class="why">${why(p,e)}</div>`:''}${dvpLine(e)}${p.note?`<div class="mu">${p.note}</div>`:''}${trust(p)}
-  ${e?e.reasons.map(x=>`<div class="reason">${x}</div>`).join('')+e.notes.map(x=>`<div class="mu">â€¢ ${x}</div>`).join(''):''}
+  ${e?e.reasons.map(x=>`<div class="reason">${x}</div>`).join('')+e.notes.map(x=>`<div class="mu">• ${x}</div>`).join(''):''}
   ${p.pending?`<div class="flag">${p.pending}</div>`:''}
  </div>
  ${p.props.length>1?`<div class="panel"><h4>Other lines on him</h4><table><thead><tr><th>Line</th><th class="num">Price</th><th class="num">Last 5</th><th class="num">SV</th></tr></thead><tbody>${p.props.slice(1).map(x=>`<tr><td>${x.ev.label}<div class="cap">${x.book}</div></td><td class="num">${fo(x.odds)}</td><td class="num">${x.ev.k}/${x.ev.n}</td><td class="num">${x.ev.status==='pick'||x.ev.status==='longshot'?x.ev.stars:STATUS[x.ev.status][0]}</td></tr>`).join('')}</tbody></table></div>`:''}
  <div class="panel">
-  <div class="row between"><h4>Game log Â· ${ch.stat}</h4><div class="toggle"><button data-count="5" aria-pressed="${state.count===5}">Last 5</button><button data-count="10" aria-pressed="${state.count===10}">Last 10</button></div></div>
+  <div class="row between"><h4>Game log · ${ch.stat}</h4><div class="toggle"><button data-count="5" aria-pressed="${state.count===5}">Last 5</button><button data-count="10" aria-pressed="${state.count===10}">Last 10</button></div></div>
   <div class="chartbox">${ch.svg}<div class="tip" hidden></div></div>
   <div class="cap">Hover or tap a bar for the date, opponent, score and minutes. ${state.count===10&&total<10?`Only ${total} ${lg.units} this season, so the view stops there. `:''}Picks use the last 5 only.</div>
-  <div class="stats"><div class="stat"><span>L5 avg</span><b>${avg}</b></div><div class="stat"><span>L5 hit</span><b>${e?`${e.k}/${e.n}`:'â€”'}</b></div><div class="stat"><span>Season</span><b>${total} ${lg.u}</b></div></div>
+  <div class="stats"><div class="stat"><span>L5 avg</span><b>${avg}</b></div><div class="stat"><span>L5 hit</span><b>${e?`${e.k}/${e.n}`:'—'}</b></div><div class="stat"><span>Season</span><b>${total} ${lg.u}</b></div></div>
   ${p.mn?`<div class="stats" style="grid-template-columns:1fr 1fr"><div class="stat"><span>Avg ${ml.toLowerCase()} (L5)</span><b>${Math.round(p.mn.avg*10)/10}${mu==='%'?'%':' '+mu}</b></div><div class="stat"><span>Projected ${p.lg==='nfl'?'snaps':'tonight'}</span><b>${p.mn.proj}${mu==='%'?'%':' '+mu}</b></div></div><div class="cap">${p.mn.why}</div>`:p.lg==='nfl'?`<div class="cap">Snap share: not found on the sources checked.</div>`:''}
  </div>
  ${fantasyPanel(p)}
  ${p.alts.length?`<div class="panel"><h4>Alt lines</h4>${altTable(p,true)}<div class="cap">Check the alt price in your book before betting.</div></div>`:''}
  ${crowdPanel()}
- <div class="panel"><div class="row between"><h4>Matchup</h4>${p.matchup&&p.matchup.grade?`<span class="pill ${GC(p.matchup.grade)}">${GL(p.matchup.grade)}</span>`:''}</div><ul class="checks">${CHECKS[p.lg].map(c=>{const v=p.matchup&&p.matchup.checks&&p.matchup.checks[c];if(v==null&&!VETTING)return '';const d=v!=null||(DONE[p.lg]||[]).includes(c);return `<li>${VETTING?`<span class="${d?'ok':'wn'}">${d?'âœ“':'!'}</span>`:''}<span>${c}${v!=null?` <span class="mu">â€” ${v}</span>`:d?'':' <span class="mu">â€” not checked yet</span>'}</span></li>`}).join('')}</ul><div class="cap">${p.matchup&&p.matchup.why?p.matchup.why+' ':''}${p.matchup&&p.matchup.grade?'':''}</div></div>
- ${VETTING?`<div class="panel"><h4>Source cross-check</h4><ul class="checks">${p.sources.map(([s,st,t])=>`<li><span class="${st==='ok'?'ok':'wn'}">${st==='ok'?'âœ“':'!'}</span><span>${s}${t?` <span class="mu">â€” ${t}</span>`:''}</span></li>`).join('')}</ul><div class="cap">Checked ${DATA.checked}.</div></div>`:''}`;
+ <div class="panel"><div class="row between"><h4>Matchup</h4>${p.matchup&&p.matchup.grade?`<span class="pill ${GC(p.matchup.grade)}">${GL(p.matchup.grade)}</span>`:''}</div><ul class="checks">${CHECKS[p.lg].map(c=>{const v=p.matchup&&p.matchup.checks&&p.matchup.checks[c];if(v==null&&!VETTING)return '';const d=v!=null||(DONE[p.lg]||[]).includes(c);return `<li>${VETTING?`<span class="${d?'ok':'wn'}">${d?'✓':'!'}</span>`:''}<span>${c}${v!=null?` <span class="mu">— ${v}</span>`:d?'':' <span class="mu">— not checked yet</span>'}</span></li>`}).join('')}</ul><div class="cap">${p.matchup&&p.matchup.why?p.matchup.why+' ':''}${p.matchup&&p.matchup.grade?'':''}</div></div>
+ ${VETTING?`<div class="panel"><h4>Source cross-check</h4><ul class="checks">${p.sources.map(([s,st,t])=>`<li><span class="${st==='ok'?'ok':'wn'}">${st==='ok'?'✓':'!'}</span><span>${s}${t?` <span class="mu">— ${t}</span>`:''}</span></li>`).join('')}</ul><div class="cap">Checked ${DATA.checked}.</div></div>`:''}`;
 }
 function gameSheet(g){const M=model(g),r=decide(g),c=TEAM_CFG[g.lg],[lab,cls]=STATUS[r.status],fav=M.m>=0?g.home.n:g.away.n;
  return `<div class="grab"></div>
- <div class="shead"><div style="min-width:0"><div class="pname">${g.away.n} at ${g.home.n}</div><div class="team">${dayWord(g.when.slice(0,10))} Â· ${fmtT(g.when)} ET Â· ${lgOf(g.lg).name}${g.div?' Â· '+g.div:''}</div></div><button class="x" id="close" aria-label="Close">Ã—</button></div>
+ <div class="shead"><div style="min-width:0"><div class="pname">${g.away.n} at ${g.home.n}</div><div class="team">${dayWord(g.when.slice(0,10))} · ${fmtT(g.when)} ET · ${lgOf(g.lg).name}${g.div?' · '+g.div:''}</div></div><button class="x" id="close" aria-label="Close">×</button></div>
  <div class="panel"><div class="row between"><h4>Prediction</h4>${pill(r.status)}</div>${probBar(g,r)}
   <div class="why">Projected: <strong>${fav} by ${Math.abs(M.m).toFixed(1)} ${c.u}</strong></div>
   ${r.status!=='pass'?`<div class="row"><span class="prop">${r.label}</span></div><div class="row"><span class="sv">Secure Value <b>${r.sv}</b></span>${meter(r.sv)}</div>`:''}
@@ -815,7 +815,7 @@ function gameSheet(g){const M=model(g),r=decide(g),c=TEAM_CFG[g.lg],[lab,cls]=ST
   ${g.ml.home!=null?`<table><thead><tr><th>${g.ml.book}</th><th class="num">${g.away.n}</th>${g.ml.draw!=null?'<th class="num">Draw</th>':''}<th class="num">${g.home.n}</th></tr></thead><tbody>
   <tr><td>Moneyline</td><td class="num">${fo(g.ml.away)}</td>${g.ml.draw!=null?`<td class="num">${fo(g.ml.draw)}</td>`:''}<td class="num">${fo(g.ml.home)}</td></tr>
   ${g.spread.home!=null?`<tr><td>Spread</td><td class="num">${-g.spread.home>0?'+':''}${-g.spread.home}${g.spread.awayOdds!=null?` (${fo(g.spread.awayOdds)})`:''}</td>${g.ml.draw!=null?'<td></td>':''}<td class="num">${g.spread.home>0?'+':''}${g.spread.home}${g.spread.homeOdds!=null?` (${fo(g.spread.homeOdds)})`:''}</td></tr>`:''}</tbody></table>`:'<div class="mu">No price posted yet for this game.</div>'}
-  <div class="cap">How to read a price: âˆ’150 means you bet $150 to win $100. +130 means a $100 bet wins $130. Prices as of ${DATA.checked}; they move, so confirm in your book.${g.ml.book&&/BC\.Game/.test(g.ml.book)?' This price is from an offshore book listed on an odds site, not DraftKings or Hard Rock.':''}</div></div>
+  <div class="cap">How to read a price: −150 means you bet $150 to win $100. +130 means a $100 bet wins $130. Prices as of ${DATA.checked}; they move, so confirm in your book.${g.ml.book&&/BC\.Game/.test(g.ml.book)?' This price is from an offshore book listed on an odds site, not DraftKings or Hard Rock.':''}</div></div>
  ${(()=>{const LU=DATA.lineups||[],a=LU.find(t=>t.team===g.away.n&&t.start===g.when),h=LU.find(t=>t.team===g.home.n&&t.start===g.when);return a||h?`<div class="panel"><h4>Starting lineups</h4>${luGame(lgOf(g.lg),a,h).replace('<div class="inj lugame">','<div class="lugame" style="display:grid;gap:8px">')}</div>`:''})()}
  ${crowdPanel()}
  <div class="panel"><h4>Why the model says this</h4>
@@ -824,7 +824,7 @@ function gameSheet(g){const M=model(g),r=decide(g),c=TEAM_CFG[g.lg],[lab,cls]=ST
   <tr><th>Projected ${g.home.n} margin</th><td></td><td></td><td class="num"><b>${M.m>0?'+':''}${M.m.toFixed(g.lg==='soccer'?2:1)}</b></td></tr></tbody></table>
   <div class="cap">Positive numbers favor ${g.home.n}. Season rating is this season's average margin (${g.away.n} ${g.away.record}, ${g.home.n} ${g.home.record})${M.w?`, blended with ${Math.round(M.w*100)}% of last season because it is early`:''}. Availability points are model estimates for the players listed out.</div>
   ${[g.away,g.home].map(t=>`<div class="flag">${t.n}: ${t.injNote}</div>`).join('')}</div>
- ${['away','home'].map(sd=>`<div class="panel"><h4>${g[sd].n} Â· last 5</h4><div class="chartbox">${teamChart(g,sd)}<div class="tip" hidden></div></div><div class="cap">Bars show the final margin. Hover or tap for the date, opponent and score.</div></div>`).join('')}`}
+ ${['away','home'].map(sd=>`<div class="panel"><h4>${g[sd].n} · last 5</h4><div class="chartbox">${teamChart(g,sd)}<div class="tip" hidden></div></div><div class="cap">Bars show the final margin. Hover or tap for the date, opponent and score.</div></div>`).join('')}`}
 
 let openId=null,openKind=null;
 function openSheet(id){openId=id;openKind='player';$('#sheet').innerHTML=playerSheet(P.find(x=>x.id===id));showSheet()}
@@ -853,7 +853,7 @@ document.addEventListener('keydown',e=>{if(e.key==='Escape'){if(!$('#scrim').hid
 const q=$('#q'),res=$('#results');
 q.addEventListener('input',()=>{const t=q.value.trim().toLowerCase();if(!t){res.hidden=true;return}
  const mp=P.filter(p=>onSlate(p)&&(p.name+' '+p.team).toLowerCase().includes(t)).slice(0,6).map(p=>`<button data-pick="${p.id}"><span>${p.name}<br><small>${p.team}</small></span><small>${lgOf(p.lg).name}</small></button>`);
- const mg=GAMES.filter(g=>gameOnSlate(g)&&(g.home.n+' '+g.away.n).toLowerCase().includes(t)).slice(0,4).map(g=>`<button data-g="${g.id}"><span>${g.away.n} at ${g.home.n}<br><small>Team prediction Â· ${fmtT(g.when)} ET</small></span><small>${lgOf(g.lg).name}</small></button>`);
+ const mg=GAMES.filter(g=>gameOnSlate(g)&&(g.home.n+' '+g.away.n).toLowerCase().includes(t)).slice(0,4).map(g=>`<button data-g="${g.id}"><span>${g.away.n} at ${g.home.n}<br><small>Team prediction · ${fmtT(g.when)} ET</small></span><small>${lgOf(g.lg).name}</small></button>`);
  const all=[...mg,...mp];res.innerHTML=all.length?all.join(''):'<div class="none">No one by that name plays in the current slate.</div>';res.hidden=false});
 res.addEventListener('click',e=>{const b=e.target.closest('[data-pick]');const bg=e.target.closest('[data-g]');
  if(b){const p=P.find(x=>x.id===b.dataset.pick);state.lg=p.lg;state.mode='today';render();openSheet(p.id)}
@@ -865,7 +865,7 @@ render();
 setInterval(()=>{if(state.mode!=='live')renderMain()},60000);
 if(window.LiveUI)LiveUI.start(DATA,{showSheet});
 if(window.DFF){DFF.load().then(()=>{if(state.mode==='fantasy')renderMain()});setInterval(()=>DFF.load().then(()=>{if(state.mode==='fantasy'&&$('#scrim').hidden)renderMain()}),5*60e3)}
-if(window.NFLW)NFLW.start({showSheet,onChange:()=>{if(state.lg==='nfl'&&state.mode!=='live'&&$('#scrim').hidden)renderMain()}});
+if(window.PREV)PREV.start({showSheet,onChange:()=>{if(['nfl','nba'].includes(state.lg)&&state.mode!=='live'&&$('#scrim').hidden)renderMain()}});
 /* New data from the daily pipeline: reload so every rule reruns on it, but never while a sheet is open or someone is typing. */
 setInterval(()=>fetch('./data.json?v='+Date.now()).then(r=>r.json()).then(d=>{if(d.checked===DATA.checked&&d.lineups_checked===DATA.lineups_checked&&d.dvp_checked===DATA.dvp_checked)return;
  const go=()=>{if($('#scrim').hidden&&!/INPUT|SELECT|TEXTAREA/.test((document.activeElement||{}).tagName||''))location.reload()};go();setInterval(go,15e3)}).catch(()=>{}),5*60e3);

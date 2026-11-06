@@ -206,6 +206,12 @@ test('live props: milestones parse, only priced edges qualify, rules and player 
  assert.equal(E.settle({market:'Prop',playerId:'99',stat:'points',target:30,price:150},fin).result,'void');
 });
 
+test('page files are clean UTF-8 (no double-encoded characters from a wrong-encoding rewrite)',()=>{
+ const root=path.join(__dirname,'..','..');
+ ['index.html','live/ui.js','live/props-preview.js','live/dff.js','live/live.css'].forEach(f=>{const t=fs.readFileSync(path.join(root,f),'utf8');
+  assert.equal(/Â|â€|Ã©/.test(t),false,`${f} contains garbled characters`);assert.notEqual(t.charCodeAt(0),0xFEFF,`${f} starts with a byte-order mark`)});
+});
+
 test('existing betting rules in index.html are unchanged since the pre-live rollback point',()=>{
  const root=path.join(__dirname,'..','..');let old;
  try{old=cp.execSync('git show pre-live-v1:index.html',{cwd:root,encoding:'utf8',maxBuffer:1<<26})}catch(e){test.skip?.('rollback tag not available');return}
