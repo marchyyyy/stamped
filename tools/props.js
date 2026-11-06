@@ -16,11 +16,13 @@ const CFG={
    'Total Receptions (incl. overtime)':'receptions','Total Passing Touchdowns (incl. overtime)':'pass TDs'},
   miles:{'Passing Yards Milestones':'pass yds','Rushing Yards Milestones':'rush yds','Receiving Yards Milestones':'rec yds','Receptions Milestones':'receptions','Passing Touchdown Milestones':'pass TDs'},
   log:{passingYards:'pass yds',passingTouchdowns:'pass TDs',interceptions:'INT',rushingYards:'rush yds',rushingAttempts:'carries',rushingTouchdowns:'rush TDs',
-   receptions:'receptions',receivingYards:'rec yds',receivingTouchdowns:'rec TDs',receivingTargets:'targets'}},
+   receptions:'receptions',receivingYards:'rec yds',receivingTouchdowns:'rec TDs',receivingTargets:'targets',fumblesLost:'fumbles lost'},
+  /* A game in his log with no column for a category (a QB has no receiving columns) means none: count it as 0. */
+  zero:['pass yds','pass TDs','INT','rush yds','rush TDs','receptions','rec yds','rec TDs']},
  nba:{out:'data/nba_today.json',dff:'data/dff_nba_projections.csv',path:'basketball/nba',min:10,
   lines:{'Total Points':'points','Total Rebounds':'rebounds','Total Assists':'assists','Total 3-Point Field Goals':'threes','Total Points, Rebounds, and Assists':'PRA'},
   miles:{'Points Milestones':'points','Rebounds Milestones':'rebounds','Assists Milestones':'assists','3-Point Field Goals Milestones':'threes','Points + Assists + Rebounds Milestones':'PRA'},
-  log:{points:'points',totalRebounds:'rebounds',assists:'assists','threePointFieldGoalsMade-threePointFieldGoalsAttempted':'threes',minutes:'min'}}}[SPORT];
+  log:{points:'points',totalRebounds:'rebounds',assists:'assists','threePointFieldGoalsMade-threePointFieldGoalsAttempted':'threes',steals:'steals',blocks:'blocks',turnovers:'turnovers',minutes:'min'}}}[SPORT];
 const SITE=`https://site.api.espn.com/apis/site/v2/sports/${CFG.path}`,CORE=`https://sports.core.api.espn.com/v2/sports/${CFG.path.replace('/','/leagues/')}`;
 const log=m=>console.log(`[${new Date().toLocaleString('en-US',{timeZone:'America/New_York'})} ET] props ${SPORT}: ${m}`);
 const sleep=ms=>new Promise(r=>setTimeout(r,ms));
@@ -39,6 +41,7 @@ function gamelog(g){
  return Object.entries(rows).map(([id,stats])=>{const m=(g.events||{})[id]||{},s={};let min=null;
   g.names.forEach((n,i)=>{const k=CFG.log[n];if(k==null)return;const v=num(String(stats[i]).split('-')[0]);if(v==null)return;if(k==='min')min=v;else s[k]=v});
   if(SPORT==='nba'&&s.points!=null&&s.rebounds!=null&&s.assists!=null)s.PRA=s.points+s.rebounds+s.assists;
+  (CFG.zero||[]).forEach(k=>{if(s[k]==null)s[k]=0});
   return{d:m.gameDate?et(m.gameDate).slice(0,10):'',vs:`${m.atVs==='@'?'@':'vs'} ${(m.opponent&&m.opponent.abbreviation)||''}`,res:m.gameResult?`${m.gameResult} ${m.score||''}`.trim():'',min,s}})
   .filter(x=>SPORT!=='nba'||x.min>0).sort((a,b)=>a.d<b.d?1:-1);
 }

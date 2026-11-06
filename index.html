@@ -230,8 +230,8 @@ button.lucell{cursor:pointer}button.lucell:hover{outline:1px solid var(--line)}
 <script src="live/engine.js?v=20261106a"></script>
 <script src="live/espn.js?v=20261106a"></script>
 <script src="live/ui.js?v=20261106b"></script>
-<script src="live/dff.js?v=20261106e"></script>
-<script src="live/props-preview.js?v=20261106e"></script>
+<script src="live/dff.js?v=20261106g"></script>
+<script src="live/props-preview.js?v=20261106g"></script>
 <script>
 fetch('./data.json?v='+Date.now()).then(r=>r.json()).then(DATA=>{
 
@@ -643,12 +643,15 @@ const FPARTS={
       ['Receiving',s=>s.receptions+.1*s['rec yds']+6*s['rec TDs']+(s['rec yds']>=100?3:0)],['Fumbles',s=>-(s['fumbles lost']||0)]]},
  ud:{nba:[['Points',s=>s.points],['Rebounds',s=>1.2*s.rebounds],['Assists',s=>1.5*s.assists],['Steals + blocks',s=>3*s.steals+3*s.blocks],['Turnovers',s=>-(s.turnovers||0)]],
      nfl:[['Passing',s=>.04*s['pass yds']+4*s['pass TDs']-s.INT],['Rushing',s=>.1*s['rush yds']+6*s['rush TDs']],['Receiving',s=>.5*s.receptions+.1*s['rec yds']+6*s['rec TDs']],['Fumbles',s=>-2*(s['fumbles lost']||0)]]}};
-function fanSrc(p){const F=p.fan,S=FSYS[F&&F.sys]&&FSYS[F.sys][p.lg],parts=FPARTS[F&&F.sys]&&FPARTS[F.sys][p.lg];if(!S||!parts||!F.l5)return '';
- const rows=p.games.filter(g=>S.need.every(k=>g.s[k]!=null)).slice(0,5);if(!rows.length)return '';
- const avg=parts.map(([l,f])=>[l,rows.reduce((a,g)=>a+f(g.s),0)/rows.length]);
- if(Math.abs(avg.reduce((a,x)=>a+x[1],0)-F.l5)>.5)return '';
- const out=avg.filter(x=>Math.abs(x[1])>=.3).sort((a,b)=>b[1]-a[1]);
- return `<div class="fsrc">Last ${rows.length}: ${out.map(([l,v])=>`${l} <b>${v<0?'−'+Math.abs(v).toFixed(1):v.toFixed(1)}</b>`).join(' · ')}</div>`}
+/* Per-stat fantasy points averaged over his last 5 complete box scores; also used by live/dff.js for the preview board. */
+function fanParts(lg,sys,games){const S=FSYS[sys]&&FSYS[sys][lg],parts=FPARTS[sys]&&FPARTS[sys][lg];if(!S||!parts)return null;
+ const rows=(games||[]).filter(g=>g.s&&S.need.every(k=>g.s[k]!=null)).slice(0,5);if(!rows.length)return null;
+ return{n:rows.length,parts:parts.map(([l,f])=>[l,rows.reduce((a,g)=>a+f(g.s),0)/rows.length])}}
+const fanPartsHTML=r=>`<div class="fsrc">Last ${r.n}: ${r.parts.filter(x=>Math.abs(x[1])>=.3).sort((a,b)=>b[1]-a[1]).map(([l,v])=>`${l} <b>${v<0?'−'+Math.abs(v).toFixed(1):v.toFixed(1)}</b>`).join(' · ')}</div>`;
+window.fanParts=fanParts;window.fanPartsHTML=fanPartsHTML;
+function fanSrc(p){const F=p.fan;if(!F||!F.l5)return '';const r=fanParts(p.lg,F.sys,p.games);if(!r)return '';
+ if(Math.abs(r.parts.reduce((a,x)=>a+x[1],0)-F.l5)>.5)return '';
+ return fanPartsHTML(r)}
 function fanCard(p){const F=p.fan,e=F.ev,st=e?e.status:'noline';
  return `<button class="card" data-id="${p.id}" data-fan="1">
   <div class="row between"><div style="min-width:0"><div class="pname">${p.name}</div>${fanSrc(p)}<div class="team">${teamLine(p)}</div><div class="team">${gameLine(p)}</div></div>${e?pill(st):'<span class="pill p-long">No line</span>'}</div>

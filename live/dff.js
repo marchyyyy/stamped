@@ -24,10 +24,12 @@ function fanLine(p,F,sys){const X=S[p.lg];if(!X||!X.loaded)return '';const r=fin
  return `<div class="row lv-dff"><span class="pill p-long">DFF</span><span class="cap">Projects <b>${r.proj.toFixed(1)}</b> DK pts · ${money(r.salary)} · ${r.value.toFixed(2)}x value${INJ[r.injury_status]?` · ${INJ[r.injury_status]}`:''}${chk}</span></div>`}
 /* Before game day (NFL): this week's DFF board, so the projections are visible ahead of the slate. */
 function previewHTML(sp){const X=S[sp||'nfl'];if(!X.rows.length)return '';const R=[...X.rows].sort((a,b)=>b.proj-a.proj),dates=[...new Set(R.map(r=>r.game_date))].sort();
- const row=r=>`<div class="row between lv-dffrow"><span><b>${r.name}</b> <span class="cap">${r.position} · ${r.team} · opp ${r.opp}${INJ[r.injury_status]?` · ${r.injury_status}`:''}</span></span><span class="mv">${r.proj.toFixed(1)} · ${money(r.salary)}</span></div>`;
+ /* Under each name: where his DraftKings points came from in his last 5 ESPN box scores (real games, DraftKings scoring like DFF). */
+ const src=r=>{const p=window.PREV&&PREV.player(sp,r.name),b=p&&window.fanParts&&fanParts(sp,'dk',p.games);return b?fanPartsHTML(b):''};
+ const row=r=>`<div class="lv-dffrow"><div class="row between"><span><b>${r.name}</b> <span class="cap">${r.position} · ${r.team} · opp ${r.opp}${INJ[r.injury_status]?` · ${r.injury_status}`:''}</span></span><span class="mv">${r.proj.toFixed(1)} · ${money(r.salary)}</span></div>${src(r)}</div>`;
  const POS=[...new Set(R.map(r=>r.position))];
  return `<div class="inj"><div class="row between"><b>${sp==='nba'?'Tonight':'This week'} · DFF projections</b><span class="pill p-long">Preview</span></div>
-  <div class="cap">DraftKings points, ${R[0].slate||'main'} slate (${dates.join(', ')}), ${R.length} players. Not picks.</div>
+  <div class="cap">DraftKings points, ${R[0].slate||'main'} slate (${dates.join(', ')}), ${R.length} players. Not picks. The small line under a name is where his points came from in his last 5 games (ESPN box scores, DraftKings scoring), for players with prop lines this week.</div>
   ${R.slice(0,10).map(row).join('')}
   ${POS.map(ps=>{const L=R.filter(r=>r.position===ps);return `<details class="lv-sec"><summary>${ps} (${L.length})</summary><div class="lv-secbody">${L.map(row).join('')}</div></details>`}).join('')}</div>`}
 window.DFF={load,find,fanLine,previewHTML,state:S};
