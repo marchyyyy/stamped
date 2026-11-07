@@ -9,8 +9,10 @@ const SPORT=arg('sport','nfl'),CACHE=path.join(__dirname,'..','live','.cache');
 const SP={nfl:{site:'football/nfl',core:'football/leagues/nfl'},nba:{site:'basketball/nba',core:'basketball/leagues/nba'}}[SPORT];
 const SITE=`https://site.api.espn.com/apis/site/v2/sports/${SP.site}`,CORE=`https://sports.core.api.espn.com/v2/sports/${SP.core}`;
 const sleep=ms=>new Promise(r=>setTimeout(r,ms));
+/* A day's scoreboard is only cached once every game on it is final; one saved mid-slate would hide those results forever. */
+const done=j=>!(j&&j.events||[]).some(e=>!(e.status&&e.status.type&&e.status.type.state==='post'));
 async function get(u,key){const f=key&&path.join(CACHE,key+'.json');if(f&&fs.existsSync(f))return JSON.parse(fs.readFileSync(f,'utf8'));
- for(let i=0;i<3;i++){try{const r=await fetch(u);if(r.ok){const j=await r.json();if(f){fs.mkdirSync(CACHE,{recursive:true});fs.writeFileSync(f,JSON.stringify(j))}await sleep(60);return j}if(r.status===404)return null}catch(e){}await sleep(900*(i+1))}return null}
+ for(let i=0;i<3;i++){try{const r=await fetch(u);if(r.ok){const j=await r.json();if(f&&(!/^sched-/.test(key)||done(j))){fs.mkdirSync(CACHE,{recursive:true});fs.writeFileSync(f,JSON.stringify(j))}await sleep(60);return j}if(r.status===404)return null}catch(e){}await sleep(900*(i+1))}return null}
 const num=v=>{const n=parseFloat(v);return isNaN(n)?null:n};
 const ymd=d=>d.toISOString().slice(0,10).replace(/-/g,'');
 /* Schedule: NFL by season/week, NBA by date across each regular season. */
