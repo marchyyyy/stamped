@@ -123,3 +123,30 @@
 .pc-x img{width:22px;height:22px;object-fit:contain;margin-bottom:2px}
 .pc-x b{color:var(--ink);font-size:12px;white-space:nowrap}
 .pc-x span{white-space:nowrap}
+
+/* Today scoreboard tiles (live/scores.js) */
+.sc{display:grid;gap:10px}
+.sc-h{font-family:var(--f-disp);font-weight:800;font-size:20px;margin:4px 0 0;color:var(--ink)}
+.sc-h span{color:var(--muted);font-weight:700}
+.sc-list{display:grid;gap:10px}
+.sc-g{display:grid;grid-template-columns:1fr auto minmax(84px,auto) auto 1fr;align-items:center;gap:6px;width:100%;padding:16px 10px;border:1px solid var(--line);border-radius:16px;color:var(--ink);font:inherit;text-align:center;
+ background:linear-gradient(100deg,color-mix(in srgb,var(--ca) 16%,var(--surface)) 0%,var(--surface) 45%,var(--surface) 55%,color-mix(in srgb,var(--ch) 16%,var(--surface)) 100%)}
+button.sc-g{cursor:pointer}
+.sc-t{display:flex;flex-direction:column;align-items:center;gap:6px;min-width:0}
+.sc-t img{width:56px;height:56px;object-fit:contain}
+.sc-t b{font-size:17px;font-weight:600;letter-spacing:.02em}
+.sc-t small{font-size:11px;color:var(--muted);font-variant-numeric:tabular-nums}
+.sc-n{font-family:var(--f-mono);font-weight:700;font-size:26px;font-variant-numeric:tabular-nums;min-width:1.6em}
+.sc-out{opacity:.55}
+.sc-m{display:flex;flex-direction:column;align-items:center;gap:4px;color:var(--muted);font-size:14px;font-variant-numeric:tabular-nums;white-space:nowrap}
+.sc-live{display:inline-flex;align-items:center;gap:6px;color:#ff3b4a;font-weight:800;font-size:12px;letter-spacing:.1em}
+.sc-live i{width:9px;height:9px;border-radius:50%;background:#ff3b4a;animation:sc-pulse 1.4s ease-in-out infinite}
+.sc-clk{color:var(--ink);font-weight:600}
+.sc-fin{color:var(--ink);font-weight:700;font-size:13px;letter-spacing:.06em;text-transform:uppercase}
+.sc-in{border-color:color-mix(in srgb,#ff3b4a 45%,var(--line))}
+@keyframes sc-pulse{0%,100%{opacity:1;box-shadow:0 0 0 0 rgba(255,59,74,.6)}50%{opacity:.6;box-shadow:0 0 0 5px rgba(255,59,74,0)}}
+@media (prefers-reduced-motion:reduce){.sc-live i{animation:none}}
+.sc-dk{display:none}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]) .sc-dk{display:block}:root:not([data-theme="light"]) .sc-lt{display:none}}
+:root[data-theme="dark"] .sc-dk{display:block}:root[data-theme="dark"] .sc-lt{display:none}
+@media (max-width:380px){.sc-t img{width:44px;height:44px}.sc-n{font-size:21px}.sc-g{grid-template-columns:1fr auto minmax(70px,auto) auto 1fr}}

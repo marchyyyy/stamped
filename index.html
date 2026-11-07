@@ -201,7 +201,7 @@ button.lucell{cursor:pointer}button.lucell:hover{outline:1px solid var(--line)}
 .srcs{font-size:12px;color:var(--muted);word-break:break-all;display:grid;gap:3px}
 .srcs a{color:var(--muted)}
 </style>
-<link rel="stylesheet" href="live/live.css?v=20261106n">
+<link rel="stylesheet" href="live/live.css?v=20261107a">
 </head>
 <body>
 
@@ -232,6 +232,7 @@ button.lucell{cursor:pointer}button.lucell:hover{outline:1px solid var(--line)}
 <script src="live/ui.js?v=20261106l"></script>
 <script src="live/dff.js?v=20261106i"></script>
 <script src="live/props-preview.js?v=20261107c"></script>
+<script src="live/scores.js?v=20261107a"></script>
 <script>
 fetch('./data.json?v='+Date.now()).then(r=>r.json()).then(DATA=>{
 
@@ -240,7 +241,7 @@ const POSN={PG:'point guards',SG:'shooting guards',SF:'small forwards',PF:'power
 const STATN={points:'points',rebounds:'rebounds',assists:'assists',threes:'threes',steals:'steals',blocks:'blocks',PRA:'points + rebounds + assists','rush yds':'rushing yards','rec yds':'receiving yards','pass yds':'passing yards',receptions:'catches','pass TDs':'passing TDs',fantasy:'fantasy points'};
 const GL=g=>g==='favorable'?'Matchup helps':g==='hostile'?'Tough matchup':'Average matchup';
 const GC=g=>g==='favorable'?'p-pick':g==='hostile'?'p-stay':'p-long';
-const P=DATA.players,GAMES=DATA.games,INJ=DATA.injuries;
+const P=DATA.players,GAMES=DATA.games,INJ=DATA.injuries;window.GAMES_ALL=GAMES;
 const LEAGUES=[
  {id:'nba',name:'NBA',units:'games',u:'g'},
  {id:'nfl',name:'NFL',units:'games',u:'g'},
@@ -574,6 +575,7 @@ function renderMain(){
  const gs=GAMES.filter(g=>g.lg===l.id&&gameOnSlate(g)),rs=gs.map(g=>[g,decide(g)]),tIs=([,r])=>['pick','spread','practice'].includes(r.status),tpicks=rs.filter(tIs).sort((a,b)=>b[1].edge-a[1].edge),tpass=rs.filter(x=>!tIs(x));
  if(state.mode==='today'){
   html+=`<div class="slate"><h1>${slateTitle(l)}</h1><p>${ps.length||gs.length?`${good.filter(p=>p.state==='pick').length+tpicks.filter(([,r])=>r.status!=='practice').length} stamped${ps.length?` · ${ps.length} players`:''} · ${gs.length} games`:''}</p></div>`;
+  if(window.SCORES)html+=SCORES.html(l.id);
   if(l.off)html+=`<div class="empty"><h3>MLB is in the offseason</h3>Picks return when the new season has games.</div>`;
   else if(!ps.length&&!gs.length)html+=teamPreviewHTML(l)+((window.PREV&&PREV.moreHTML(l.id,[],true))||noSlate(l)+upcomingHTML(l));
   else{const picks=good.filter(p=>p.state==='pick'),longs=good.filter(p=>p.state==='longshot');
@@ -920,6 +922,7 @@ $('#checked').textContent=DATA.checked;
 render();
 setInterval(()=>{if(state.mode!=='live')renderMain()},60000);
 if(window.LiveUI)LiveUI.start(DATA,{showSheet});
+if(window.SCORES)SCORES.start();
 if(window.DFF){DFF.load().then(()=>{if(state.mode==='fantasy')renderMain()});setInterval(()=>DFF.load().then(()=>{if(state.mode==='fantasy'&&$('#scrim').hidden)renderMain()}),5*60e3)}
 if(window.PREV)PREV.start({showSheet,onChange:()=>{if(['nfl','nba','soccer'].includes(state.lg)&&state.mode!=='live'&&$('#scrim').hidden)renderMain()}});
 /* New data from the daily pipeline: reload so every rule reruns on it, but never while a sheet is open or someone is typing. */
