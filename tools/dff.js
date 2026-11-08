@@ -23,15 +23,16 @@ const COLS={
 const C=COLS[SPORT];if(!C){log('Unknown sport.');process.exit(1)}
 
 /* Finds the current all-games DraftKings slate from the slate list DFF's own page loads (owner approved, 2026-11-06).
-   Picks the non-showdown slate with the most games starting today or later. NFL Mondays start from Sunday, because the
+   Picks the non-showdown slate with the most games starting today or later, then adds players from teams missing from it. NFL Mondays start from Sunday, because the
    Sun-Mon slate (dated Sunday) is the one that still has tonight's game. */
 async function findSlate(){
  const list=async d=>{const r=await fetch(`https://www.dailyfantasyfuel.com/data/slates/recent/${SPORT.toUpperCase()}/draftkings?date=${d}&url=`,{headers:UA});return r.ok?r.json():null};
  const today=ymdET(Date.now()),monday=SPORT==='nfl'&&new Date(today+'T12:00:00Z').getUTCDay()===1,from=monday?ymdET(Date.now()-864e5):today,first=await list(today);if(!first)return null;
  const days=[...new Set([from,today,...(first.dates||[]).map(x=>x.start_date)])].filter(d=>d>=from).sort().slice(0,4);
  for(const d of days){const L=d===today?first:await list(d);
-  const best=((L&&L.slates)||[]).filter(s=>!s.showdown_flag&&s.game_count>1).sort((a,b)=>b.game_count-a.game_count)[0];
-  if(best)return{url:`https://www.dailyfantasyfuel.com/${SPORT}/projections/draftkings/${d}?slate=${best.url}`,date:d,name:best.slate_type||'Main',games:best.game_count}}
+  const ok=((L&&L.slates)||[]).filter(s=>!s.showdown_flag&&s.game_count>1).sort((a,b)=>b.game_count-a.game_count),best=ok[0],u=x=>`https://www.dailyfantasyfuel.com/${SPORT}/projections/draftkings/${d}?slate=${x.url}`;
+  /* Some days DraftKings has no all-games slate (Nov 8 NBA: Early 2 + Main 5). The other classic slates fill in teams the biggest one misses. */
+  if(best)return{url:u(best),date:d,name:best.slate_type||'Main',games:best.game_count,extra:ok.slice(1).map(u)}}
  return null}
 const csvCell=v=>{v=v==null?'':String(v);return /[",\n]/.test(v)?'"'+v.replace(/"/g,'""')+'"':v};
 const unent=s=>s.replace(/&amp;/g,'&').replace(/&#0?39;|&apos;/g,"'").replace(/&quot;/g,'"').replace(/&lt;/g,'<').replace(/&gt;/g,'>');
@@ -48,8 +49,9 @@ function parse(html){
 function git(args){return cp.execFileSync('git',args,{cwd:ROOT,encoding:'utf8',stdio:['ignore','pipe','pipe']}).trim()}
 
 (async()=>{
+ let extra=[];
  if(!arg('url')){try{const s=await findSlate();
-  if(s){if(s.url!==cfg.url){cfg.url=s.url;fs.writeFileSync(CFG,JSON.stringify(cfg,null,1)+'\n')}URL_=s.url;log(`Slate found: ${s.name}, ${s.games} games, ${s.date}.`)}
+  if(s){extra=s.extra;if(s.url!==cfg.url){cfg.url=s.url;fs.writeFileSync(CFG,JSON.stringify(cfg,null,1)+'\n')}URL_=s.url;log(`Slate found: ${s.name}, ${s.games} games, ${s.date}.`)}
   else log('No all-games slate found in the slate list; using the saved link.')}
   catch(e){log('Slate lookup failed ('+(e.message||e)+'); using the saved link.')}}
  if(!URL_){log('No slate link. Nothing to do.');process.exit(2)}
@@ -61,6 +63,11 @@ function git(args){return cp.execFileSync('git',args,{cwd:ROOT,encoding:'utf8',s
  const p=parse(await r.text());
  /* Never replace good data with a broken page. */
  if(p.rows.length<C.min){log(`Only ${p.rows.length} players found (slate "${p.slate}"). Keeping the previous file.`);process.exit(1)}
+ const ti=C.head.indexOf('team'),have=new Set(p.rows.map(x=>x[ti]));
+ for(const u of extra){try{const x=await fetch(u,{headers:UA});if(!x.ok)continue;
+  const q=parse(await x.text()),add=q.rows.filter(r=>!have.has(r[ti]));if(!add.length)continue;
+  const n=new Set(add.map(r=>r[ti]));n.forEach(t=>have.add(t));p.rows.push(...add);log(`Added ${add.length} players, ${n.size} teams from slate "${q.slate}".`)}
+  catch(e){log('Extra slate failed ('+(e.message||e)+'); skipped.')}}
  fs.mkdirSync(path.dirname(OUT),{recursive:true});
  fs.writeFileSync(OUT,[C.head,...p.rows].map(r=>r.map(csvCell).join(',')).join('\n')+'\n');
  const teams=new Set(p.rows.map(x=>x[C.head.indexOf('team')])).size;
