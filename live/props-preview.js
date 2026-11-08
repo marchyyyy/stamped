@@ -341,5 +341,5 @@ function start(h){h=h||{};onChange=h.onChange;const all=()=>{Object.keys(LG).for
 const norm=s=>String(s||'').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'').replace(/\b(jr|sr|ii|iii|iv|v)\b\.?/g,'').replace(/[^a-z]/g,'');
 /* A player's ESPN game log from this week's file, by name (used by the fantasy preview board). */
 function player(lg,name){const D=S[lg]&&S[lg].data;if(!D)return null;const k=norm(name);return D.players.find(p=>norm(p.name)===k)||(D.logs||[]).find(p=>norm(p.name)===k)||null}
-window.PREV={start,load,weekHTML,moreHTML,altsHTML,parlaysHTML,cheatHTML,teamsHTML,injuriesHTML,next,player,teamEKG,crowd,teamRating,teamSignal,teamSignalChecked,practiceHTML,ready:lg=>!!(S[lg]&&S[lg].data),_lean:lean,_checks:checks};
+window.PREV={start,load,weekHTML,moreHTML,altsHTML,parlaysHTML,cheatHTML,teamsHTML,injuriesHTML,next,player,teamEKG,crowd,teamRating,teamSignal,teamSignalChecked,practiceHTML,checked:lg=>S[lg]&&S[lg].data&&S[lg].data.checked||'',ready:lg=>!!(S[lg]&&S[lg].data),_lean:lean,_checks:checks};
 })();

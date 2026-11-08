@@ -231,8 +231,8 @@ button.lucell{cursor:pointer}button.lucell:hover{outline:1px solid var(--line)}
 <script src="live/espn.js?v=20261106a"></script>
 <script src="live/ui.js?v=20261106l"></script>
 <script src="live/dff.js?v=20261106i"></script>
-<script src="live/props-preview.js?v=20261107c"></script>
-<script src="live/scores.js?v=20261107a"></script>
+<script src="live/props-preview.js?v=20261108a"></script>
+<script src="live/scores.js?v=20261108a"></script>
 <script>
 fetch('./data.json?v='+Date.now()).then(r=>r.json()).then(DATA=>{
 
@@ -560,7 +560,13 @@ function upcomingHTML(l){
  if(!rows.length&&!ps.length)return '';
  return `<div class="inj"><div class="row between"><b>Next up · ${fmtDay(nd)}</b><span class="pill p-long">Preview</span></div>${rows.join('')}${!rows.length?ps.map(p=>`<div class="row between"><span>${p.name} <span class="cap">${p.team}</span></span><span class="cap">${p.opp} · ${fmtT(p.when)} ET</span></div>`).join(''):''}<div class="cap">Not picks. Stamped only picks the current day, so these post the morning of the games, once lines and lineups are out.</div></div>`;
 }
-function renderMain(){
+/* Banner time = newest check for this sport: the daily data.json, or the NFL/NBA props refresh (tools/props.js). Both read "Nov 8, 10:01 AM ET". */
+function etKey(s){const m=/(\w{3}) (\d+), (\d+):(\d+) (AM|PM)/.exec(s||'');if(!m)return -1;
+ const mo='JanFebMarAprMayJunJulAugSepOctNovDec'.indexOf(m[1])/3,h=m[3]%12+(m[5]==='PM'?12:0);
+ const now=new Date(),y=now.getFullYear()-(mo>now.getMonth()?1:0);return Date.UTC(y,mo,+m[2],h,+m[4])}
+function stampChecked(){const p=window.PREV&&PREV.checked?PREV.checked(state.lg):'';
+ $('#checked').textContent=etKey(p)>etKey(DATA.checked)?p:DATA.checked}
+function renderMain(){stampChecked();
  const l=lgOf(state.lg),hasLive=l.id==='nba'&&!!window.LiveUI;
  /* NFL and NBA: the Parlays tab is the Cheatsheet (owner, 2026-11-06). Other sports keep Parlays. */
  const cheat=!!window.PREV&&!!PREV.cheatHTML&&['nfl','nba'].includes(l.id);
@@ -918,7 +924,6 @@ res.addEventListener('click',e=>{const b=e.target.closest('[data-pick]');const b
  else if(bg){const g=GAMES.find(x=>x.id===bg.dataset.g);state.lg=g.lg;state.mode='today';render();openGame(g.id)}
  else return;res.hidden=true;q.value=''});
 document.addEventListener('click',e=>{if(!e.target.closest('.search'))res.hidden=true});
-$('#checked').textContent=DATA.checked;
 render();
 setInterval(()=>{if(state.mode!=='live')renderMain()},60000);
 if(window.LiveUI)LiveUI.start(DATA,{showSheet});
