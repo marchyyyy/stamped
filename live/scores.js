@@ -12,12 +12,14 @@ function norm(e){const c=e.competitions[0],st=c.status||e.status,t=st.type;
  return{id:String(e.id),date:e.date,state:t.state,detail:t.shortDetail||t.detail||'',
   home:side(c.competitors.find(x=>x.homeAway==='home')),away:side(c.competitors.find(x=>x.homeAway==='away'))}}
 async function load(lg){
- try{const r=await fetch(URL[lg]),j=await r.json();
+ /* NBA asks for today's ET date: ESPN's undated board keeps yesterday's slate until late morning. */
+ const u=lg==='nba'?URL[lg]+'?dates='+ymd(new Date()).replace(/-/g,''):URL[lg];
+ try{const r=await fetch(u),j=await r.json();
   S[lg]={at:Date.now(),week:j.week&&j.week.number,games:(j.events||[]).map(norm)};paint(lg)}catch(_){}
 }
 /* NBA: today's games in ET. NFL: the whole week. Live first, then upcoming by start, finals last. */
 function games(lg){const s=S[lg];if(!s)return[];const t=ymd(new Date()),rank={in:0,pre:1,post:2};
- let gs=s.games;if(lg==='nba'){const td=gs.filter(g=>ymd(new Date(g.date))===t);gs=td.length?td:gs}
+ let gs=s.games;if(lg==='nba'){const td=gs.filter(g=>ymd(new Date(g.date))===t);gs=td}
  return gs.slice().sort((a,b)=>(rank[a.state]-rank[b.state])||(a.state==='post'?b.date.localeCompare(a.date):a.date.localeCompare(b.date)))}
 const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const logo=t=>t.logo?`<img class="sc-lt" src="${t.logo}" alt="" loading="lazy"><img class="sc-dk" src="${t.logo.replace('/500/','/500-dark/')}" alt="" loading="lazy" onerror="this.src='${t.logo}'">`:'';
