@@ -35,7 +35,8 @@ async function findSlate(){
   if(best)return{url:u(best),date:d,name:best.slate_type||'Main',games:best.game_count,extra:ok.slice(1).map(u)}}
  return null}
 const csvCell=v=>{v=v==null?'':String(v);return /[",\n]/.test(v)?'"'+v.replace(/"/g,'""')+'"':v};
-const unent=s=>s.replace(/&amp;/g,'&').replace(/&#0?39;|&apos;/g,"'").replace(/&quot;/g,'"').replace(/&lt;/g,'<').replace(/&gt;/g,'>');
+/* DFF writes apostrophes as &#x27; (De'Aaron Fox, Ja'Kobe Walter); undecoded, those names never matched ESPN's. */
+const unent=s=>s.replace(/&amp;/g,'&').replace(/&#x([0-9a-f]+);/gi,(m,h)=>String.fromCharCode(parseInt(h,16))).replace(/&#0?39;|&apos;/g,"'").replace(/&quot;/g,'"').replace(/&lt;/g,'<').replace(/&gt;/g,'>');
 function parse(html){
  const slate=(html.match(/window\.slate\s*=\s*'([^']*)'/)||[])[1]||'';
  const rows=[];
