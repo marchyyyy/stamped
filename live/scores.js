@@ -1,5 +1,5 @@
 /* Live scoreboard tiles for the Today tab (owner, 2026-11-07: Linemate-style matchups, red live dot, scores as they happen).
-   NBA shows today's games, NFL this week's. Source: ESPN site scoreboard (CORS *), polled in the browser; never writes data.json. */
+   NBA shows today's games, NFL this week's (finals from earlier days drop off). Source: ESPN site scoreboard (CORS *), polled in the browser; never writes data.json. */
 (function(){
 'use strict';
 const URL={nba:'https://site.api.espn.com/apis/site/v2/sports/basketball/nba/scoreboard',nfl:'https://site.api.espn.com/apis/site/v2/sports/football/nfl/scoreboard'};
@@ -11,15 +11,21 @@ const side=c=>({abbr:c.team.abbreviation,name:c.team.name||c.team.shortDisplayNa
 function norm(e){const c=e.competitions[0],st=c.status||e.status,t=st.type;
  return{id:String(e.id),date:e.date,state:t.state,detail:t.shortDetail||t.detail||'',
   home:side(c.competitors.find(x=>x.homeAway==='home')),away:side(c.competitors.find(x=>x.homeAway==='away'))}}
+/* A game still belongs on the board: not final, or final today (ET). Owner, 2026-11-09: Sunday's finals were still up on Monday. */
+const fresh=g=>g.state!=='post'||ymd(new Date(g.date))===ymd(new Date());
 async function load(lg){
  /* NBA asks for today's ET date: ESPN's undated board keeps yesterday's slate until late morning. */
  const u=lg==='nba'?URL[lg]+'?dates='+ymd(new Date()).replace(/-/g,''):URL[lg];
  try{const r=await fetch(u),j=await r.json();
-  S[lg]={at:Date.now(),week:j.week&&j.week.number,games:(j.events||[]).map(norm)};paint(lg)}catch(_){}
+  let week=j.week&&j.week.number,gs=(j.events||[]).map(norm);
+  /* NFL: once every game this week is final from an earlier day (Tue-Wed), show next week's schedule instead. */
+  if(lg==='nfl'&&gs.length&&!gs.some(fresh)&&week){const st=(j.season&&j.season.type)||2;
+   try{const n=await (await fetch(URL[lg]+'?week='+(week+1)+'&seasontype='+st)).json(),ng=(n.events||[]).map(norm);if(ng.length){gs=ng;week=week+1}}catch(_){}}
+  S[lg]={at:Date.now(),week,games:gs};paint(lg)}catch(_){}
 }
-/* NBA: today's games in ET. NFL: the whole week. Live first, then upcoming by start, finals last. */
+/* NBA: today's games in ET. NFL: this week's games, minus finals from earlier days. Live first, then upcoming by start, finals last. */
 function games(lg){const s=S[lg];if(!s)return[];const t=ymd(new Date()),rank={in:0,pre:1,post:2};
- let gs=s.games;if(lg==='nba'){const td=gs.filter(g=>ymd(new Date(g.date))===t);gs=td}
+ let gs=s.games;if(lg==='nba')gs=gs.filter(g=>ymd(new Date(g.date))===t);else gs=gs.filter(fresh);
  return gs.slice().sort((a,b)=>(rank[a.state]-rank[b.state])||(a.state==='post'?b.date.localeCompare(a.date):a.date.localeCompare(b.date)))}
 const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const logo=t=>t.logo?`<img class="sc-lt" src="${t.logo}" alt="" loading="lazy"><img class="sc-dk" src="${t.logo.replace('/500/','/500-dark/')}" alt="" loading="lazy" onerror="this.src='${t.logo}'">`:'';
