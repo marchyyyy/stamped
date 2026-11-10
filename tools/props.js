@@ -4,7 +4,7 @@
    games this season), and data/dff_<sport>_projections.csv (DailyFantasyFuel). Each run replaces the file, then commits.
    Usage (repo root):  node tools/props.js --sport nfl|nba [--no-push]       Run by tools/refresh.js. */
 'use strict';
-const fs=require('node:fs'),path=require('node:path'),cp=require('node:child_process');
+const fs=require('node:fs'),path=require('node:path'),cp=require('node:child_process'),{board}=require('./board.js');
 const ROOT=path.join(__dirname,'..');
 const arg=k=>{const i=process.argv.indexOf('--'+k);return i>0?process.argv[i+1]:null};
 const SPORT=(arg('sport')||'nfl').toLowerCase(),push=!process.argv.includes('--no-push');
@@ -134,23 +134,7 @@ function git(a){return cp.execFileSync('git',a,{cwd:ROOT,encoding:'utf8',stdio:[
     const why=bits.filter((b,j)=>!bits.some((o,k)=>k!==j&&o.toLowerCase().includes(b.toLowerCase())&&(o.length>b.length||k<j))).join(' ');
     const row={name:a.displayName,pos:a.position&&a.position.abbreviation,status:i.status||'',why,ret:d.returnDate||null};
     if(side)g.injuries[side].push(row);if(a.id)injuries[a.id]={status:(i.status||'').toLowerCase(),detail:[why,d.returnDate?`expected back ${d.returnDate}`:''].filter(Boolean).join(', ')}})});
-  const items=[];for(let pg=1;pg<=4;pg++){const p=await get(`${CORE}/events/${g.id}/competitions/${g.id}/odds/100/propBets?lang=en&region=us&limit=1000&page=${pg}`);await sleep(150);if(!p)break;items.push(...(p.items||[]));if(pg>=(p.pageCount||1))break}
-  boardItems+=items.length;
-  /* The prop's athlete link is season-specific, and only that record carries the player's current team. */
-  const lines={},refs={},miles={},pairs={};
-  items.forEach(x=>{const ref=String((x.athlete&&x.athlete.$ref)||''),id=(ref.match(/athletes\/(\d+)/)||[])[1];if(!id)return;const tn=x.type&&x.type.name,T=x.current&&x.current.target&&x.current.target.value;
-   if(CFG.lines[tn]&&T!=null){(lines[id]=lines[id]||{})[CFG.lines[tn]]=+T;refs[id]=ref;
-    /* NBA lines come as an Over/Under pair with prices (NFL: no prices). Kept in board order for pairing below. */
-    const pv=x.odds&&x.odds.american&&num(x.odds.american.value);if(pv!=null){const P=((pairs[id]=pairs[id]||{})[CFG.lines[tn]]=pairs[id][CFG.lines[tn]]||{});(P[+T]=P[+T]||[]).push(pv)}}
-   /* "X or more" ladder for alt lines. NBA carries prices; NFL lists the same rungs without prices (kept as null). */
-   const pr=x.odds&&x.odds.american&&num(x.odds.american.value);if(CFG.miles[tn]&&T!=null)((miles[id]=miles[id]||{})[CFG.miles[tn]]=miles[id][CFG.miles[tn]]||{})[+T]=pr!=null?pr:null});
-  /* Main line with both prices: of the priced pairs, the one closest to even. The Over is the pair's first item (914 of
-     930 pairs checked against the "X+" price); when the "X+" rung is posted, its price settles which one is the Over. */
-  const ip=o=>o>0?100/(o+100):-o/(-o+100),ou={};
-  Object.entries(pairs).forEach(([id,S])=>Object.entries(S).forEach(([stat,P])=>{let best=null;
-   Object.entries(P).forEach(([T,v])=>{if(v.length!==2)return;let [o,u]=v;const m=miles[id]&&miles[id][stat]&&miles[id][stat][Math.floor(+T)+1];
-    if(m!=null&&Math.abs(ip(u)-ip(m))<Math.abs(ip(o)-ip(m)))[o,u]=[u,o];const bal=Math.abs(ip(o)-ip(u));if(!best||bal<best.bal)best={T:+T,o,u,bal}});
-   if(best){lines[id][stat]=best.T;(ou[id]=ou[id]||{})[stat]=best}}));
+  const {items:nItems,lines,refs,miles,ou}=await board(get,sleep,CORE,CFG,g.id);boardItems+=nItems;
   for(const [aid,L] of Object.entries(lines)){
    const a=await get(refs[aid]);await sleep(120);if(!a)continue;
    const tid=(String((a.team&&a.team.$ref)||'').match(/teams\/(\d+)/)||[])[1]||'',side=tid===g.home.id?'home':tid===g.away.id?'away':null;
@@ -174,7 +158,7 @@ function git(a){return cp.execFileSync('git',a,{cwd:ROOT,encoding:'utf8',stdio:[
     dff:d?{proj:+d.ppg_projection,l5:+d.L5_fppg_avg,l10:+d.L10_fppg_avg,szn:+d.szn_fppg_avg,dvp:d.L5_dvp_rank!==''?+d.L5_dvp_rank:null,salary:+d.salary,value:+d.value_projection,inj:d.injury_status||''}:null,
     sources:[['ESPN game log','ok',`${gl.length} games`],['DraftKings line (via ESPN)','ok',Object.keys(L).join(', ')],...(d?[['DailyFantasyFuel','ok','projection']]:[])]});
   }
-  log(`${g.away.abbr} @ ${g.home.abbr}: ${Object.keys(lines).length} players with lines, ${items.length} props on the board`);
+  log(`${g.away.abbr} @ ${g.home.abbr}: ${Object.keys(lines).length} players with lines, ${nItems} props on the board`);
  }
  /* Game logs for every other DFF player on these teams, found through ESPN team rosters, so the fantasy breakdown does not
     depend on prop lines being posted. Stored apart from players, so they never enter the prop checks. */
