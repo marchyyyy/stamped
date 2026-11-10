@@ -26,6 +26,10 @@
 .lv-t th:first-child,.lv-t td:first-child{width:auto;overflow-wrap:anywhere;padding-right:6px}
 .lv-t th:not(:first-child),.lv-t td:not(:first-child){width:58px}
 .lv-t td{vertical-align:top}
+/* Player stat sheets (live/players.js): many narrow number columns, sized by content, scrolling sideways when needed. */
+.lv-t.pl-t{table-layout:auto;width:max-content;min-width:100%;white-space:nowrap}
+.lv-t.pl-t th:first-child,.lv-t.pl-t td:first-child{overflow-wrap:normal}
+.lv-t.pl-t th:not(:first-child),.lv-t.pl-t td:not(:first-child){width:auto;padding-left:10px}
 .lv-pls{display:grid}
 .lv-pl{display:grid;gap:3px;padding:8px 0;border-bottom:1px solid var(--line)}
 .lv-pl:last-child{border-bottom:0}

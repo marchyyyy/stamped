@@ -24,7 +24,10 @@ const practice=s=>{if(s!=='nba')return true;return run(['tools/hist.js','--sport
 /* NBA prop tracking (tools/track.js): after every props build, snapshot the lines and injury report, rebuild the role
    splits and grade finished nights; on the 15-minute check, a light pass (--tick) for games starting within 4 hours. */
 const track=(s,tick)=>s!=='nba'||run(['tools/track.js',...(tick?['--tick']:[])]);
-const full=s=>{const a=run(['tools/dff.js','--sport',s]),b=run(['tools/props.js','--sport',s]),c=kalshi(s),d=practice(s);track(s);if(s==='nfl'||s==='nba')kalshi('soccer');return a&&b&&c&&d};
+/* Player stats for search (tools/players.js): the game history first (NBA's is refreshed by practice above), then the
+   stat files; both skip quickly when no new game has finished. */
+const players=s=>(s==='nba'||run(['tools/hist.js','--sport',s]))&&run(['tools/players.js','--sport',s]);
+const full=s=>{const a=run(['tools/dff.js','--sport',s]),b=run(['tools/props.js','--sport',s]),c=kalshi(s),d=practice(s);track(s);players(s);if(s==='nfl'||s==='nba')kalshi('soccer');return a&&b&&c&&d};
 const ymd=t=>new Date(t).toLocaleDateString('en-CA',{timeZone:'America/New_York'}).replace(/-/g,'');
 
 async function pregame(){
@@ -50,7 +53,7 @@ async function pregame(){
 
 (async()=>{
  if(arg('sport'))full(arg('sport'));
- else if(has('props')){Object.keys(SPORTS).forEach(s=>{run(['tools/props.js','--sport',s]);kalshi(s);practice(s);track(s)});kalshi('soccer')}
+ else if(has('props')){Object.keys(SPORTS).forEach(s=>{run(['tools/props.js','--sport',s]);kalshi(s);practice(s);track(s);players(s)});kalshi('soccer')}
  else if(has('pregame'))await pregame();
  else log('Nothing to do. Use --sport nba|nfl, --props or --pregame.');
 })().catch(e=>{log('Failed: '+(e&&e.message||e));process.exit(1)});
