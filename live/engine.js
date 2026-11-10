@@ -308,7 +308,8 @@ function alertsFor(prev,next,ctx,cfg,seen){
  if(cfg.opportunity)(next.opps||[]).filter(o=>o.qualifies).forEach(o=>push(`${id}|opp|${o.market}|${o.side}|${o.stat||''}|${o.line}`,'opportunity',o.alert||`${nm}: Paper pick ${o.side} ${o.line!=null?o.line:''} ${o.market} at ${o.price>0?'+':''}${o.price}, edge ${(o.edge*100).toFixed(1)} pts.`));
  if(cfg.player){(st.players||[]).forEach(pl=>{
   if(pl.pf>=6)push(`${id}|fo|${pl.id}`,'player',`${nm}: ${pl.name} fouled out.`);
-  else if(st.period<=4&&pl.pf>=FOUL_TROUBLE[st.period]&&pl.starter)push(`${id}|ft|${pl.id}|${pl.pf}`,'player',`${nm}: ${pl.name} in foul trouble (${pl.pf} fouls, ${periodName(st.period)}).`);
+  /* Quarters 1-4 only: with no period yet (0) the threshold is 0 and every starter would be flagged. */
+  else if(st.period>=1&&st.period<=4&&pl.pf>=FOUL_TROUBLE[st.period]&&pl.starter)push(`${id}|ft|${pl.id}|${pl.pf}`,'player',`${nm}: ${pl.name} in foul trouble (${pl.pf} fouls, ${periodName(st.period)}).`);
   if(pl.injuryNote)push(`${id}|inj|${pl.id}`,'player',`${nm}: ${pl.name}: ${pl.injuryNote}`)})}
  return out;
 }
