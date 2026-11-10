@@ -57,6 +57,19 @@ function lean(p,pr){const C=LG[p.lg];
  const rank=vs&&vs.rank,grade=rank==null?null:rank>=vs.of-(C.tot-C.fav)?'favorable':rank<=C.bad?'hostile':'neutral';
  const r={p,pr,v,n,avg,over,under,vs,grade,rank,side,str:'',why:'',hits:v.map(x=>side==='Under'?x<L:x>L)};
  if(p.status==='questionable'){r.review='Questionable. No lean until he is cleared to play.';return r}
+ /* NBA (owner, 2026-11-10): the last 5 and the matchup are no longer a reason for a lean; graded against the box scores the
+    last-5 lean lost to the posted price. A lean now needs a role change tonight (a regular teammate newly out, and in the
+    games without him he cleared this line) or late news the line has not moved on (tools/track.js -> data/track_nba.json).
+    The last 5 and the matchup stay on the card as information. NFL has no role or news data yet and keeps the old rule. */
+ if(p.lg==='nba'){const T=TR.nba,form=`Last ${n}: over ${L} in ${over} (${v.join(', ')}), averaging ${avg.toFixed(1)}.`;r.side=null;r.hits=v.map(x=>x>L);
+  if(!T||!p.when||T.date!==p.when.slice(0,10)){r.why=`${form} Role and late-news check not in yet. No lean.`;return r}
+  const rp=(T.rp||[]).find(q=>q.aid===p.espnId&&q.stat===pr.stat&&q.line===L),f=((T.props||{})[`${p.espnId}|${pr.stat}`]||{}).flag;
+  if(!rp&&!f){r.why=`${form} Recent form alone has not beaten the price, so it is not a lean. No role change or late news on this line tonight.`;return r}
+  const sd=r.side=rp?'Over':f.dir;r.hits=v.map(x=>sd==='Under'?x<L:x>L);r.k=sd==='Under'?under:over;r.str='Moderate';r.price=priceFor(p,pr,sd);r.long=!!(r.price&&r.price.odds>=150);
+  if(rp){r.role=rp;r.why=`Role: ${rp.with} is out. In ${rp.n} games without him: over ${L} in ${rp.k}, averaging ${rp.avg}.`}
+  else{r.news=f;r.why=`Late news: ${f.name} ${f.to==='available'?'was cleared to play':'was ruled '+f.to} (${f.at}) and this line has not moved since.`}
+  if(r.long)r.why+=' Longshot price: small stakes only.';
+  r.score=(rp?20+rp.k/rp.n:10)+r.k/n/10;return r}
  /* Stamped's rule: nothing is recommended until the matchup is checked. */
  if(rank==null){r.review='Matchup not checked yet: not enough recent games for this defense.';return r}
  if(!side){r.why=`Split: ${over} over and ${under} under ${L} in his last ${n} (${v.join(', ')}), averaging ${avg.toFixed(1)}. Nothing to suggest.`;return r}
@@ -74,7 +87,10 @@ function lean(p,pr){const C=LG[p.lg];
 /* Best alt line for a lean. Overs use DraftKings' "X or more" ladder (NBA rungs are priced; NFL rungs list the line only);
    Unders step one line either way. Pays more: a harder line he still cleared in 4 of 5, not into a tough matchup.
    Safer: an easier line he cleared every time. A priced rung must be under +300 (Stamped rule). */
-function alt(r){if(!r||!r.side||r.review)return null;const p=r.pr,v=r.v,n=r.n,st=LG[r.p.lg].STEP[p.stat]||1,need=Math.ceil(.8*n),ok=o=>o==null||(o<300&&o>=-400);
+function alt(r){if(!r||!r.side||r.review)return null;
+ /* NBA: only the role pick's own alt (the highest rung he cleared in 3 of 4 games without the teammate); no last-5 alts. */
+ if(r.p.lg==='nba'){const a=r.role&&r.role.alt;return a?{kind:'Pays more',side:'Over',line:a.t-.5,rung:`${a.t}+`,k:a.k,n:r.role.n,odds:a.odds,src:'DraftKings'}:null}
+ const p=r.pr,v=r.v,n=r.n,st=LG[r.p.lg].STEP[p.stat]||1,need=Math.ceil(.8*n),ok=o=>o==null||(o<300&&o>=-400);
  const helps=r.side==='Over'?r.grade!=='hostile':r.grade!=='favorable';let up=null,safe=null;
  if(r.side==='Over'){const kl=K[r.p.lg]&&K[r.p.lg].props[`${norm(r.p.name)}|${p.stat}`]||{};
   /* Rungs from DraftKings' ladder and Kalshi's; each priced by DraftKings when it has a price, otherwise Kalshi. */
@@ -117,7 +133,7 @@ function spark(r){const mx=Math.max(...r.v,r.pr.line,1),s=[...r.v].reverse(),h=[
 /* Role tonight and late news (tools/track.js -> data/track_nba.json), in real stats. Role: his games without a regular
    teammate who is out tonight, next to his games with him. Role pick: he cleared tonight's line in most of those games,
    with the best alt rung he still cleared. Late news: a regular teammate's status changed and this line has not moved.
-   Role picks and late-news flags are practice: logged and graded every night, never stamped, and no part of the lean. */
+   Since 2026-11-10 the role pick and the late-news flag are the NBA lean (see lean()); both are logged and graded every night. */
 const TR={};
 function roleLine(r){const T=TR[r.p.lg];if(!T||!r.p.when||T.date!==r.p.when.slice(0,10))return '';
  const R=(T.role||{})[r.p.espnId],e=(T.props||{})[`${r.p.espnId}|${r.pr.stat}`]||{},st=r.pr.stat,L=r.pr.line,w=STATW[st]||st;let h='';
@@ -127,9 +143,9 @@ function roleLine(r){const T=TR[r.p.lg];if(!T||!r.p.when||T.date!==r.p.when.slic
   else{const v=x.v[st]||[],k=v.filter(y=>y>L).length,a=x.s[st]||[];
    if(a[0]!=null)h+=`<div class="cap"><span class="pill ${a[0]>a[1]?'p-pick':'p-long'}">Role</span> Without ${esc(x.name)} (${x.n} game${x.n>1?'s':''}): <b>${a[0]}</b> ${esc(w)} in ${x.min[0]} min. With him: ${a[1]} in ${x.min[1]} min. Over ${L} in ${k} of ${v.length} (${v.join(', ')}).${more}</div>`}});
  const rp=(T.rp||[]).find(q=>q.aid===r.p.espnId&&q.stat===st&&q.line===L);
- if(rp)h+=`<div class="cap"><span class="pill p-pick">Role pick · Practice</span> Over ${rp.line}${rp.odds!=null?` at <b>${fo(rp.odds)}</b>`:''}: cleared in ${rp.k} of ${rp.n} without ${esc(rp.with)}, averaging ${rp.avg}.${rp.alt?` Alt ${rp.alt.t}+ at <b>${fo(rp.alt.odds)}</b>: cleared in ${rp.alt.k} of ${rp.n}.`:''}</div>`;
+ if(rp)h+=`<div class="cap"><span class="pill p-pick">Role pick</span> Over ${rp.line}${rp.odds!=null?` at <b>${fo(rp.odds)}</b>`:''}: cleared in ${rp.k} of ${rp.n} without ${esc(rp.with)}, averaging ${rp.avg}.${rp.alt?` Alt ${rp.alt.t}+ at <b>${fo(rp.alt.odds)}</b>: cleared in ${rp.alt.k} of ${rp.n}.`:''}</div>`;
  const px=a=>`${a[0]}${a[1]!=null?` (${fo(a[1])})`:''}`,was=(n,to)=>`${esc(n)} ${to==='available'?'was cleared to play':'was ruled '+esc(to)}`;
- if(e.flag)h+=`<div class="cap"><span class="pill p-pick">Late news · Practice</span> ${was(e.flag.name,e.flag.to)} (${esc(e.flag.at)}) and this line has not moved since. That points to the ${e.flag.dir}.</div>`;
+ if(e.flag)h+=`<div class="cap"><span class="pill p-pick">Late news</span> ${was(e.flag.name,e.flag.to)} (${esc(e.flag.at)}) and this line has not moved since. That points to the ${e.flag.dir}.</div>`;
  else if(e.moved)h+=`<div class="cap"><span class="pill p-long">Line moved</span> From ${px(e.moved.from)} to ${px(e.moved.to)} after ${was(e.moved.name,e.moved.st)} (${esc(e.moved.at)}).</div>`;
  else if(e.open&&e.open[0]!==L)h+=`<div class="cap"><span class="pill p-long">Line moved</span> Opened at ${e.open[0]}, now ${L}.</div>`;
  return h}
@@ -140,7 +156,7 @@ function recordHTML(lg){const G=TR[lg]&&TR[lg].grades;if(!G||!G.days||!G.days.le
  const rows=(G.rows||[]).filter(x=>x.cat!=='lean'),leans=(G.rows||[]).filter(x=>x.cat==='lean');
  const tr=x=>`<tr><td>${esc(x.name)} <span class="cap">${esc(x.abbr)}</span></td><td>${esc(x.side)} ${x.line} ${esc(x.stat)}${x.cat==='lean'?'':` <span class="cap">${x.cat==='news'?'late news':x.cat==='roleAlt'?'role alt':'role'}</span>`}</td><td class="num">${x.odds!=null?fo(x.odds):'—'}</td><td class="num ${x.win?'up':'dn'}"><b>${x.v}</b></td></tr>`;
  const tbl=L=>`<table class="lv-t"><thead><tr><th>Player</th><th>Pick</th><th class="num">Price</th><th class="num">Got</th></tr></thead><tbody>${L.map(tr).join('')}</tbody></table>`;
- return `<div class="cap">Graded record since ${day(G.since)} (${n} night${n>1?'s':''}, every pick settled against the box score at the posted price): ${one('last-5 leans',t.lean)} · ${one('role picks',t.role)} · ${one('role alts',t.roleAlt)} · ${one('late-news flags',t.news)}. For comparison, every Over on the board went ${t.allOver.w}-${t.allOver.l} and every Under ${t.allUnder.w}-${t.allUnder.l}. Role picks and late-news flags are practice until a few hundred are graded.</div>
+ return `<div class="cap">Graded record since ${day(G.since)} (${n} night${n>1?'s':''}, every pick settled against the box score at the posted price): ${one('role leans',t.role)} · ${one('role alts',t.roleAlt)} · ${one('late-news leans',t.news)} · ${one('retired last-5 leans (through Nov 9)',t.lean)}. For comparison, every Over on the board went ${t.allOver.w}-${t.allOver.l} and every Under ${t.allUnder.w}-${t.allUnder.l}. Since Nov 10 a lean needs a role change or late news; the sample is small until a few hundred are graded.</div>
  ${G.rows&&G.rows.length?sub(`rec|${lg}`,`Graded picks, ${day(G.rowsDate)} (${G.rows.length})`,(rows.length?tbl(rows):'')+(leans.length?tbl(leans):'')):''}`}
 /* inGame: the card sits in its game's section, which already shows the start time and the price source. */
 function card(r,inGame){const p=r.p,pill=r.review?'<span class="pill p-long">Under review</span>':r.side?`<span class="pill p-pick">Lean ${r.side}</span>`:'<span class="pill p-stay">No lean</span>';

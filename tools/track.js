@@ -8,8 +8,8 @@
      node tools/track.js --backfill f    grade a saved nba_today.json (leans and all-lines baseline only; no line history)
      [--no-push]
    Local state (snapshots, frozen picks) lives in live/.cache/track-nba.json; the graded record lives in the published file.
-   Role picks and late-news flags are practice: logged and graded here, never stamped. The lean rule itself is untouched and
-   is read straight from live/props-preview.js, so the record grades exactly what the cards show. */
+   Since 2026-11-10 (owner approved) the role pick and the late-news flag are the site lean: live/props-preview.js reads them
+   from the published file. Days frozen under that rule carry rule:2 and no longer add to the retired last-5 lean record. */
 'use strict';
 const fs=require('node:fs'),path=require('node:path'),cp=require('node:child_process'),vm=require('node:vm'),{board}=require('./board.js');
 const ROOT=path.join(__dirname,'..'),OUT='data/track_nba.json',STATE=path.join(ROOT,'live','.cache','track-nba.json');
@@ -82,7 +82,7 @@ async function grade(day){const gids=[...new Set(Object.values(day.picks).map(p=
  for(const p of Object.values(day.picks)){const b=box[p.aid];if(!b||b[p.stat]==null||b[p.stat]===p.line)continue;const v=b[p.stat],over=v>p.line;
   if(p.o!=null)add('allOver',over,p.o);if(p.u!=null)add('allUnder',!over,p.u);
   const row=(cat,side,line,odds,win)=>rows.push({name:p.name,abbr:p.abbr,stat:p.stat,cat,side,line,odds,v,win});
-  if(p.lean){const win=p.lean==='Over'?over:!over;add('lean',win,p.lp);add(p.lean==='Over'?'leanOver':'leanUnder',win,p.lp);row('lean',p.lean,p.line,p.lp,win)}
+  if(p.lean&&!day.rule){const win=p.lean==='Over'?over:!over;add('lean',win,p.lp);add(p.lean==='Over'?'leanOver':'leanUnder',win,p.lp);row('lean',p.lean,p.line,p.lp,win)}
   if(p.role){add('role',over,p.o);row('role','Over',p.line,p.o,over);if(p.ralt){const w=v>=p.ralt.t;add('roleAlt',w,p.ralt.odds);row('roleAlt','Over',p.ralt.t-.5,p.ralt.odds,w)}}
   if(p.news){const win=p.news==='Over'?over:!over,od=p.news==='Over'?p.o:p.u;add('news',win,od);row('news',p.news,p.line,od,win)}}
  Object.values(C).forEach(o=>{o.u=Math.round(o.u*100)/100});return{cats:C,rows}}
@@ -90,7 +90,7 @@ async function grade(day){const gids=[...new Set(Object.values(day.picks).map(p=
 (async()=>{
  const D=readJ(BACK||path.join(ROOT,'data','nba_today.json'),null);if(!D||!D.games){log('No NBA data file. Nothing to do.');return}
  const now=Date.now(),date=(D.dates&&D.dates[0])||etDay(now),lean=siteLean();
- const ST=BACK?{days:{}}:readJ(STATE,{days:{}}),day=ST.days[date]=ST.days[date]||{snaps:[],picks:{},news:[],sea:{}};
+ const ST=BACK?{days:{}}:readJ(STATE,{days:{}}),day=ST.days[date]=ST.days[date]||{snaps:[],picks:{},news:[],sea:{}};if(!BACK&&date>='2026-11-10')day.rule=2;
  const pub=readJ(path.join(ROOT,OUT),{}),grades=pub.grades?JSON.parse(JSON.stringify(pub.grades)):{since:null,days:[]};
  /* A backfill grades only games that had not started when the file was saved (in-game lines are a different market). */
  const games=D.games.filter(g=>BACK?g.status==='pre':(g.status!=='post'&&start(g.when)>now)),near=games.filter(g=>start(g.when)<now+(+arg('hours')||4)*36e5);
@@ -134,7 +134,9 @@ async function grade(day){const gids=[...new Set(Object.values(day.picks).map(p=
  /* 5. Picks, frozen at tip-off: every line with its prices, the site's lean, the role pick and the news flag. */
  const rp=[];
  D.players.filter(p=>liveIds.has(p.gameId)).forEach(p=>p.props.forEach(q0=>{const k=`${p.espnId}|${q0.stat}`,c=BACK?null:latest(k),q=c?Object.assign({},q0,{line:c[0],odds:c[1],under:c[2]}):q0;
-  const r=lean(p,q),side=r&&r.side&&!r.review?r.side:null,R=rolePick(p,q,role[p.espnId]),f=props[k]&&props[k].flag;
+  const hold=p.status==='questionable',R=hold?null:rolePick(p,q,role[p.espnId]),f=hold?null:props[k]&&props[k].flag;let r=null,side=null;
+  /* Retired last-5 lean: only for days before the rule change (backfills). The questionable hold still applies to role and news. */
+  if(!day.rule){r=lean(p,q);side=r&&r.side&&!r.review?r.side:null}
   day.picks[k]={aid:p.espnId,name:p.name,abbr:p.abbr,gid:p.gameId,when:p.when,stat:q.stat,line:q.line,o:q.odds,u:q.under,lean:side,lp:side&&r.price?r.price.odds:null,
    role:!!R,ralt:R&&R.alt?{t:R.alt.t,odds:R.alt.odds}:null,news:f?f.dir:null};
   if(R)rp.push(Object.assign({aid:p.espnId,name:p.name,abbr:p.abbr,stat:q.stat},R))}));
