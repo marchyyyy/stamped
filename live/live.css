@@ -26,10 +26,21 @@
 .lv-t th:first-child,.lv-t td:first-child{width:auto;overflow-wrap:anywhere;padding-right:6px}
 .lv-t th:not(:first-child),.lv-t td:not(:first-child){width:58px}
 .lv-t td{vertical-align:top}
-/* Player stat sheets (live/players.js): many narrow number columns, sized by content, scrolling sideways when needed. */
-.lv-t.pl-t{table-layout:auto;width:max-content;min-width:100%;white-space:nowrap}
-.lv-t.pl-t th:first-child,.lv-t.pl-t td:first-child{overflow-wrap:normal}
-.lv-t.pl-t th:not(:first-child),.lv-t.pl-t td:not(:first-child){width:auto;padding-left:10px}
+/* Player stat sheets (live/players.js): tiles for the headline numbers and tables whose columns all fit a phone screen. */
+.pl-w{overflow-x:auto;min-width:0}
+.pl-t{width:100%;border-collapse:collapse;font-size:13px}
+.pl-t th,.pl-t td{padding:7px 0 7px 5px;border-bottom:1px solid var(--line);white-space:nowrap;text-align:left;vertical-align:top}
+.pl-t th{font-size:10px;letter-spacing:.03em;color:var(--muted);font-weight:700}
+.pl-t td.num{text-align:right;font-size:12.5px}
+.pl-t th.num{text-align:right}
+.pl-t th:first-child,.pl-t td:first-child{padding-left:0}
+.pl-t td small{display:block;color:var(--muted);font-size:11px}
+.pl-t tbody tr:last-child td{border-bottom:0}
+.pl-t .pl-g th{text-align:right;border-bottom:0;padding-bottom:0;text-transform:uppercase}
+.pl-tiles{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px}
+.pl-tiles div{background:var(--chip);border-radius:8px;padding:9px 2px 7px;text-align:center;min-width:0}
+.pl-tiles b{display:block;font-family:var(--f-mono);font-size:17px;line-height:1.15}
+.pl-tiles span{font-size:9.5px;color:var(--muted);letter-spacing:.05em}
 .lv-pls{display:grid}
 .lv-pl{display:grid;gap:3px;padding:8px 0;border-bottom:1px solid var(--line)}
 .lv-pl:last-child{border-bottom:0}

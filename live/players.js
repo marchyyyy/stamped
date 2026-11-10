@@ -24,30 +24,36 @@ function loadSeason(lg,season,id){const D=IDX[lg].d,k=`${lg}/${season}-${+id%D.b
  return FILES[k].then(o=>o[id]||[])}
 
 const md=d=>d.slice(5).replace('-','/');
-const table=(head,rows)=>`<div style="overflow-x:auto"><table class="lv-t pl-t"><thead><tr>${head.map((h,i)=>`<th${i>1?' class="num"':''}>${h}</th>`).join('')}</tr></thead><tbody>${rows.map(r=>`<tr>${r.map((c,i)=>`<td${i>1?' class="num"':''}>${c}</td>`).join('')}</tr>`).join('')}</tbody></table></div>`;
+/* Tables sized for a phone: every column fits a 390px screen without sideways scrolling. The first column carries two
+   lines (game, then result). groups is an optional row of group names above the column names: [[label, columns], ...]. */
+const table=(head,rows,groups)=>`<div class="pl-w"><table class="pl-t"><thead>${groups?`<tr class="pl-g"><th></th>${groups.map(([l,n])=>`<th colspan="${n}">${l}</th>`).join('')}</tr>`:''}<tr>${head.map((h,i)=>`<th${i?' class="num"':''}>${h}</th>`).join('')}</tr></thead><tbody>${rows.map(r=>`<tr>${r.map((c,i)=>`<td${i?' class="num"':''}>${c}</td>`).join('')}</tr>`).join('')}</tbody></table></div>`;
+const game=g=>`${md(g[0])} ${esc(g[1])}<small>${esc(g[2])}</small>`;
+const tiles=T=>`<div class="pl-tiles">${T.map(([v,l])=>`<div><b>${v}</b><span>${l}</span></div>`).join('')}</div>`;
+const games=n=>`${n} game${n===1?'':'s'}`;
 /* NBA row: [date, opp, result, min, pts, reb, ast, 3pm, stl, blk, to, fgm, fga, started] */
-function nbaHTML(S){const col=(G,i)=>G.map(g=>g[i]);
- const avgs=table(['Season','GP','MIN','PTS','REB','AST','3PM','STL','BLK','FG%'],S.map(([s,G])=>[esc(s),G.length,avg(col(G,3)),`<b>${avg(col(G,4))}</b>`,avg(col(G,5)),avg(col(G,6)),avg(col(G,7)),avg(col(G,8)),avg(col(G,9)),sum(col(G,12))?(100*sum(col(G,11))/sum(col(G,12))).toFixed(1):'—']));
- const logs=S.map(([s,G])=>log(s,G,['Game','Result','MIN','PTS','REB','AST','3PM','STL','BLK','TO','FG'],g=>[`${md(g[0])} ${esc(g[1])}`,`<span class="cap">${esc(g[2])}</span>`,g[3],`<b>${g[4]}</b>`,g[5],g[6],g[7],g[8],g[9],g[10],`${g[11]}-${g[12]}`])).join('');
- return `<div class="panel"><h4>Season averages</h4>${avgs}</div>${logs}`}
-/* NFL row: [date, opp, result, {p:[cmp,att,yds,td,int], r:[car,yds,td], c:[rec,yds,td,tgt], k:[fgm,fga,xpm,xpa], d:[tackles,sacks,int]}] */
-const NFL={p:{short:'Pass',name:'Passing',h:['CMP','ATT','YDS','TD','INT'],v:x=>[x[0],x[1],`<b>${x[2]}</b>`,x[3],x[4]],use:x=>x[1]>0},
- r:{short:'Rush',name:'Rushing',h:['CAR','YDS','TD'],v:x=>[x[0],`<b>${x[1]}</b>`,x[2]],use:x=>x[0]>0},
- c:{short:'Rec',name:'Receiving',h:['REC','TGT','YDS','TD'],v:x=>[x[0],x[3],`<b>${x[1]}</b>`,x[2]],use:x=>x[0]>0||x[3]>0},
- k:{short:'Kick',name:'Kicking',h:['FGM','FGA','XPM','XPA'],v:x=>x,use:x=>x[1]>0||x[3]>0},
- d:{short:'Def',name:'Defense',h:['TKL','SACK','INT'],v:x=>x,use:x=>x[0]>0||x[1]>0||x[2]>0}};
-function nflHTML(S){const all=S.flatMap(([,G])=>G);
+function nbaHTML(S){const col=(G,i)=>G.map(g=>g[i]),fg=G=>sum(col(G,12))?(100*sum(col(G,11))/sum(col(G,12))).toFixed(1)+'%':'—',[s0,G0]=S[0];
+ const top=`<div class="panel"><h4>${esc(s0)} per game · ${games(G0.length)}</h4>${tiles([[avg(col(G0,4)),'PTS'],[avg(col(G0,5)),'REB'],[avg(col(G0,6)),'AST'],[avg(col(G0,7)),'3PM']])}${tiles([[avg(col(G0,3)),'MIN'],[avg(col(G0,8)),'STL'],[avg(col(G0,9)),'BLK'],[fg(G0),'FG']])}</div>`;
+ const by=S.length>1?`<div class="panel"><h4>By season, per game</h4>${table(['Season','GP','MIN','PTS','REB','AST','3PM'],S.map(([s,G])=>[esc(s),G.length,avg(col(G,3)),`<b>${avg(col(G,4))}</b>`,avg(col(G,5)),avg(col(G,6)),avg(col(G,7))]))}</div>`:'';
+ return top+by+S.map(([s,G])=>log(s,G,['Game','MIN','PTS','REB','AST','3PM','STL','BLK'],g=>[game(g),g[3],`<b>${g[4]}</b>`,g[5],g[6],g[7],g[8],g[9]])).join('')}
+/* NFL row: [date, opp, result, {p:[cmp,att,yds,td,int], r:[car,yds,td], c:[rec,yds,td,tgt], k:[fgm,fga,xpm,xpa], d:[tackles,sacks,int]}]
+   Per group: column names, a row's cells (also used for season totals), the headline tiles, and what counts as playing. */
+const r1=x=>Math.round(x*10)/10,per=(x,n)=>n?(x/n).toFixed(1):'—';
+const NFL={p:{name:'Passing',h:['C/A','YDS','TD','INT'],v:x=>[`${x[0]}/${x[1]}`,`<b>${x[2]}</b>`,x[3],x[4]],use:x=>x[1]>0,t:(x,n)=>[[x[2],'PASS YDS'],[x[3],'PASS TD'],[x[4],'INT'],[per(x[2],n),'YDS / GAME']]},
+ r:{name:'Rushing',h:['CAR','YDS','TD'],v:x=>[x[0],`<b>${x[1]}</b>`,x[2]],use:x=>x[0]>0,t:(x,n)=>[[x[1],'RUSH YDS'],[x[2],'RUSH TD'],[x[0],'CARRIES'],[per(x[1],n),'YDS / GAME']]},
+ c:{name:'Receiving',h:['REC','TGT','YDS','TD'],v:x=>[x[0],x[3],`<b>${x[1]}</b>`,x[2]],use:x=>x[0]>0||x[3]>0,t:(x,n)=>[[x[0],'CATCHES'],[x[1],'REC YDS'],[x[2],'REC TD'],[per(x[1],n),'YDS / GAME']]},
+ k:{name:'Kicking',h:['FG','XP'],v:x=>[`${x[0]}/${x[1]}`,`${x[2]}/${x[3]}`],use:x=>x[1]>0||x[3]>0,t:x=>[[`${x[0]}/${x[1]}`,'FIELD GOALS'],[`${x[2]}/${x[3]}`,'EXTRA PTS']]},
+ d:{name:'Defense',h:['TKL','SACK','INT'],v:x=>[x[0],r1(x[1]),x[2]],use:x=>x[0]>0||x[1]>0||x[2]>0,t:(x,n)=>[[x[0],'TACKLES'],[r1(x[1]),'SACKS'],[x[2],'INT'],[per(x[0],n),'TKL / GAME']]}};
+function nflHTML(S){const all=S.flatMap(([,G])=>G),[s0,G0]=S[0];
  /* Only what he actually does: a group shows when it has numbers in at least one game in five. */
  const groups=Object.keys(NFL).filter(k=>{const n=all.filter(g=>g[3][k]&&NFL[k].use(g[3][k])).length;return n>0&&n>=all.length*.2});if(!groups.length)groups.push(...Object.keys(NFL).filter(k=>all.some(g=>g[3][k])));
- const tot=(G,k)=>{const R=G.map(g=>g[3][k]).filter(Boolean);return NFL[k].h.map((_,i)=>{const src=k==='c'?[0,3,1,2][i]:i;return R.reduce((a,x)=>a+(x[src]||0),0)})};
- const head=['Season','GP',...groups.flatMap(k=>NFL[k].h.map(h=>groups.length>1?`${NFL[k].short} ${h}`:h))];
- const totals=table(head,S.map(([s,G])=>[esc(s),G.length,...groups.flatMap(k=>tot(G,k).map(x=>Math.round(x*10)/10))]));
- const lh=['Game','Result',...groups.flatMap(k=>NFL[k].h.map(h=>groups.length>1?`${NFL[k].short} ${h}`:h))];
- const logs=S.map(([s,G])=>log(s,G,lh,g=>[`${md(g[0])} ${esc(g[1])}`,`<span class="cap">${esc(g[2])}</span>`,...groups.flatMap(k=>g[3][k]?NFL[k].v(g[3][k]):NFL[k].h.map(()=>'—'))])).join('');
- return `<div class="panel"><h4>Season totals</h4>${totals}</div>${logs}`}
+ const tot=(G,k)=>G.map(g=>g[3][k]).filter(Boolean).reduce((a,x)=>a.map((y,i)=>y+(x[i]||0)),[0,0,0,0,0]);
+ const head=groups.flatMap(k=>NFL[k].h),band=groups.length>1?groups.map(k=>[NFL[k].name,NFL[k].h.length]):null;
+ const top=`<div class="panel"><h4>${esc(s0)} totals · ${games(G0.length)}</h4>${groups.slice(0,2).map(k=>tiles(NFL[k].t(tot(G0,k),G0.length))).join('')}</div>`;
+ const by=S.length>1?`<div class="panel"><h4>By season, totals</h4>${table(['Season','GP',...head],S.map(([s,G])=>[esc(s),G.length,...groups.flatMap(k=>NFL[k].v(tot(G,k)))]),band&&[['',1],...band])}</div>`:'';
+ return top+by+S.map(([s,G])=>log(s,G,['Game',...head],g=>[game(g),...groups.flatMap(k=>g[3][k]?NFL[k].v(g[3][k]):NFL[k].h.map(()=>'—'))],band)).join('')}
 /* One season's game log: the last 10 games, with a button for the rest. */
-function log(s,G,head,row){const all=more.has(s),L=all?G:G.slice(0,10);
- return `<div class="panel"><h4>${esc(s)} game log · ${G.length} game${G.length===1?'':'s'}</h4>${table(head,L.map(row))}${G.length>10?`<button class="card" data-pl-more="${esc(s)}"><div class="cap">${all?'Show the last 10 only':`Show all ${G.length} games`}</div></button>`:''}</div>`}
+function log(s,G,head,row,band){const all=more.has(s),L=all?G:G.slice(0,10);
+ return `<div class="panel"><h4>${esc(s)} game log · ${games(G.length)}</h4>${table(head,L.map(row),band)}${G.length>10?`<button class="card" data-pl-more="${esc(s)}"><div class="cap">${all?'Show the last 10 only':`Show all ${G.length} games`}</div></button>`:''}</div>`}
 function sheetHTML(p,S){const lg=p.lg,D=IDX[lg].d,tonight=window.PREV&&PREV.player&&(x=>x&&x.props&&x.props.length&&x.when&&Date.parse(x.when+':00-05:00')>Date.now()?x:null)(PREV.player(lg,p.name));
  /* The props link shows only while his game has not started (the week's file keeps finished games). */
  return `<div class="shead" data-pl-sheet><div style="min-width:0;display:flex;gap:10px;align-items:center"><img src="https://a.espncdn.com/i/headshots/${lg}/players/full/${esc(p.id)}.png" alt="" width="56" height="41" style="border-radius:8px;object-fit:cover" onerror="this.remove()">
