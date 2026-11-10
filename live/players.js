@@ -48,10 +48,11 @@ function nflHTML(S){const all=S.flatMap(([,G])=>G);
 /* One season's game log: the last 10 games, with a button for the rest. */
 function log(s,G,head,row){const all=more.has(s),L=all?G:G.slice(0,10);
  return `<div class="panel"><h4>${esc(s)} game log · ${G.length} game${G.length===1?'':'s'}</h4>${table(head,L.map(row))}${G.length>10?`<button class="card" data-pl-more="${esc(s)}"><div class="cap">${all?'Show the last 10 only':`Show all ${G.length} games`}</div></button>`:''}</div>`}
-function sheetHTML(p,S){const lg=p.lg,D=IDX[lg].d,tonight=window.PREV&&PREV.player&&(x=>x&&x.props&&x.props.length?x:null)(PREV.player(lg,p.name));
+function sheetHTML(p,S){const lg=p.lg,D=IDX[lg].d,tonight=window.PREV&&PREV.player&&(x=>x&&x.props&&x.props.length&&x.when&&Date.parse(x.when+':00-05:00')>Date.now()?x:null)(PREV.player(lg,p.name));
+ /* The props link shows only while his game has not started (the week's file keeps finished games). */
  return `<div class="shead" data-pl-sheet><div style="min-width:0;display:flex;gap:10px;align-items:center"><img src="https://a.espncdn.com/i/headshots/${lg}/players/full/${esc(p.id)}.png" alt="" width="56" height="41" style="border-radius:8px;object-fit:cover" onerror="this.remove()">
    <div style="min-width:0"><div class="pname">${esc(p.name)}</div><div class="team">${esc(p.abbr)}${p.pos?` · ${esc(p.pos)}`:''} · ${lg.toUpperCase()}</div></div></div><button class="x" id="close" aria-label="Close">×</button></div>
-  ${tonight?`<button class="card" data-prev-back="${esc(lg+'|'+tonight.id)}"><div class="row between"><span class="prop">Tonight's props</span><span class="pill p-long">Open →</span></div><div class="cap">Lines, prices and checks for ${esc(tonight.opp||'his game')}.</div></button>`:''}
+  ${tonight?`<button class="card" data-prev-back="${esc(lg+'|'+tonight.id)}"><div class="row between"><span class="prop">His props for the next game</span><span class="pill p-long">Open →</span></div><div class="cap">Lines, prices and checks for ${esc(tonight.opp||'his game')}.</div></button>`:''}
   ${S===null?'<div class="panel"><div class="cap">Loading his games…</div></div>':!S.length?'<div class="panel"><div class="cap">No games found for him.</div></div>':lg==='nba'?nbaHTML(S):nflHTML(S)}
   <div class="panel"><h4>Sources</h4><div class="srcs"><div>ESPN box scores, regular season, ${D.seasons.map(s=>seasonName(lg,s)).join(', ')}</div><div>Through ${esc(D.through)}</div></div></div>`}
 /* first: opening his sheet. Later redraws (games loaded, show all) only happen while his sheet is still the one open. */
