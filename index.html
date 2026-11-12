@@ -231,7 +231,7 @@ button.lucell{cursor:pointer}button.lucell:hover{outline:1px solid var(--line)}
 <script src="live/espn.js?v=20261106a"></script>
 <script src="live/ui.js?v=20261106l"></script>
 <script src="live/dff.js?v=20261106i"></script>
-<script src="live/props-preview.js?v=20261110b"></script>
+<script src="live/props-preview.js?v=20261112a"></script>
 <script src="live/scores.js?v=20261109a"></script>
 <script src="live/players.js?v=20261110c"></script>
 <script>
@@ -741,12 +741,13 @@ function rulesHTML(lg){
   <div class="rules"><h3>Props leans <span class="pill p-long">New draft</span></h3><ul>
   <li>Stamped picks pass the full rules. Props is every player on today's slate with a line, each with a lean or the reason there is none.</li>
   <li>NBA, since Nov 10, 2026: the last 5 games and the matchup are no longer a reason for a lean. Graded against the box scores, last-5 leans went 52-53 and lost 10.3 units.</li>
-  <li>NBA role lean (Over): a regular teammate (20+ minutes a game) went out within his team's last 3 games, and in the games without him this player cleared tonight's line in 60% or more, averaging at least half a step above it, without playing fewer minutes.</li>
   <li>NBA late-news lean: a regular teammate was ruled out (Over) or cleared to play (Under) after lines were posted, and this points or points + rebounds + assists line has not moved since.</li>
-  <li>NBA alt: only the highest DraftKings rung he cleared in 3 of every 4 games without that teammate, priced under +300.</li>
-  <li>No role change and no late news means No lean. The last 5, the matchup and the head-to-head stay on the card as information.</li>
+  <li>Since Nov 12, 2026: one late-news lean per team per game, on the flagged player who plays the most minutes. The team's other flagged lines are information only. After two graded nights the leans stood 42-57, and 75 of 88 came in bunches of three or more on one team, so one bad game decided many picks.</li>
+  <li>NBA role pick (Over), practice since Nov 12, 2026: a regular teammate (20+ minutes a game) went out within his team's last 3 games, and in the games without him this player cleared tonight's line in 60% or more, averaging at least half a step above it, without playing fewer minutes. It is graded every night but is not a lean: as a lean it went 9-14.</li>
+  <li>NBA alt lines are not part of a lean since Nov 12, 2026 (role alts went 1-10). The ladder stays on the card as information.</li>
+  <li>No late news means No lean. A late-news Under on a line where the role pick says Over is a clash: no lean. The last 5, the matchup and the head-to-head stay on the card as information.</li>
   <li>Questionable players get no lean until cleared. Out players go to Stay away.</li>
-  <li>Every lean is logged at the posted price and graded against the box score that night. The record on the Props page is the real one, wins and losses.</li>
+  <li>Every lean is logged at the price shown when it first appeared and graded against the box score that night, with the closing line beside it. The record on the Props page is the real one, wins and losses.</li>
   <li>NFL keeps the earlier rule until role and news data exist for it: Over or Under in 3+ of the last 5 with a half-step cushion; a matchup that disagrees needs 4 of 5.</li></ul></div>
   <div class="rules"><h3>Team picks</h3><ul>
   <li>Current roster and current-season ratings come first. Last season is blended in early and fades to 0.</li>

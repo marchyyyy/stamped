@@ -9,7 +9,12 @@
      [--no-push]
    Local state (snapshots, frozen picks) lives in live/.cache/track-nba.json; the graded record lives in the published file.
    Since 2026-11-10 (owner approved) the role pick and the late-news flag are the site lean: live/props-preview.js reads them
-   from the published file. Days frozen under that rule carry rule:2 and no longer add to the retired last-5 lean record. */
+   from the published file. Days frozen under that rule carry rule:2 and no longer add to the retired last-5 lean record.
+   Since 2026-11-12 (owner approved, rule:3; after two graded nights at 42-57, -18.8 units, 75 of 88 leans in bunches of 3+ a team):
+   only late news makes a lean, one per team per game, recorded the first time it is shown and graded at that price, with the
+   closing line beside it. The role pick is practice (graded, not a lean) and has no alt line. A late-news Under on a line
+   with a role pick is a clash: no lean. Low rungs of the "X+" ladders (-300 or shorter) are graded each night as a
+   comparison: do legs priced as safe clear as often as their price says. */
 'use strict';
 const fs=require('node:fs'),path=require('node:path'),cp=require('node:child_process'),vm=require('node:vm'),{board}=require('./board.js');
 const ROOT=path.join(__dirname,'..'),OUT='data/track_nba.json',STATE=path.join(ROOT,'live','.cache','track-nba.json');
@@ -69,8 +74,8 @@ function rolePick(p,pr,R){const x=(R||[]).find(r=>r.missed<=3&&r.n>=2);if(!x)ret
  return{side:'Over',line:L,odds:pr.odds,k,n,avg:r1(a),with:x.name,alt:alt?{t:alt.t,odds:alt.odds,k:v.filter(y=>y>=alt.t).length}:null}}
 
 /* Grade a day's frozen picks against the box scores. Each category is logged at the posted price, 1 unit a pick. */
-const CATS=['lean','leanOver','leanUnder','role','roleAlt','news','allOver','allUnder'];
-const pay=o=>o>0?o/100:100/-o;
+const CATS=['lean','leanOver','leanUnder','role','roleAlt','news','newsHeld','safeA','safeB','allOver','allUnder'];
+const pay=o=>o>0?o/100:100/-o,fairO=(o,u)=>o!=null&&u!=null?ip(o)/(ip(o)+ip(u)):null;
 async function grade(day){const gids=[...new Set(Object.values(day.picks).map(p=>p.gid))],box={};
  for(const gid of gids){const s=await get(`${SITE}/summary?event=${gid}`);await sleep(150);const c=s&&s.header&&s.header.competitions&&s.header.competitions[0];
   if(!c||!c.status||!c.status.type||!c.status.type.completed)return null;
@@ -79,18 +84,29 @@ async function grade(day){const gids=[...new Set(Object.values(day.picks).map(p=
     const pts=v('points'),reb=v('rebounds'),ast=v('assists');box[a.athlete.id]={points:pts,rebounds:reb,assists:ast,threes:v('threePointFieldGoalsMade-threePointFieldGoalsAttempted'),PRA:pts+reb+ast}})})}
  const C=Object.fromEntries(CATS.map(c=>[c,{n:0,w:0,l:0,u:0}])),rows=[];
  const add=(c,win,odds)=>{const o=C[c];o.n++;if(win){o.w++;if(odds!=null)o.u+=pay(odds)}else{o.l++;if(odds!=null)o.u-=1}};
- for(const p of Object.values(day.picks)){const b=box[p.aid];if(!b||b[p.stat]==null||b[p.stat]===p.line)continue;const v=b[p.stat],over=v>p.line;
+ for(const p of Object.values(day.picks)){const b=box[p.aid];if(!b||b[p.stat]==null)continue;const v=b[p.stat],over=v>p.line;
+  /* Low ladder rungs (comparison only): safeA priced -300 to -599, safeB -600 or shorter; q adds up what the prices need. */
+  for(const [t,od] of p.safe||[]){const c=od<=-600?'safeB':'safeA';add(c,v>=t,od);C[c].q=(C[c].q||0)+ip(od)}
+  if(v===p.line)continue;
   if(p.o!=null)add('allOver',over,p.o);if(p.u!=null)add('allUnder',!over,p.u);
   const row=(cat,side,line,odds,win)=>rows.push({name:p.name,abbr:p.abbr,stat:p.stat,cat,side,line,odds,v,win});
   if(p.lean&&!day.rule){const win=p.lean==='Over'?over:!over;add('lean',win,p.lp);add(p.lean==='Over'?'leanOver':'leanUnder',win,p.lp);row('lean',p.lean,p.line,p.lp,win)}
   if(p.role){add('role',over,p.o);row('role','Over',p.line,p.o,over);if(p.ralt){const w=v>=p.ralt.t;add('roleAlt',w,p.ralt.odds);row('roleAlt','Over',p.ralt.t-.5,p.ralt.odds,w)}}
-  if(p.news){const win=p.news==='Over'?over:!over,od=p.news==='Over'?p.o:p.u;add('news',win,od);row('news',p.news,p.line,od,win)}}
- Object.values(C).forEach(o=>{o.u=Math.round(o.u*100)/100});return{cats:C,rows}}
+  if(p.news){const win=p.news==='Over'?over:!over,od=p.news==='Over'?p.o:p.u;add('news',win,od);row('news',p.news,p.line,od,win)}
+  if(p.held){const win=p.held==='Over'?over:!over,od=p.held==='Over'?p.o:p.u;add('newsHeld',win,od);row('newsHeld',p.held,p.line,od,win)}}
+ /* Rule 3: the recorded leans, at the price shown when each first appeared. cl compares that price with the closing line:
+    1 the close moved our way (we beat it), -1 it moved against us, 0 no real change (same line, fair chance within 1 point). */
+ for(const r of Object.values(day.recs||{})){const b=box[r.aid];if(!b||b[r.stat]==null||b[r.stat]===r.line)continue;
+  const v=b[r.stat],sg=r.side==='Over'?1:-1,win=(v-r.line)*sg>0;let cl=0;
+  if(r.close){const mv=(r.close[0]-r.line)*sg,f0=fairO(r.o,r.u),f1=fairO(r.close[1],r.close[2]),d=f0!=null&&f1!=null?(f1-f0)*sg:0;cl=mv>0?1:mv<0?-1:d>=.01?1:d<=-.01?-1:0}
+  add('news',win,r.odds);C.news.b=(C.news.b||0)+(cl>0?1:0);C.news.a=(C.news.a||0)+(cl<0?1:0);
+  rows.push({name:r.name,abbr:r.abbr,stat:r.stat,cat:'news',side:r.side,line:r.line,odds:r.odds,v,win,cl})}
+ Object.values(C).forEach(o=>{o.u=Math.round(o.u*100)/100;if(o.q)o.q=Math.round(o.q*100)/100});return{cats:C,rows}}
 
 (async()=>{
  const D=readJ(BACK||path.join(ROOT,'data','nba_today.json'),null);if(!D||!D.games){log('No NBA data file. Nothing to do.');return}
  const now=Date.now(),date=(D.dates&&D.dates[0])||etDay(now),lean=siteLean();
- const ST=BACK?{days:{}}:readJ(STATE,{days:{}}),day=ST.days[date]=ST.days[date]||{snaps:[],picks:{},news:[],sea:{}};if(!BACK&&date>='2026-11-10')day.rule=2;
+ const ST=BACK?{days:{}}:readJ(STATE,{days:{}}),day=ST.days[date]=ST.days[date]||{snaps:[],picks:{},news:[],sea:{}};if(!BACK&&date>='2026-11-10')day.rule=date>='2026-11-12'?3:2;
  const pub=readJ(path.join(ROOT,OUT),{}),grades=pub.grades?JSON.parse(JSON.stringify(pub.grades)):{since:null,days:[]};
  /* A backfill grades only games that had not started when the file was saved (in-game lines are a different market). */
  const games=D.games.filter(g=>BACK?g.status==='pre':(g.status!=='post'&&start(g.when)>now)),near=games.filter(g=>start(g.when)<now+(+arg('hours')||4)*36e5);
@@ -131,14 +147,38 @@ async function grade(day){const gids=[...new Set(Object.values(day.picks).map(p=
     /* The flag is kept to scoring lines (points, PRA): a missing regular frees shots for everyone; other stats depend on who he is. */
     if(same){if(/^(points|PRA)$/.test(k.split('|')[1]))e.flag={dir:ev.kind==='out'?'Over':'Under',name:ev.name,to:ev.to,at:stamp(ev.t)}}else e.moved={from:[b[0],b[1]],to:[c[0],c[1]],name:ev.name,st:ev.to,at:stamp(ev.t)}}}
   props[k]=e}
+ /* 4b. Rule 3: one late-news lean per team per game. The team's lean is a scoring line of the flagged player who plays the
+        most minutes (points before PRA). It is recorded the first time it is shown, at that price, and stays the team's lean
+        for the night: before, a flag whose line moved before tip-off dropped out of the record. The team's other flagged
+        lines are held back (information on the card, graded as practice). A late-news Under on a line that also has a role
+        pick (Over) is a clash: no lean. */
+ const mins=p=>avg((p.games||[]).map(g=>g.min||0));
+ if(!BACK&&day.rule>=3){const recs=day.recs=day.recs||{},byTeam={};
+  for(const [k,e] of Object.entries(props)){if(!e.flag)continue;const [aid,stat]=k.split('|'),p=byAid[aid];if(!p||!liveIds.has(p.gameId))continue;
+   const c=latest(k),q0=p.props.find(x=>x.stat===stat);
+   if(e.flag.dir==='Under'&&q0&&c&&p.status!=='questionable'&&rolePick(p,Object.assign({},q0,{line:c[0],odds:c[1],under:c[2]}),role[p.espnId])){e.clash=e.flag;delete e.flag;continue}
+   (byTeam[p.abbr]=byTeam[p.abbr]||[]).push({k,e,p,stat,c})}
+  for(const [ab,F] of Object.entries(byTeam)){let rec=Object.values(recs).find(r=>r.abbr===ab&&r.gid===F[0].p.gameId);
+   if(!rec){const px=y=>y.c?(y.e.flag.dir==='Over'?y.c[1]:y.c[2]):null;
+    const x=F.filter(y=>y.p.status!=='questionable'&&px(y)!=null).sort((a,b)=>mins(b.p)-mins(a.p)||(a.stat==='points'?0:1)-(b.stat==='points'?0:1)||(a.p.name<b.p.name?-1:1))[0];
+    if(x){rec=recs[x.k]={k:x.k,aid:x.p.espnId,name:x.p.name,abbr:ab,gid:x.p.gameId,when:x.p.when,stat:x.stat,side:x.e.flag.dir,line:x.c[0],odds:px(x),o:x.c[1],u:x.c[2],t:now};
+     log(`Lean recorded: ${x.p.name} ${rec.side} ${rec.line} ${x.stat} (${ab}).`)}}
+   for(const y of F)if(!rec||y.k!==rec.k||y.e.flag.dir!==rec.side){y.e.held=y.e.flag;delete y.e.flag}}
+  /* the closing line of a recorded lean: the last line seen before its game started */
+  for(const r of Object.values(recs)){if(!liveIds.has(r.gid))continue;const c=latest(r.k);if(c)r.close=c}}
  /* 5. Picks, frozen at tip-off: every line with its prices, the site's lean, the role pick and the news flag. */
  const rp=[];
  D.players.filter(p=>liveIds.has(p.gameId)).forEach(p=>p.props.forEach(q0=>{const k=`${p.espnId}|${q0.stat}`,c=BACK?null:latest(k),q=c?Object.assign({},q0,{line:c[0],odds:c[1],under:c[2]}):q0;
   const hold=p.status==='questionable',R=hold?null:rolePick(p,q,role[p.espnId]),f=hold?null:props[k]&&props[k].flag;let r=null,side=null;
   /* Retired last-5 lean: only for days before the rule change (backfills). The questionable hold still applies to role and news. */
   if(!day.rule){r=lean(p,q);side=r&&r.side&&!r.review?r.side:null}
+  /* Rule 3: the role pick is practice and has no alt line (role alts went 1-10). */
+  if(R&&day.rule>=3)R.alt=null;
   day.picks[k]={aid:p.espnId,name:p.name,abbr:p.abbr,gid:p.gameId,when:p.when,stat:q.stat,line:q.line,o:q.odds,u:q.under,lean:side,lp:side&&r.price?r.price.odds:null,
    role:!!R,ralt:R&&R.alt?{t:R.alt.t,odds:R.alt.odds}:null,news:f?f.dir:null};
+  /* Rule 3: the lean itself is graded from day.recs (4b); here the held-back flags and the low ladder rungs. */
+  if(day.rule>=3){const P=day.picks[k],h=hold?null:props[k]&&props[k].held,s=(q0.alts||[]).filter(a=>a.odds!=null&&a.odds<=-300).map(a=>[a.t,a.odds]);
+   P.news=null;if(h)P.held=h.dir;if(s.length)P.safe=s}
   if(R)rp.push(Object.assign({aid:p.espnId,name:p.name,abbr:p.abbr,stat:q.stat},R))}));
  /* 6. Grade every earlier day (and a backfilled one) whose games are all final, then keep 4 days of local history. */
  for(const d of Object.keys(ST.days).sort()){const X=ST.days[d];if(X.graded||(d>=etDay(now)&&!BACK)||!Object.keys(X.picks).length)continue;
@@ -146,7 +186,9 @@ async function grade(day){const gids=[...new Set(Object.values(day.picks).map(p=
   X.graded=true;grades.days=grades.days.filter(y=>y.d!==d).concat({d,cats:G.cats}).sort((a,b)=>a.d<b.d?-1:1);grades.since=grades.days[0].d;
   const lastD=grades.days[grades.days.length-1].d;if(d===lastD){grades.rows=G.rows;grades.rowsDate=d}
   log(`${d} graded: leans ${G.cats.lean.w}-${G.cats.lean.l} (${G.cats.lean.u>=0?'+':''}${G.cats.lean.u}u), role ${G.cats.role.w}-${G.cats.role.l}, news ${G.cats.news.w}-${G.cats.news.l}, all Overs ${G.cats.allOver.w}-${G.cats.allOver.l}.`)}
- grades.total=Object.fromEntries(CATS.map(c=>[c,grades.days.reduce((a,y)=>{const o=y.cats[c]||{n:0,w:0,l:0,u:0};return{n:a.n+o.n,w:a.w+o.w,l:a.l+o.l,u:Math.round((a.u+o.u)*100)/100}},{n:0,w:0,l:0,u:0})]));
+ /* q (what the prices needed), b and a (closing line beaten, or moved against) exist only where a category records them. */
+ grades.total=Object.fromEntries(CATS.map(c=>[c,grades.days.reduce((a,y)=>{const o=y.cats[c]||{n:0,w:0,l:0,u:0},t={n:a.n+o.n,w:a.w+o.w,l:a.l+o.l,u:Math.round((a.u+o.u)*100)/100};
+  for(const f of ['q','b','a'])if(a[f]!=null||o[f]!=null)t[f]=Math.round(((a[f]||0)+(o[f]||0))*100)/100;return t},{n:0,w:0,l:0,u:0})]));
  if(!BACK){Object.keys(ST.days).sort().slice(0,-4).forEach(d=>delete ST.days[d]);fs.mkdirSync(path.dirname(STATE),{recursive:true});fs.writeFileSync(STATE,JSON.stringify(ST))}
  /* 7. Publish. A backfill only adds to the record; today's role, news and line history stay as they were. */
  const body=BACK?{date:pub.date,role:pub.role||{},props:pub.props||{},news:pub.news||[],rp:pub.rp||[],grades}
