@@ -2,7 +2,9 @@
    Builds the same CSV as DFF's "Download Projections as CSV" button, which assembles it in the browser from the
    player rows on the page. Each run replaces the previous file, then commits and pushes it.
    Usage (repo root):  node tools/dff.js [--sport nfl|nba] [--url <slate url>] [--no-push]
-   The last slate link is kept in tools/dff-<sport>.json; each run looks up the current one itself. */
+   The last slate link is kept in tools/dff-<sport>.json; each run looks up the current one itself.
+   Since 2026-11-12 DFF shows the full list only to a signed-in account: the run uses the owner's session (tools/dff-session.js).
+   If the session has ended, sign in again with one run:  DFF_USER=<name> DFF_PASS=<password> node tools/dff.js --sport nba */
 'use strict';
 const fs=require('node:fs'),path=require('node:path'),cp=require('node:child_process');
 const ROOT=path.join(__dirname,'..');
@@ -45,8 +47,11 @@ function parse(html){
   if(a.own)a.own=String(Math.round(parseFloat(a.own)));
   rows.push(C.attr.map(k=>k===null?slate:a[k]));
  }
- return{slate,rows,games:(html.match(/(\d+)\s*GAME SLATE/i)||[])[1]||null};
+ /* gated: the visitor page (25 players and "Log In or create a free account to see all players") */
+ return{slate,rows,games:(html.match(/(\d+)\s*GAME SLATE/i)||[])[1]||null,gated:/to see all players/i.test(html)};
 }
+/* Since 2026-11-12 the full list needs the owner's DFF session (tools/dff-session.js: cookies outside the repo, no stored password). */
+const S=require('./dff-session.js')(UA['User-Agent']);
 function git(args){return cp.execFileSync('git',args,{cwd:ROOT,encoding:'utf8',stdio:['ignore','pipe','pipe']}).trim()}
 
 (async()=>{
@@ -59,16 +64,20 @@ function git(args){return cp.execFileSync('git',args,{cwd:ROOT,encoding:'utf8',s
  const date=(URL_.match(/(\d{4}-\d{2}-\d{2})/)||[])[1],today=ymdET(Date.now());
  if(date&&date<ymdET(Date.now()-864e5*2)){log(`Saved slate is for ${date}, which has passed. Not overwriting.`);process.exit(2)}
  log(`Fetching ${URL_}`);
- const r=await fetch(URL_,{headers:UA});
- if(!r.ok){log(`HTTP ${r.status}. Keeping the previous file.`);process.exit(1)}
- const p=parse(await r.text());
+ let r=await S.get(URL_);
+ if(!r.res.ok){log(`HTTP ${r.res.status}. Keeping the previous file.`);process.exit(1)}
+ let p=parse(r.text);
+ if(p.gated){let ok=false;try{ok=await S.signIn()}catch(e){log('Sign-in failed ('+(e.message||e)+').')}
+  if(ok){log('Signed in to DFF.');r=await S.get(URL_);p=parse(r.text)}
+  if(p.gated){log(`DFF shows only ${p.rows.length} players without a sign-in (session missing or ended). Run once with DFF_USER and DFF_PASS set. Keeping the previous file.`);process.exit(1)}}
  /* Never replace good data with a broken page. */
  if(p.rows.length<C.min){log(`Only ${p.rows.length} players found (slate "${p.slate}"). Keeping the previous file.`);process.exit(1)}
  const ti=C.head.indexOf('team'),have=new Set(p.rows.map(x=>x[ti]));
- for(const u of extra){try{const x=await fetch(u,{headers:UA});if(!x.ok)continue;
-  const q=parse(await x.text()),add=q.rows.filter(r=>!have.has(r[ti]));if(!add.length)continue;
+ for(const u of extra){try{const x=await S.get(u);if(!x.res.ok)continue;
+  const q=parse(x.text),add=q.rows.filter(r=>!have.has(r[ti]));if(!add.length)continue;
   const n=new Set(add.map(r=>r[ti]));n.forEach(t=>have.add(t));p.rows.push(...add);log(`Added ${add.length} players, ${n.size} teams from slate "${q.slate}".`)}
   catch(e){log('Extra slate failed ('+(e.message||e)+'); skipped.')}}
+ S.save();
  fs.mkdirSync(path.dirname(OUT),{recursive:true});
  fs.writeFileSync(OUT,[C.head,...p.rows].map(r=>r.map(csvCell).join(',')).join('\n')+'\n');
  const teams=new Set(p.rows.map(x=>x[C.head.indexOf('team')])).size;
