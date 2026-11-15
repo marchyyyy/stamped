@@ -1,4 +1,4 @@
-/* Stamped plays -> data/plays_nba.json (owner, 2026-11-15, rule 8): "give the number that you think, after we run our data, is
+/* Stamped plays -> data/plays_nba.json and data/plays_nfl.json (owner, 2026-11-15, rule 8): "give the number that you think, after we run our data, is
    doable ... it also has to be in the negative 200 and up ... plays most likely to hit ... I know there won't be many."
    A play needs two things: a price of -200 or longer, and a source that beat the price when tested.
      plays     NBA team model against the opening line, 5+ point edge (tools/tune.js), when today's price is -200 or longer.
@@ -14,14 +14,20 @@
      numbers   the Stamped number for every posted prop: each of his last 25 games rescaled to tonight's expected minutes
                (0.6 x last-5 average + 0.4 x last-10), newer games weighted more. Shown on the cards as information.
    Late-news prop leans (tools/track.js, rule 3) stay where they are and join the plays list on the page when priced -200 or longer.
-     node tools/plays.js [--no-push]        after tools/props.js, tools/kalshi.js and tools/tune.js --today (tools/refresh.js)
-   Local state (what was shown, at what price) lives in live/.cache/plays-nba.json; the graded record is in the published file. */
+   NFL (--sport nfl): no team or prop source has passed a test, so there are no plays. The practice list is the same construct on
+   Kalshi prices (ESPN carries no NFL prop prices): No legs at the cap where our number agrees (his last 12 games, newer weighted
+   more), one per team, skipping any team with a quarterback, back, receiver or tight end listed out, doubtful or questionable.
+   Untested for the NFL; it is graded from the first night on.
+     node tools/plays.js [--sport nba|nfl] [--no-push]   after tools/props.js, tools/kalshi.js and tools/tune.js --today (tools/refresh.js)
+   Local state (what was shown, at what price) lives in live/.cache/plays-<sport>.json; the graded record is in the published file. */
 'use strict';
 const fs=require('node:fs'),path=require('node:path'),cp=require('node:child_process');
-const ROOT=path.join(__dirname,'..'),OUT='data/plays_nba.json',STATE=path.join(ROOT,'live','.cache','plays-nba.json');
+const SPORT=(i=>i>0?process.argv[i+1]:'nba')(process.argv.indexOf('--sport')),NFL=SPORT==='nfl';
+if(!['nba','nfl'].includes(SPORT)){console.error('Usage: node tools/plays.js [--sport nba|nfl] [--no-push]');process.exit(1)}
+const ROOT=path.join(__dirname,'..'),OUT=`data/plays_${SPORT}.json`,STATE=path.join(ROOT,'live','.cache',`plays-${SPORT}.json`),DATA=NFL?'data/nfl_week.json':'data/nba_today.json';
 const push=!process.argv.includes('--no-push');
 const UA={'User-Agent':'StampedProjections/1.0 (personal use; github.com/marchyyyy/stamped)'};
-const log=m=>console.log(`[${new Date().toLocaleString('en-US',{timeZone:'America/New_York'})} ET] plays nba: ${m}`);
+const log=m=>console.log(`[${new Date().toLocaleString('en-US',{timeZone:'America/New_York'})} ET] plays ${SPORT}: ${m}`);
 const sleep=ms=>new Promise(r=>setTimeout(r,ms));
 const rd=f=>{try{return JSON.parse(fs.readFileSync(path.join(ROOT,f),'utf8'))}catch(e){return null}};
 const imp=o=>o>0?100/(o+100):-o/(-o+100),fee=p=>Math.min(.99,p+.07*p*(1-p)),am=c=>c>=.5?Math.round(-100*c/(1-c)):Math.round(100*(1-c)/c);
@@ -34,7 +40,13 @@ const WORD={points:'points',rebounds:'rebounds',assists:'assists',threes:'threes
 
 /* The Stamped number. */
 const Phi=z=>{const t=1/(1+.2316419*Math.abs(z)),d=.3989423*Math.exp(-z*z/2),p=d*t*(.3193815+t*(-.3565638+t*(1.781478+t*(-1.821256+t*1.330274))));return z>0?1-p:p};
-function model(p,stat){const g=[...(p.games||[]),...(p.past||[])].filter(x=>x.min>=5&&x.s&&x.s[stat]!=null).slice(0,25);if(g.length<5)return null;
+function model(p,stat){
+ /* NFL: no minutes in the logs, so his last 12 games as they were. */
+ if(NFL){const g=[...(p.games||[]),...(p.past||[])].filter(x=>x.s&&x.s[stat]!=null).slice(0,12);if(g.length<5)return null;
+  const xs=g.map((x,i)=>({v:x.s[stat],w:Math.pow(.9,i)})),W=xs.reduce((q,x)=>q+x.w,0),mu=xs.reduce((q,x)=>q+x.w*x.v,0)/W;
+  const sd=Math.max(Math.sqrt(xs.reduce((q,x)=>q+x.w*(x.v-mu)**2,0)/W),Math.sqrt(Math.max(mu,.5))*.8),neff=W*W/xs.reduce((q,x)=>q+x.w*x.w,0);
+  return{mu,m:null,n:g.length,pGE:T=>{const emp=xs.reduce((q,x)=>q+(x.v>=T?x.w:0),0)/W,nor=1-Phi((T-.5-mu)/sd);return (neff*emp+5*nor)/(neff+5)}}}
+ const g=[...(p.games||[]),...(p.past||[])].filter(x=>x.min>=5&&x.s&&x.s[stat]!=null).slice(0,25);if(g.length<5)return null;
  const mins=g.map(x=>x.min),a=(arr,n)=>{const s=arr.slice(0,n);return s.reduce((q,x)=>q+x,0)/s.length},m=.6*a(mins,5)+.4*a(mins,10);
  const xs=g.map((x,i)=>({v:x.s[stat]/x.min*m,w:Math.pow(.93,i)})),W=xs.reduce((q,x)=>q+x.w,0),mu=xs.reduce((q,x)=>q+x.w*x.v,0)/W;
  const sd=Math.max(Math.sqrt(xs.reduce((q,x)=>q+x.w*(x.v-mu)**2,0)/W),Math.sqrt(Math.max(mu,.5))*.8),neff=W*W/xs.reduce((q,x)=>q+x.w*x.w,0);
@@ -43,21 +55,25 @@ function model(p,stat){const g=[...(p.games||[]),...(p.past||[])].filter(x=>x.mi
 async function get(u){for(let i=0;i<3;i++){try{const r=await fetch(u,{headers:UA});if(r.ok)return r.json();if(r.status===404)return null}catch(e){}await sleep(700*(i+1))}return null}
 function git(a){return cp.execFileSync('git',a,{cwd:ROOT,encoding:'utf8',stdio:['ignore','pipe','pipe']}).trim()}
 /* Final box score of a game: every player's line and the winner; null until the game is final. */
-async function final(id){const f=path.join(ROOT,'live','.cache',`nba-${id}.json`);let s=null;try{s=JSON.parse(fs.readFileSync(f,'utf8'))}catch(e){}
+async function final(id){const f=path.join(ROOT,'live','.cache',`${SPORT}-${id}.json`);let s=null;try{s=JSON.parse(fs.readFileSync(f,'utf8'))}catch(e){}
  const done=x=>{const c=x&&x.header&&x.header.competitions&&x.header.competitions[0];return c&&c.status&&c.status.type&&c.status.type.completed?c:null};
- if(!done(s)){s=await get(`https://site.api.espn.com/apis/site/v2/sports/basketball/nba/summary?event=${id}`);await sleep(120)}
+ if(!done(s)){s=await get(`https://site.api.espn.com/apis/site/v2/sports/${NFL?'football/nfl':'basketball/nba'}/summary?event=${id}`);await sleep(120)}
  const c=done(s);if(!c)return null;const box={};
- ((s.boxscore&&s.boxscore.players)||[]).forEach(T=>{const st=T.statistics&&T.statistics[0];if(!st)return;const K=st.keys||[];
+ if(NFL)((s.boxscore&&s.boxscore.players)||[]).forEach(T=>(T.statistics||[]).forEach(c=>{const K=c.keys||[];(c.athletes||[]).forEach(a=>{const id=a.athlete&&a.athlete.id;if(!id||+id<0)return;
+   const v=k=>{const x=parseFloat((a.stats||[])[K.indexOf(k)]);return isNaN(x)?0:x},b=box[id]=box[id]||{'pass yds':0,'pass TDs':0,'rush yds':0,'rec yds':0,receptions:0};
+   if(c.name==='passing'){b['pass yds']=v('passingYards');b['pass TDs']=v('passingTouchdowns')}if(c.name==='rushing')b['rush yds']=v('rushingYards');if(c.name==='receiving'){b['rec yds']=v('receivingYards');b.receptions=v('receptions')}})}));
+ else ((s.boxscore&&s.boxscore.players)||[]).forEach(T=>{const st=T.statistics&&T.statistics[0];if(!st)return;const K=st.keys||[];
   (st.athletes||[]).forEach(a=>{const v=k=>parseFloat(String((a.stats||[])[K.indexOf(k)]||'').split('-')[0]),m=v('minutes');if(!(m>0))return;
    const pts=v('points'),reb=v('rebounds'),ast=v('assists');box[a.athlete.id]={points:pts,rebounds:reb,assists:ast,threes:v('threePointFieldGoalsMade-threePointFieldGoalsAttempted'),PRA:pts+reb+ast}})});
  const w=c.competitors.find(x=>x.winner);return{box,winner:w?w.homeAway:null}}
 
 (async()=>{
- const D=rd('data/nba_today.json');if(!D){log('data/nba_today.json is missing; nothing written.');process.exit(1)}
- const K=(rd('data/kalshi_nba.json')||{}).props||{},TS=(rd('data/team_signals_nba.json')||{}).games||[];
+ const D=rd(DATA);if(!D){log(DATA+' is missing; nothing written.');process.exit(1)}
+ const K=(rd(`data/kalshi_${SPORT}.json`)||{}).props||{},TS=NFL?[]:(rd('data/team_signals_nba.json')||{}).games||[];
  const now=Date.now(),today=etDay(now),G=Object.fromEntries(D.games.map(g=>[g.id,g])),pre=g=>g&&g.status==='pre'&&start(g.when)>now;
  let st={days:{}};try{st=JSON.parse(fs.readFileSync(STATE,'utf8'))}catch(e){}
- const day=st.days[today]=st.days[today]||{recs:{}},keep=(k,r)=>{if(!day.recs[k])day.recs[k]={...r,t:now};return day.recs[k]};
+ /* A record is written once, at the price first shown; a later day reuses it while its game has not been graded (an NFL Monday game first shown on Sunday). */
+ const day=st.days[today]=st.days[today]||{recs:{}},pending=()=>Object.values(st.days).filter(x=>!x.done),keep=(k,r)=>{for(const x of pending())if(x.recs[k])return x.recs[k];day.recs[k]={...r,t:now};return day.recs[k]};
 
  /* 1. Team model against the opening line. */
  const plays=[],near=[];
@@ -71,17 +87,17 @@ async function final(id){const f=path.join(ROOT,'live','.cache',`nba-${id}.json`
     any team with a regular out or a status change today (first build, 2026-11-15: it offered Unders on Reed Sheppard the
     night he became a starter and on LeBron James in his first game back), anyone who has not played in the last 6 days, and
     any leg where our chance is 15+ points above the market's (the market knows something the game log does not). */
- const TR=rd('data/track_nba.json')||{},moved=new Set((TR.news||[]).map(x=>x.abbr));
+ const TR=NFL?{}:rd('data/track_nba.json')||{},moved=new Set((TR.news||[]).map(x=>x.abbr));
  for(const s of TS){const g=G[s.id];if(!g||!s.missing)continue;if((s.missing.home||[]).length)moved.add(g.home.abbr);if((s.missing.away||[]).length)moved.add(g.away.abbr)}
- for(const g of D.games)for(const sd of ['home','away'])if(((g.injuries&&g.injuries[sd])||[]).some(x=>/day|quest|doubt/i.test(x.status)))moved.add(g[sd].abbr);
+ for(const g of D.games)for(const sd of ['home','away'])if(((g.injuries&&g.injuries[sd])||[]).some(x=>NFL?/^(QB|RB|WR|TE)$/.test(x.pos||'')&&/out|quest|doubt/i.test(x.status)&&!/reserve/i.test(x.status):/day|quest|doubt/i.test(x.status)))moved.add(g[sd].abbr);
  const numbers={},cand=[];
  for(const p of D.players){const g=G[p.gameId];
   for(const q of p.props||[]){const M=model(p,q.stat);if(!M)continue;numbers[p.espnId+'|'+q.stat]={n:+M.mu.toFixed(1),p:Math.round(100*M.pGE(Math.floor(q.line)+1))};
    /* Threes are left out: Kalshi No on threes lost 12% a bet in both halves of the test (236 and 295 legs). */
    if(q.stat==='threes')continue;
    if(!pre(g)||/out|doubt|quest|day/i.test(p.status||'')||moved.has(p.abbr))continue;
-   const lastG=(p.games||[])[0];if(!lastG||now-Date.parse(lastG.d+'T12:00:00Z')>6.5*864e5||(p.games||[]).length<6)continue;
-   const base={kind:'cap',aid:p.espnId,pid:p.id,name:p.name,abbr:p.abbr,logo:p.logo,opp:p.opp,gid:p.gameId,when:p.when,stat:q.stat,num:+M.mu.toFixed(1),mins:Math.round(M.m)};
+   const lastG=(p.games||[])[0];if(!lastG||now-Date.parse(lastG.d+'T12:00:00Z')>(NFL?16:6.5)*864e5||(p.games||[]).length<(NFL?4:6))continue;
+   const base={kind:'cap',aid:p.espnId,pid:p.id,name:p.name,abbr:p.abbr,logo:p.logo,opp:p.opp,gid:p.gameId,when:p.when,stat:q.stat,num:+M.mu.toFixed(1),mins:M.m==null?null:Math.round(M.m)};
    const add=(T,cost,mid,book,how)=>{if(!(cost>=LO&&cost<=HI))return;const pm=1-M.pGE(T),mk=mid??cost-.02;if(pm<cost||pm-mk>.15)return;/* our number has to agree, and not run far ahead of the market */
     cand.push({...base,T,line:T-.5,cost:+cost.toFixed(4),price:am(cost),mkt:Math.round(100*(mid??cost-.02)),our:Math.round(100*pm),book,how,label:`Under ${T-.5} ${q.stat}`})};
    if(q.under!=null&&q.odds!=null){const f=imp(q.under)/(imp(q.under)+imp(q.odds));add(Math.floor(q.line)+1,imp(q.under),f,'DraftKings','DraftKings Under (via ESPN)')}
@@ -89,7 +105,7 @@ async function final(id){const f=path.join(ROOT,'live','.cache',`nba-${id}.json`
     add(+T,fee(x.na),(x.na+x.nb)/2,'Kalshi',`Kalshi No on ${T}+ at ${Math.round(fee(x.na)*100)}¢ with the fee`)}}}
  /* Already shown today stays (same price, so the record is honest); then the most likely by the market's own number, one per team. */
  const stNow=Object.fromEntries(D.players.map(p=>[p.espnId,p.status||'']));
- const shown=Object.entries(day.recs).filter(([k,r])=>r.kind==='cap'&&pre(G[r.gid])&&!/out|doubt/i.test(stNow[r.aid]||'')).map(([k,r])=>({...r,key:k})),teams=new Set(shown.map(r=>r.abbr)),practice=[...shown];
+ const shown=pending().flatMap(x=>Object.entries(x.recs)).filter(([k,r])=>r.kind==='cap'&&pre(G[r.gid])&&!/out|doubt/i.test(stNow[r.aid]||'')).map(([k,r])=>({...r,key:k})),teams=new Set(shown.map(r=>r.abbr)),practice=[...shown];
  cand.sort((a,b)=>b.mkt-a.mkt||b.our-a.our);
  for(const c of cand){if(practice.length>=MAXP)break;if(teams.has(c.abbr))continue;teams.add(c.abbr);const key=`cap|${c.aid}|${c.stat}|${c.T}`;practice.push({...keep(key,c),key})}
  practice.sort((a,b)=>a.when<b.when?-1:a.when>b.when?1:b.mkt-a.mkt);
@@ -110,14 +126,15 @@ async function final(id){const f=path.join(ROOT,'live','.cache',`nba-${id}.json`
  Object.keys(st.days).sort().slice(0,-60).forEach(d=>delete st.days[d]);
  fs.mkdirSync(path.dirname(STATE),{recursive:true});fs.writeFileSync(STATE,JSON.stringify(st));
 
- const out={sport:'nba',generated:new Date().toISOString(),checked:stamp(now),date:today,rule:8,cap:CAP,plays,near,practice,numbers,record,
-  test:{team:'Team model against the opening line, 5+ point edge, price -200 or longer: 185-179, +3.5% a bet on 364 past picks (first half +9.8%, second half -6.6%); the line moved our way 2.5 points on average.',
+ const out={sport:SPORT,generated:new Date().toISOString(),checked:stamp(now),date:today,rule:8,cap:CAP,plays,near,practice,numbers,record,
+  test:NFL?{team:'No NFL team signal has beaten the market in testing, so there are no NFL team plays.',practice:'Not yet tested for the NFL (Kalshi prices only since Nov 6). The same legs in the NBA lost about 3% a bet over Nov 6-14.',numbers:'The number is his last 12 games, newer ones weighted more. Shown as information.'}:
+  {team:'Team model against the opening line, 5+ point edge, price -200 or longer: 185-179, +3.5% a bet on 364 past picks (first half +9.8%, second half -6.6%); the line moved our way 2.5 points on average.',
    practice:'Nov 6-14, 14,209 prop legs priced -200 to +150: nothing beat the price. Under-style legs lost about 3% a bet (DraftKings Under -3.0%, Kalshi No -2.8%); Overs lost 6% to 14%.',
    numbers:'Our game-log number added nothing to the posted price in that test, so it is shown as information.'}};
  fs.writeFileSync(path.join(ROOT,OUT),JSON.stringify(out));
  log(`Wrote ${OUT}: ${plays.length} play${plays.length===1?'':'s'}, ${near.length} shorter than ${CAP}, ${practice.length} practice, ${Object.keys(numbers).length} numbers.`);
  if(!push)return;
  try{git(['pull','-q','--rebase','--autostash']);git(['add',OUT]);if(!git(['status','--porcelain','--',OUT])){log('No change; nothing to push.');return}
-  git(['commit','-q','-m',`NBA plays: ${plays.length} at ${CAP} or longer, ${practice.length} practice (${out.checked})`]);git(['push','-q','origin','main']);log('Pushed to GitHub.')}
+  git(['commit','-q','-m',`${SPORT.toUpperCase()} plays: ${plays.length} at ${CAP} or longer, ${practice.length} practice (${out.checked})`]);git(['push','-q','origin','main']);log('Pushed to GitHub.')}
  catch(e){log('Push failed: '+String(e.stderr||e.message).trim().split('\n').pop())}
 })().catch(e=>{log('Failed: '+(e&&e.stack||e));process.exit(1)});

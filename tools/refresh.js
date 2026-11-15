@@ -22,7 +22,7 @@ function chartTick(now){for(const s of Object.keys(SPORTS)){let D;try{D=JSON.par
 /* NBA team practice picks: refresh the game history (new results), then rebuild today's signals and grade the log. */
 const practice=s=>{if(s!=='nba')return true;return run(['tools/hist.js','--sport',s])&&run(['tools/tune.js','--sport',s,'--today'])};
 /* Today's plays (tools/plays.js, rule 8): after the props, Kalshi prices, team signals and the prop tracking it reads. */
-const plays=s=>s!=='nba'||run(['tools/plays.js']);
+const plays=s=>run(['tools/plays.js','--sport',s]);
 /* NBA prop tracking (tools/track.js): after every props build, snapshot the lines and injury report, rebuild the role
    splits and grade finished nights; on the 15-minute check, a light pass (--tick) for games starting within 4 hours. */
 const track=(s,tick)=>s!=='nba'||run(['tools/track.js',...(tick?['--tick']:[])]);

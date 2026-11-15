@@ -3,7 +3,7 @@
    every sport; a sport with no tested source says so instead of filling the space. */
 (function(){
 'use strict';
-const FILE={nba:'data/plays_nba.json'},S={};let hooks={};
+const FILE={nba:'data/plays_nba.json',nfl:'data/plays_nfl.json'},S={};let hooks={};
 const esc=s=>String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const fo=o=>o>0?'+'+o:String(o);
 const et=w=>new Date(w+':00-05:00');
@@ -24,7 +24,7 @@ function teamCard(r,play){
 function capRow(r){
  return `<div class="card pl-card"><div class="row between"><div style="min-width:0"><div class="pname">${logo(r.logo)}${esc(r.name)}</div><div class="team">${esc(r.abbr)} ${esc(r.opp||'')} · ${when(r.when)}</div></div><span class="pill p-long">Practice</span></div>
   <div class="row"><span class="prop">${esc(r.label)}</span><span class="odds">${fo(r.price)}</span></div>
-  <div class="cap">Market ${r.mkt}% · Stamped number <b>${r.num}</b> at ${r.mins} minutes · ${esc(r.how)} · ${pay(r.price)}</div></div>`}
+  <div class="cap">Market ${r.mkt}% · Stamped number <b>${r.num}</b>${r.mins!=null?` at ${r.mins} minutes`:''} · ${esc(r.how)} · ${pay(r.price)}</div></div>`}
 const rec=x=>x&&x.n?`<b>${x.w}-${x.l}</b> (${x.u>=0?'+':''}${x.u.toFixed(2)} units)`:'none graded yet';
 function recordHTML(D){const R=D.record||{},L=R.last;
  const rows=L&&L.rows&&L.rows.length?`<table class="lv-t"><thead><tr><th>${new Date(L.d+'T12:00:00').toLocaleDateString('en-US',{month:'short',day:'numeric'})}</th><th>Pick</th><th class="num">Price</th><th class="num">Result</th></tr></thead><tbody>${L.rows.map(x=>`<tr><td>${esc(x.name)} <span class="cap">${esc(x.abbr||'')}</span></td><td>${esc(x.label)}${x.kind==='cap'?' <span class="cap">practice</span>':''}</td><td class="num">${fo(x.price)}</td><td class="num ${x.res==='W'?'up':x.res==='L'?'dn':''}"><b>${x.res==='V'?'void':x.v!=null?x.v:x.res==='W'?'won':'lost'}</b></td></tr>`).join('')}</tbody></table>`:'';
@@ -39,9 +39,9 @@ function todayHTML(lg,extra){
  const plays=(D.plays||[]).filter(pre),near=(D.near||[]).filter(pre),prac=(D.practice||[]).filter(pre),leans=(extra&&extra.leans)||'';
  let h=`<section class="pl">${head}<div class="cap">Priced ${D.cap} or longer, from a source that beat the price in testing. Updated ${esc(D.checked)}.</div>`;
  h+=plays.length||leans?`<div class="list">${plays.map(r=>teamCard(r,true)).join('')}${leans}</div>`
-  :`<div class="empty pl-none"><h3>No play passes today</h3>${near.length?`The team model has ${near.length} pick${near.length>1?'s':''} today, all priced shorter than ${D.cap}.`:'The team model is within 5 points of every opening line.'} No prop source has beaten the price in testing, so none is forced onto the list.</div>`;
+  :`<div class="empty pl-none"><h3>No play passes today</h3>${D.sport!=='nba'?`No ${D.sport.toUpperCase()} team signal has beaten the market in testing.`:near.length?`The team model has ${near.length} pick${near.length>1?'s':''} today, all priced shorter than ${D.cap}.`:'The team model is within 5 points of every opening line.'} No prop source has beaten the price in testing, so none is forced onto the list.</div>`;
  if(near.length)h+=sec('pl-near',`Model picks shorter than ${D.cap} (${near.length})`,`<div class="cap">Same tested model, but the price pays too little for the standard: a $10 bet at -400 wins $2.50.</div><div class="list">${near.map(r=>teamCard(r,false)).join('')}</div>`);
- if(prac.length)h+=sec('pl-practice',`Practice props · most likely at the price cap (${prac.length})`,`<div class="cap">The props closest to the standard: the likeliest legs still priced -200 or longer, Under side only, where our own number agrees. Not plays: in the Nov 6-14 test legs like these lost about 3% a bet, and Overs lost 6% to 14%. Graded every night.</div><div class="list">${prac.map(capRow).join('')}</div>`);
+ if(prac.length)h+=sec('pl-practice',`Practice props · most likely at the price cap (${prac.length})`,`<div class="cap">The props closest to the standard: the likeliest legs still priced -200 or longer, Under side only, where our own number agrees. Not plays: ${D.sport==='nba'?'in the Nov 6-14 test legs like these lost about 3% a bet, and Overs lost 6% to 14%':'this is not yet tested for the '+D.sport.toUpperCase()+'; the same legs in the NBA lost about 3% a bet'}. Graded every night.</div><div class="list">${prac.map(capRow).join('')}</div>`);
  h+=sec('pl-record','Record and how plays are tested',`${recordHTML(D)}<div class="cap">${esc(D.test.team)}</div><div class="cap">${esc(D.test.practice)} ${esc(D.test.numbers)}</div>`);
  return h+'</section>'}
 function start(h){hooks=h||{};Object.keys(FILE).forEach(load);setInterval(()=>{if(!document.hidden)Object.keys(FILE).forEach(load)},5*60e3);
