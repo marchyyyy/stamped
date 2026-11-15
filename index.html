@@ -64,6 +64,7 @@ header.top{position:sticky;top:env(safe-area-inset-top,0px);z-index:20;backgroun
 .chip[aria-pressed="true"]{background:var(--hdr-ink);color:var(--hdr);border-color:var(--hdr-ink)}
 .demo{font-size:12px;color:var(--muted);padding-block:8px;border-bottom:1px solid var(--line)}
 .demo b{color:var(--warn)}
+.demo.stale{background:var(--warn-bg);color:var(--warn);font-weight:600}
 main{padding-block:14px 40px;display:grid;gap:14px}
 .slate{display:flex;justify-content:space-between;align-items:baseline;gap:10px;flex-wrap:wrap}
 .slate h1{font-family:var(--f-disp);font-size:26px;font-weight:800;margin:0;letter-spacing:.02em;text-wrap:balance}
@@ -201,7 +202,7 @@ button.lucell{cursor:pointer}button.lucell:hover{outline:1px solid var(--line)}
 .srcs{font-size:12px;color:var(--muted);word-break:break-all;display:grid;gap:3px}
 .srcs a{color:var(--muted)}
 </style>
-<link rel="stylesheet" href="live/live.css?v=20261110b">
+<link rel="stylesheet" href="live/live.css?v=20261115a">
 </head>
 <body>
 
@@ -218,7 +219,7 @@ button.lucell{cursor:pointer}button.lucell:hover{outline:1px solid var(--line)}
     </div>
     <nav class="pad tabs" id="tabs" role="tablist" aria-label="Sports"></nav>
   </header>
-  <div class="pad demo"><span class="ok">✓</span> Verified <span id="checked"></span> · prices move, so confirm in your book before betting.</div>
+  <div class="pad demo" id="banner"><span class="ok">✓</span> Verified <span id="checked"></span> · prices move, so confirm in your book before betting.</div>
   <main class="pad" id="main"></main>
 </div>
 
@@ -232,7 +233,7 @@ button.lucell{cursor:pointer}button.lucell:hover{outline:1px solid var(--line)}
 <script src="live/ui.js?v=20261106l"></script>
 <script src="live/dff.js?v=20261106i"></script>
 <script src="live/props-preview.js?v=20261112b"></script>
-<script src="live/scores.js?v=20261109a"></script>
+<script src="live/scores.js?v=20261115a"></script>
 <script src="live/players.js?v=20261110c"></script>
 <script>
 fetch('./data.json?v='+Date.now()).then(r=>r.json()).then(DATA=>{
@@ -247,9 +248,10 @@ const LEAGUES=[
  {id:'nba',name:'NBA',units:'games',u:'g'},
  {id:'nfl',name:'NFL',units:'games',u:'g'},
  {id:'mlb',name:'MLB',units:'games',u:'g',off:true},
- {id:'soccer',name:'Soccer',units:'matches',u:'m'},
- {id:'golf',name:'Golf',units:'events',u:'ev'},
- {id:'tennis',name:'Tennis',units:'matches',u:'m'}
+ /* x: read live from ESPN in the browser (live/scores.js); second tab label in x. The daily data.json run for these stopped on Nov 5. */
+ {id:'soccer',name:'Soccer',units:'matches',u:'m',x:'Lines'},
+ {id:'golf',name:'Golf',units:'events',u:'ev',x:'Leaderboard'},
+ {id:'tennis',name:'Tennis',units:'matches',u:'m',x:'Matches'}
 ];
 const CHECKS={
  nba:['Opponent pace','Defensive rating','Position defense','3PT defense','Current-season head-to-head','Injuries','Minutes restrictions','Back-to-back'],
@@ -500,7 +502,7 @@ function decide(g){
 
 /* ---------- state ---------- */
 let state={lg:'nba',view:'teams',count:5,mode:'today'};
-try{const s=JSON.parse(localStorage.getItem('propsearch')||'{}');if(s.lg&&lgOf(s.lg))state.lg=s.lg;if(s.view)state.view=s.view;if(s.mode)state.mode=s.mode}catch(e){}
+try{const s=JSON.parse(localStorage.getItem('propsearch')||'{}');if(s.lg&&lgOf(s.lg)&&!lgOf(s.lg).off)state.lg=s.lg;if(s.view)state.view=s.view;if(s.mode)state.mode=s.mode}catch(e){}
 const save=()=>{try{localStorage.setItem('propsearch',JSON.stringify({lg:state.lg,view:state.view,mode:state.mode}))}catch(e){}};
 
 /* ---------- cards ---------- */
@@ -542,7 +544,7 @@ function noSlate(l){const d=slateDay(l.id);
  const nd=nextDay(l.id);
  if(allWhen(l.id).some(w=>w.slice(0,10)===todayET()))return `<div class="empty"><h3>Today's ${l.name} games have started</h3>Picks are pregame only. Tomorrow's slate shows after the next data run.</div>`;
  return `<div class="empty"><h3>No ${l.name} games today</h3>Stamped only shows picks for the current day.${nd?` Next ${l.name} slate: ${fmtDay(nd)}. Those picks appear that morning.`:''}</div>`}
-function renderTabs(){$('#tabs').innerHTML=LEAGUES.map(l=>`<button class="tab" role="tab" data-lg="${l.id}" aria-selected="${l.id===state.lg}">${l.name}</button>`).join('')}
+function renderTabs(){$('#tabs').innerHTML=LEAGUES.filter(l=>!l.off).map(l=>`<button class="tab" role="tab" data-lg="${l.id}" aria-selected="${l.id===state.lg}">${l.name}</button>`).join('')}
 /* Team picks for the next slate before game day: the same team model and rules as game day, on the daily data's prices,
    shown as a preview (picks are final on game day, when the lines and injuries are re-checked). */
 function teamPreviewHTML(l){if(!TEAM_CFG[l.id])return '';const nd=nextDay(l.id);if(!nd)return '';
@@ -565,13 +567,24 @@ function upcomingHTML(l){
 function etKey(s){const m=/(\w{3}) (\d+), (\d+):(\d+) (AM|PM)/.exec(s||'');if(!m)return -1;
  const mo='JanFebMarAprMayJunJulAugSepOctNovDec'.indexOf(m[1])/3,h=m[3]%12+(m[5]==='PM'?12:0);
  const now=new Date(),y=now.getFullYear()-(mo>now.getMonth()?1:0);return Date.UTC(y,mo,+m[2],h,+m[4])}
-function stampChecked(){const p=window.PREV&&PREV.checked?PREV.checked(state.lg):'';
- $('#checked').textContent=etKey(p)>etKey(DATA.checked)?p:DATA.checked}
+/* The banner says how fresh the open tab is. Soccer, golf and tennis come straight from ESPN while the page is open; NBA and NFL
+   show the last scheduled refresh, with a warning when it is more than 5 hours old (a refresh runs at least every 3 hours). */
+function stampChecked(){const l=lgOf(state.lg),B=$('#banner');
+ if(l.x){const i=window.SCORES&&SCORES.info(l.id),t=i?new Date(i.at).toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit',timeZone:'America/New_York'}):'';
+  B.className='pad demo';B.innerHTML=`<span class="ok">✓</span> <span id="checked">${i?`Live from ESPN · updated ${t} ET`:'Loading from ESPN…'}</span>${l.id==='soccer'?' · lines are DraftKings via ESPN; confirm in your book.':''}`;return}
+ const p=window.PREV&&PREV.checked?PREV.checked(state.lg):'',txt=etKey(p)>etKey(DATA.checked)?p:DATA.checked;
+ const n=new Date(new Date().toLocaleString('en-US',{timeZone:'America/New_York'})),nowK=Date.UTC(n.getFullYear(),n.getMonth(),n.getDate(),n.getHours(),n.getMinutes()),old=etKey(txt)>0&&nowK-etKey(txt)>5*36e5;
+ B.className='pad demo'+(old?' stale':'');
+ B.innerHTML=old?`<span class="ok">!</span> Last refreshed <span id="checked">${txt}</span>. That is older than it should be; lines and injuries may have changed.`
+  :`<span class="ok">✓</span> Verified <span id="checked">${txt}</span> · prices move, so confirm in your book before betting.`}
 function renderMain(){stampChecked();
  const l=lgOf(state.lg),hasLive=l.id==='nba'&&!!window.LiveUI;
  /* NFL and NBA: the Parlays tab is the Cheatsheet (owner, 2026-11-06). Other sports keep Parlays. */
  const cheat=!!window.PREV&&!!PREV.cheatHTML&&['nfl','nba'].includes(l.id);
  if(state.mode==='live'&&!hasLive)state.mode='today';
+ if(l.x){if(state.mode!=='props')state.mode='today';const full=state.mode==='props';
+  $('#main').innerHTML=`<div class="mode"><button data-mode="today" aria-pressed="${!full}">Today</button><button data-mode="props" aria-pressed="${full}">${l.x}</button></div>
+   <div class="slate"><h1>${l.name} · ${full?l.x:fmtD(todayET())}</h1></div>${window.SCORES?SCORES.html(l.id,full):'<div class="empty"><h3>Scores did not load</h3>Reload the page to try again.</div>'}`;return}
  let html=`<div class="mode"><button data-mode="today" aria-pressed="${state.mode==='today'}">Today</button><button data-mode="props" aria-pressed="${state.mode==='props'}">Props</button><button data-mode="fantasy" aria-pressed="${state.mode==='fantasy'}">Fantasy</button><button data-mode="parlays" aria-pressed="${state.mode==='parlays'}">${cheat?'Cheatsheet':'Parlays'}</button>${hasLive?`<button data-mode="live" aria-pressed="${state.mode==='live'}">Live</button>`:''}<button data-mode="more" aria-pressed="${state.mode==='more'}">More</button></div>`;
  if(state.mode==='live'){$('#main').innerHTML=html+'<div id="live-root"></div>';LiveUI.mount($('#live-root'));return}
  if(state.mode==='parlays'){$('#main').innerHTML=html+(cheat?PREV.cheatHTML(l.id):parlaysHTML());return}
@@ -931,9 +944,10 @@ res.addEventListener('click',e=>{const b=e.target.closest('[data-pick]');const b
  else return;res.hidden=true;q.value=''});
 document.addEventListener('click',e=>{if(!e.target.closest('.search'))res.hidden=true});
 render();
-setInterval(()=>{if(state.mode!=='live')renderMain()},60000);
+/* The ESPN-fed boards repaint themselves; a full redraw would close an opened leaderboard. */
+setInterval(()=>{if(state.mode!=='live'&&!lgOf(state.lg).x)renderMain()},60000);
 if(window.LiveUI)LiveUI.start(DATA,{showSheet});
-if(window.SCORES)SCORES.start();
+if(window.SCORES)SCORES.start({onUpdate:lg=>{if(lg===state.lg&&lgOf(lg).x)stampChecked()}});
 if(window.PLAYERS)PLAYERS.start({showSheet});
 if(window.DFF){DFF.load().then(()=>{if(state.mode==='fantasy')renderMain()});setInterval(()=>DFF.load().then(()=>{if(state.mode==='fantasy'&&$('#scrim').hidden)renderMain()}),5*60e3)}
 if(window.PREV)PREV.start({showSheet,onChange:()=>{if(['nfl','nba','soccer'].includes(state.lg)&&state.mode!=='live'&&$('#scrim').hidden)renderMain()}});
