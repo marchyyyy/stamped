@@ -199,3 +199,12 @@ button.sc-g{cursor:pointer}
 .sc-sets i{font-style:normal;min-width:1.1em;text-align:center;color:var(--muted)}
 .sc-sets i.w{color:var(--ink);font-weight:700}
 .sc-sets sup{font-size:9px}
+
+/* Today's plays (live/plays.js) */
+.pl{display:grid;gap:10px;margin-bottom:6px}
+.pl-h{margin-bottom:0}
+.pl-card{text-align:left;cursor:default}
+.pl-play{border-color:var(--accent);box-shadow:inset 3px 0 0 var(--accent)}
+.pl-logo{width:22px;height:22px;object-fit:contain;vertical-align:-5px;margin-right:7px}
+.pl-price{font-size:18px}
+.pl-none{margin:0}

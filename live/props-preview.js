@@ -175,6 +175,7 @@ function card(r,inGame){const p=r.p,pill=r.review?'<span class="pill p-long">Und
   <div class="row between"><div style="min-width:0"><div class="pname">${esc(p.name)}</div><div class="team">${logo(p.logo)}${esc(p.team)} · ${esc(p.pos)}${inGame?` · ${esc(p.opp)}`:''}</div>${inGame?'':`<div class="team">${when(p.when)} · ${esc(p.opp)}</div>`}</div>${pill}</div>
   <div class="row"><span class="prop">${r.side||'Over'} ${r.pr.line} ${esc(r.pr.stat)}</span>${price}${spark(r)}</div>
   ${pct!=null?`<div class="cap"><b>Stamped ${pct}%</b> chance · Vegas says ${fo(pz?pz.odds:r.pr.odds)}</div>`:''}
+  ${(n=>n?`<div class="cap">Stamped number <b>${n.n}</b> ${esc(r.pr.stat)} against a line of ${r.pr.line} <span class="pc-x">(his last 25 games at tonight's minutes)</span></div>`:'')(window.PLAYS&&p.espnId?PLAYS.num(p.lg,p.espnId,r.pr.stat):null)}
   <div class="${r.side?'why':'reason'}">${esc(r.review||r.why)}</div>
   ${mline(r)}
   ${roleLine(r)}
@@ -202,16 +203,18 @@ function gameSec(g,players,lg){const {good,rest}=checks(players),isOpen=open.has
 function gamesHTML(lg,exclude){const D=S[lg]&&S[lg].data;if(!D)return '';const ex=new Set((exclude||[]).map(s=>s.toLowerCase())),now=Date.now();
  const up=D.games.filter(g=>et(g.when).getTime()>now&&g.status!=='post');if(!up.length)return '';
  return `<div class="list">${up.map(g=>gameSec(g,D.players.filter(p=>p.gameId===g.id&&!ex.has(p.name.toLowerCase())),lg)).join('')}</div>`}
+const brief=lg=>lg==='nba'?'A lean needs late news the line has not moved on, one per team per game. Everything else on a card is information.':"Leans use his last 5 games and the matchup. NFL prop prices aren't on ESPN, so check the price in your book.";
+const about=lg=>sub(`about|${lg}`,'How leans work and the graded record',`<div class="cap">${note(lg)}</div>${recordHTML(lg)}`);
 const note=lg=>lg==='nba'?'An NBA lean needs late news the line has not moved on, one per team per game. The last 5 games and the matchup (what this defense allowed to his position in real stats, ESPN box scores) are information: tested on 12,339 past NBA props, last-5 leans won 52.5% and lost about 5% at the posted prices. Prices are DraftKings via ESPN. Stamped % is the fair chance from the price. Leans are practice until the graded record below is positive.'
  :`Each lean uses his last 5 games and the matchup: what this defense allowed to his position in real stats (ESPN box scores).${lg==='nfl'?" NFL prop prices aren't available, so check the price in your book.":''}`;
 /* Before Stamped's daily picks are out: every upcoming game for the league. */
 function weekHTML(lg){const h=gamesHTML(lg,[]);if(!h)return '';
- return `<div class="cap">${LG[lg].label}'s prop checks by game, updated ${esc(S[lg].data.checked)}. Preview: stamps still post under the usual rules. ${note(lg)}</div>${recordHTML(lg)}<h2 class="sec">${LG[lg].label}</h2>${h}`}
+ return `<div class="cap">Prop checks by game, updated ${esc(S[lg].data.checked)}. ${brief(lg)}</div>${about(lg)}<h2 class="sec">${LG[lg].label}</h2>${h}`}
 /* With Stamped's daily picks out: players its data does not cover. */
 function moreHTML(lg,exclude,link){const h=gamesHTML(lg,exclude);
  /* link: the Today tab points to Props instead of repeating every game section. */
  if(h&&link)return `<button class="card" data-mode="props"><div class="row between"><span class="prop">Player props</span><span class="pill p-long">Props →</span></div><div class="cap">Leans for every player on the slate, game by game, are on the Props tab.</div></button>`;
- return h?`<h2 class="sec">More props · Preview</h2><div class="cap">Players outside today's Stamped data, updated ${esc(S[lg].data.checked)}. Not stamped. ${note(lg)}</div>${recordHTML(lg)}${h}`:''}
+ return h?`<h2 class="sec">More props</h2><div class="cap">Players outside today's Stamped data, updated ${esc(S[lg].data.checked)}. ${brief(lg)}</div>${about(lg)}${h}`:''}
 /* Alts tab: each lean's best alt line (same pick as on its card), harder-paying first, then safer. Tap a row for his log. */
 function altsHTML(lg){const D=S[lg]&&S[lg].data;if(!D)return '';const ids=new Set(upcoming(lg).map(g=>g.id));if(!ids.size)return '';
  const R=checks(D.players.filter(p=>ids.has(p.gameId)&&p.status!=='out'&&p.status!=='doubtful')).good.map(r=>({r,a:alt(r)})).filter(x=>x.a);
@@ -397,5 +400,8 @@ function start(h){h=h||{};onChange=h.onChange;const all=()=>{Object.keys(LG).for
 const norm=s=>String(s||'').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'').replace(/\b(jr|sr|ii|iii|iv|v)\b\.?/g,'').replace(/[^a-z]/g,'');
 /* A player's ESPN game log from this week's file, by name (used by the fantasy preview board). */
 function player(lg,name){const D=S[lg]&&S[lg].data;if(!D)return null;const k=norm(name);return D.players.find(p=>norm(p.name)===k)||(D.logs||[]).find(p=>norm(p.name)===k)||null}
-window.PREV={start,load,weekHTML,moreHTML,altsHTML,parlaysHTML,cheatHTML,teamsHTML,injuriesHTML,next,player,teamEKG,crowd,teamRating,teamSignal,teamSignalChecked,practiceHTML,checked:lg=>S[lg]&&S[lg].data&&S[lg].data.checked||'',ready:lg=>!!(S[lg]&&S[lg].data),_lean:lean,_checks:checks,_role:roleLine,_record:recordHTML,_track:TR};
+/* Today's leans priced at the cap or longer, as cards, for the plays list (live/plays.js). NBA only: an NFL lean has no price. */
+function leanCards(lg,cap){const D=S[lg]&&S[lg].data;if(!D||lg!=='nba')return '';const now=Date.now(),ok=new Set(D.games.filter(g=>et(g.when).getTime()>now&&g.status!=='post').map(g=>g.id));
+ return checks(D.players.filter(p=>ok.has(p.gameId))).good.filter(r=>{const z=r.price||priceFor(r.p,r.pr,r.side);return z&&z.odds!=null&&z.odds>=cap}).map(r=>card(r,0)).join('')}
+window.PREV={start,load,leanCards,weekHTML,moreHTML,altsHTML,parlaysHTML,cheatHTML,teamsHTML,injuriesHTML,next,player,teamEKG,crowd,teamRating,teamSignal,teamSignalChecked,practiceHTML,checked:lg=>S[lg]&&S[lg].data&&S[lg].data.checked||'',ready:lg=>!!(S[lg]&&S[lg].data),_lean:lean,_checks:checks,_role:roleLine,_record:recordHTML,_track:TR};
 })();
