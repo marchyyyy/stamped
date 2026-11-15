@@ -232,7 +232,7 @@ button.lucell{cursor:pointer}button.lucell:hover{outline:1px solid var(--line)}
 <script src="live/espn.js?v=20261106a"></script>
 <script src="live/ui.js?v=20261106l"></script>
 <script src="live/dff.js?v=20261106i"></script>
-<script src="live/props-preview.js?v=20261115a"></script>
+<script src="live/props-preview.js?v=20261115b"></script>
 <script src="live/scores.js?v=20261115a"></script>
 <script src="live/plays.js?v=20261115a"></script>
 <script src="live/players.js?v=20261110c"></script>
@@ -540,7 +540,7 @@ function gameCard(g){const r=decide(g),[lab,cls]=STATUS[r.status];
 function slateTitle(l){const d=slateDay(l.id);if(d)return `${l.name} · ${fmtDay(d)}`;const n=window.PREV&&PREV.next(l.id);return n?`${l.name} · ${n.label}`:`${l.name} · No games today`}
 function noSlate(l){const d=slateDay(l.id);
  /* This week's games file knows about games beyond today, so say what is coming instead of "no games". */
- const nx=window.PREV&&PREV.next(l.id);if(nx)return `<div class="empty"><h3>${nx.n} ${l.name} game${nx.n>1?'s':''} coming up · ${nx.label}</h3>First: ${nx.first.away.n} at ${nx.first.home.n}, ${nx.when}. Stamped's picks are stamped on game day; the previews update on their own until then.</div>`;
+ const nx=window.PREV&&PREV.next(l.id);if(nx)return `<div class="empty"><h3>${nx.n} ${l.name} game${nx.n>1?'s':''} coming up · ${nx.label}</h3>First: ${nx.first.away.n} at ${nx.first.home.n}, ${nx.when}. Lines, injuries and prices refresh on their own through the day.</div>`;
  if(l.id==='golf'){const ev=(DATA.golf||[]);return `<div class="empty"><h3>${ev.some(x=>x.started)?'This week\'s events have started':'No golf this week'}</h3>${ev.map(x=>`<div><b>${x.tour}:</b> ${x.event} · ${x.course.split(',')[0]}</div>`).join('')}<div style="margin-top:6px">Golf picks post before the first tee time of round 1 (usually Wednesday night). Next week's card: top-10, top-20, make-the-cut and head-to-head matchups.</div></div>`}
  const nd=nextDay(l.id);
  if(allWhen(l.id).some(w=>w.slice(0,10)===todayET()))return `<div class="empty"><h3>Today's ${l.name} games have started</h3>Picks are pregame only. Tomorrow's slate shows after the next data run.</div>`;
@@ -618,9 +618,11 @@ function renderMain(){stampChecked();
   if(window.PREV&&ps.length)html+=PREV.moreHTML(l.id,P.filter(p=>p.lg===l.id).map(p=>p.name));
   $('#main').innerHTML=html;return;
  }
- const views=[['teams','Teams'],['alts','Alts'],['lineups','Lineups'],['inj','Injuries'],['stay','Stay away'],...(VETTING?[['rules','Rules']]:[])];
+ /* Lineups and Stay away come from the daily data.json; they show only on a day that file covers. */
+ const hasLU=(DATA.lineups||[]).some(t=>t.lg===l.id&&t.start.slice(0,10)===todayET()&&!started(t.start));
+ const views=[['teams','Teams'],['alts','Alts'],...(hasLU?[['lineups','Lineups']]:[]),['inj','Injuries'],...(bad.length?[['stay','Stay away']]:[]),...(VETTING?[['rules','Rules']]:[])];
  if(!views.some(v=>v[0]===state.view))state.view='teams';
- html+=`<div class="seg" style="grid-template-columns:repeat(3,1fr)">${views.map(([k,t])=>`<button data-view="${k}" aria-pressed="${state.view===k}">${t}${k==='stay'&&bad.length?` (${bad.length})`:''}</button>`).join('')}</div>`;
+ html+=`<div class="seg" style="grid-template-columns:repeat(${Math.min(3,views.length)},1fr)">${views.map(([k,t])=>`<button data-view="${k}" aria-pressed="${state.view===k}">${t}${k==='stay'&&bad.length?` (${bad.length})`:''}</button>`).join('')}</div>`;
  if(state.view==='teams'){
   html+=`<div class="slate"><h1>${l.name} games</h1><p>${gs.length||!(window.PREV&&PREV.next(l.id))?`${gs.length} today`:`${PREV.next(l.id).n} coming up`} · ${tpicks.length} picks</p></div>`;
   if(l.off)html+=`<div class="empty"><h3>MLB is in the offseason</h3>Team predictions return when the new season has games.</div>`;

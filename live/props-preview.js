@@ -290,7 +290,7 @@ function teamsHTML(lg){const up=upcoming(lg);if(!up.length)return '';
   return `<div class="card lv-row"><div class="row between"><span class="nflw-m">${logo(g.away.logo)}<b>${esc(g.away.abbr)}</b><span class="cap">@</span>${logo(g.home.logo)}<b>${esc(g.home.abbr)}</b></span><span class="cap">${when(g.when)}</span></div>
    <div class="row between"><span class="cap">${esc(g.away.n)} <b>${ml('away')}</b> · ${esc(g.home.n)} <b>${ml('home')}</b></span><span class="cap">${g.details?esc(g.details):''}${g.total?` · O/U ${g.total}`:''}</span></div>
    <div class="cap">Injuries: ${esc(g.away.abbr)} ${I.away.length} · ${esc(g.home.abbr)} ${I.home.length}${g.book?` · odds ${esc(g.book)} via ESPN`:''}</div></div>`}).join('')}</div>
-  <div class="cap">Moneylines, spreads and totals update with every refresh. Team picks are stamped on game day.</div>`}
+  <div class="cap">Moneylines, spreads and totals update with every refresh.</div>`}
 /* Injuries view before game day: each upcoming game's injury report by team. */
 function injuriesHTML(lg){const up=upcoming(lg);if(!up.length)return '';
  return `<p class="cap">Injury reports by team from ESPN, updated ${esc(S[lg].data.checked)}.</p><div class="list">${up.map(g=>`<div class="inj"><div class="row between"><span class="nflw-m">${logo(g.away.logo)}<b>${esc(g.away.abbr)}</b><span class="cap">@</span>${logo(g.home.logo)}<b>${esc(g.home.abbr)}</b></span><span class="cap">${when(g.when)}</span></div>${injHTML(g)}</div>`).join('')}</div>`}
