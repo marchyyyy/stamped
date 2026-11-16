@@ -208,3 +208,10 @@ button.sc-g{cursor:pointer}
 .pl-logo{width:22px;height:22px;object-fit:contain;vertical-align:-5px;margin-right:7px}
 .pl-price{font-size:18px}
 .pl-none{margin:0}
+/* picks for soccer, tennis and golf (live/picks.js) */
+.pk-why{margin:6px 0 0;padding-left:18px;font-size:12.5px;line-height:1.45;color:var(--muted)}
+.pk-why li{margin:2px 0}
+.pk-t{margin-top:8px}
+.pk-t td,.pk-t th{padding:5px 6px}
+.pk-more{margin-top:6px;font-size:12.5px}
+.pk-more summary{cursor:pointer;color:var(--accent)}

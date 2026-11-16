@@ -29,6 +29,8 @@ const track=(s,tick)=>s!=='nba'||run(['tools/track.js',...(tick?['--tick']:[])])
 /* Player stats for search (tools/players.js): the game history first (NBA's is refreshed by practice above), then the
    stat files; both skip quickly when no new game has finished. */
 const players=s=>(s==='nba'||run(['tools/hist.js','--sport',s]))&&run(['tools/players.js','--sport',s]);
+/* Soccer, tennis and golf picks (tools/picks.js): own models from ESPN results, prices from DraftKings and Kalshi. */
+const picks=()=>['soccer','tennis','golf'].forEach(s=>run(['tools/picks.js','--sport',s]));
 const full=s=>{const a=run(['tools/dff.js','--sport',s]),b=run(['tools/props.js','--sport',s]),c=kalshi(s),d=practice(s);track(s);plays(s);players(s);if(s==='nfl'||s==='nba')kalshi('soccer');return a&&b&&c&&d};
 const ymd=t=>new Date(t).toLocaleDateString('en-CA',{timeZone:'America/New_York'}).replace(/-/g,'');
 
@@ -49,13 +51,20 @@ async function pregame(){
   log(`${s.toUpperCase()}: ${due.map(([w,t])=>`${new Date(t).toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit',timeZone:'America/New_York'})} ET (${w} before)`).join(', ')}. Full refresh.`);
   if(dry)continue;full(s);due.forEach(([w,t])=>st[`${s}|${w}|${t}`]=t);
  }
+ /* After the last game (owner, 2026-11-16: the site must roll over by itself once the night is done): when every game of the
+    slate day is final, one full refresh grades the night and builds the next day. The slate day is the date 8 hours ago, so a
+    game ending after midnight still counts. Soccer, tennis and golf picks are rebuilt once an hour on the same check. */
+ if(!dry){for(const [s,p] of Object.entries(SPORTS)){const d=ymd(now-8*36e5),k=`${s}|post|${d}`;if(st[k])continue;
+   const sb=await fetch(`https://site.api.espn.com/apis/site/v2/sports/${p}/scoreboard?dates=${d}`).then(r=>r.ok?r.json():null).catch(()=>null),ev=(sb&&sb.events)||[];
+   if(ev.length&&ev.every(e=>e.status&&e.status.type&&e.status.type.completed)){log(`${s.toUpperCase()}: every game of ${d} is final. Full refresh.`);full(s);st[k]=now}}
+  const hk='picks|'+Math.floor(now/36e5);if(!st[hk]){picks();st[hk]=now}}
  if(dry)return;fs.mkdirSync(path.dirname(STATE),{recursive:true});fs.writeFileSync(STATE,JSON.stringify(st));
  chartTick(now);track('nba',true);
 }
 
 (async()=>{
  if(arg('sport'))full(arg('sport'));
- else if(has('props')){Object.keys(SPORTS).forEach(s=>{run(['tools/props.js','--sport',s]);kalshi(s);practice(s);track(s);plays(s);players(s)});kalshi('soccer')}
+ else if(has('props')){Object.keys(SPORTS).forEach(s=>{run(['tools/props.js','--sport',s]);kalshi(s);practice(s);track(s);plays(s);players(s)});kalshi('soccer');picks()}
  else if(has('pregame'))await pregame();
  else log('Nothing to do. Use --sport nba|nfl, --props or --pregame.');
 })().catch(e=>{log('Failed: '+(e&&e.message||e));process.exit(1)});
