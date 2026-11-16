@@ -43,11 +43,13 @@ function mid(g){const d=new Date(g.date),time=d.toLocaleTimeString('en-US',{hour
  const day=ymd(d)===ymd(new Date())?'Today':d.toLocaleDateString('en-US',{month:'short',day:'2-digit',...tz});
  return `<span>${day}</span><span>${time} ET</span>`}
 const sc=(t,g)=>g.state==='pre'||t.score==null?'<span class="sc-n"></span>':`<span class="sc-n${g.state==='post'&&!t.win?' sc-out':''}">${t.score}</span>`;
+/* The page's read on a game (pick, play or projection), drawn as the tile's bottom line; the page supplies it through start({strip}). */
+function strip(lg,g){try{const h=opts.strip&&opts.strip(lg,g);return h?'<div class="sc-x sc-read">'+h+'</div>':''}catch(_){return ''}}
 /* Tap opens the Stamped game sheet when the daily data has that game. */
 function stampedId(lg,g){const day=ymd(new Date(g.date));
  const m=(window.GAMES_ALL||[]).find(x=>x.lg===lg&&x.when.slice(0,10)===day&&x.home.n===g.home.name&&x.away.n===g.away.name);return m&&m.id}
 function tile(lg,g){const id=stampedId(lg,g),tag=id?'button':'div';
- return `<${tag} class="sc-g sc-${g.state}"${id?` data-game="${id}"`:''} style="--ca:${g.away.color};--ch:${g.home.color}"><div class="sc-x sc-lg">${lg.toUpperCase()}</div>${team(g.away,g)}${sc(g.away,g)}<div class="sc-m">${mid(g)}</div>${sc(g.home,g)}${team(g.home,g)}${g.last?`<div class="sc-x sc-last">${esc(g.last)}</div>`:''}</${tag}>`}
+ return `<${tag} class="sc-g sc-${g.state}"${id?` data-game="${id}"`:''} style="--ca:${g.away.color};--ch:${g.home.color}"><div class="sc-x sc-lg">${lg.toUpperCase()}</div>${team(g.away,g)}${sc(g.away,g)}<div class="sc-m">${mid(g)}</div>${sc(g.home,g)}${team(g.home,g)}${g.last?`<div class="sc-x sc-last">${esc(g.last)}</div>`:''}${strip(lg,g)}</${tag}>`}
 
 /* ---------- soccer, golf, tennis ---------- */
 const BASE='https://site.api.espn.com/apis/site/v2/sports/';
@@ -104,7 +106,7 @@ function socTile(g,withLg){const d=new Date(g.date);let m;
  else if(/postponed|canceled|delayed|abandoned/i.test(g.detail))m='<span class="sc-fin">'+esc(g.detail)+'</span>';
  else m='<span>'+dayLabel(d)+'</span><span>'+hm(d)+' ET</span>';
  /* Soccer lists the home side first. */
- return '<div class="sc-g sc-'+g.state+'" style="--ca:'+g.home.color+';--ch:'+g.away.color+'">'+'<div class="sc-x sc-lg">'+esc(g.league)+'</div>'+team(g.home,g)+sc(g.home,g)+'<div class="sc-m">'+m+'</div>'+sc(g.away,g)+team(g.away,g)+(g.last?'<div class="sc-x sc-last">'+esc(g.last)+'</div>':'')+socLine(g)+'</div>'}
+ return '<div class="sc-g sc-'+g.state+'" style="--ca:'+g.home.color+';--ch:'+g.away.color+'">'+'<div class="sc-x sc-lg">'+esc(g.league)+'</div>'+team(g.home,g)+sc(g.home,g)+'<div class="sc-m">'+m+'</div>'+sc(g.away,g)+team(g.away,g)+(g.last?'<div class="sc-x sc-last">'+esc(g.last)+'</div>':'')+socLine(g)+strip('soccer',g)+'</div>'}
 function socBody(full){const s=S.soccer;if(!s)return '<div class="cap">Loading matches…</div>';const gs=socGames(full);
  if(!gs.length)return '<div class="cap">No matches in the main leagues on ESPN\'s board this week.</div>';
  if(full){const by={};gs.forEach(g=>(by[g.league]=by[g.league]||[]).push(g));return SOC.filter(x=>by[x[1]]).map(x=>'<h3 class="sc-sub">'+esc(x[1])+' <span>'+by[x[1]].length+'</span></h3>'+by[x[1]].map(g=>socTile(g,false)).join('')).join('')}
@@ -130,7 +132,7 @@ function tenGames(full){const s=S.tennis;if(!s)return[];const t=ymd(new Date()),
 function tenTile(g,withEv){const d=new Date(g.date);
  const row=p=>'<div class="sc-tp'+(g.state==='post'&&!p.win?' sc-out':'')+'">'+flag(p.flag)+'<b>'+esc(p.name)+'</b>'+(p.seed?'<small>'+p.seed+'</small>':'')+'<span class="sc-sets">'+p.sets.map(x=>'<i class="'+(x.w?'w':'')+'">'+x.v+(x.tb!=null?'<sup>'+x.tb+'</sup>':'')+'</i>').join('')+'</span></div>';
  const st=g.state==='in'?'<span class="sc-live"><i></i>LIVE</span> '+esc(g.detail):g.state==='post'?'Final':g.timed?dayLabel(d)+' · '+hm(d)+' ET':dayLabel(d)+' · time not set';
- return '<div class="sc-card sc-tn sc-'+g.state+'"><div class="sc-ch"><small>'+esc((withEv?g.event+' · ':'')+g.round+(g.court?' · '+g.court:''))+'</small><span class="sc-st">'+st+'</span></div>'+g.p.map(row).join('')+'</div>'}
+ return '<div class="sc-card sc-tn sc-'+g.state+'"><div class="sc-ch"><small>'+esc((withEv?g.event+' · ':'')+g.round+(g.court?' · '+g.court:''))+'</small><span class="sc-st">'+st+'</span></div>'+g.p.map(row).join('')+strip('tennis',g)+'</div>'}
 function tenBody(full){const s=S.tennis;if(!s)return '<div class="cap">Loading matches…</div>';const gs=tenGames(full);
  if(!gs.length)return '<div class="cap">'+(full?'No singles matches on the ATP or WTA boards right now.':'No singles matches on the ATP or WTA boards today. The Matches tab has the rest of the week.')+'</div>';
  if(full){const by={};gs.forEach(g=>{const k=g.tour+' · '+g.event;(by[k]=by[k]||[]).push(g)});return Object.keys(by).map(k=>'<h3 class="sc-sub">'+esc(k)+' <span>'+by[k].length+'</span></h3>'+by[k].map(g=>tenTile(g,false)).join('')).join('')}

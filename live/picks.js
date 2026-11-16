@@ -1,6 +1,6 @@
 /* Picks for soccer, tennis and golf (owner, 2026-11-16: show who to bet on, why, and what they are projected to do, the way
    the NBA and NFL tabs do). Reads data/picks_<sport>.json (tools/picks.js) and re-checks it every 5 minutes.
-   Same section on each sport's Today tab: the picks that pass, then every match or player with its projection, our chance,
+   Same section on each sport's Picks tab: the picks that pass, then every match or player with its projection, our chance,
    the market's chance and the price, then the record and how the model scored. */
 (function(){
 'use strict';

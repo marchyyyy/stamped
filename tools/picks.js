@@ -108,7 +108,7 @@ async function soccer(){const picks=[],board=[],acc={n:0,fav:0,favP:0,brier:0,re
    const proj=`Projected score: ${hn} ${r1(p.lh)}, ${an} ${r1(p.la)}`,best=cand.filter(x=>verdict(x.our,x.mkt,x.price)==='pick'&&x.our>=(x.team?0.45:MINP)).sort((x,y)=>(y.our-y.mkt)-(x.our-x.mkt))[0];
    const fs_=(n,f)=>`${n}: ${f.w}-${f.d}-${f.l} in the last ${f.n} (won-drew-lost), ${r1(f.gf)} goals scored and ${r1(f.ga)} allowed a match`;
    const why=[fs_(hn,fh),fs_(an,fa),`${proj} · ${hn} ${pct(p.ph)}%, draw ${pct(p.pd)}%, ${an} ${pct(p.pa)}%${o&&o.ou!=null?` · over ${o.ou} goals ${pct(p.over(o.ou))}%`:''}`];
-   board.push({when:u.e.date,ev:u.name,title,proj,rows,why,book:o?o.book:null,pick:best?best.label:null});
+   board.push({gid:u.e.id,when:u.e.date,ev:u.name,title,proj,rows,why,book:o?o.book:null,pick:best?best.label:null});
    if(best&&Date.parse(u.e.date)<NOW+48*36e5)picks.push({id:`${u.e.id}|${best.key}`,gid:u.e.id,lg:u.lg,key:best.key,when:u.e.date,ev:u.name,title,pick:best.label,price:best.price,book:o.book,our:pct(best.our),mkt:pct(best.mkt),fair:toAmer(best.our),edge:Math.round((best.our-best.mkt)*100),proj,why,
     logo:(best.team===hn?u.h:best.team===an?u.a:u.h).team.logo||''})}}
  if(process.env.PDBG)console.log('DBG K',process.env.PK||4,'n',acc.n,'brier',(acc.brier/acc.n).toFixed(4),'pred goals',(acc.pg/acc.n).toFixed(2),'actual',(acc.ag/acc.n).toFixed(2),JSON.stringify(Object.fromEntries(Object.entries(acc.cal).map(([k,v])=>[k,v[0]+' exp '+(v[1]/v[0]).toFixed(2)+' act '+(v[2]/v[0]).toFixed(2)]))));
@@ -158,7 +158,7 @@ async function tennis(){const picks=[],board=[],M=new Map(),EV={};
   const line=(n,x,k)=>`${n}: Stamped rating ${Math.round(x.r)}${rank[k]?` (${rank[k]}${['th','st','nd','rd'][rank[k]%10<4&&(rank[k]%100<11||rank[k]%100>13)?rank[k]%10:0]} on tour)`:''}, ${x.y[0]}-${x.y[1]} this year, ${x.last.filter(q=>q[0]).length}-${x.last.filter(q=>!q[0]).length} in the last ${x.last.length}`;
   const why=[line(m.p[0],a,ka),line(m.p[1],b,kb),h2h.length?`Head to head since 2025: ${m.p[0]} ${hw}, ${m.p[1]} ${h2h.length-hw}`:'No meeting since 2025',proj];
   let best=null;[0,1].forEach(i=>{if(!pair||!mids||!km[i].ok||!km[i].cost)return;const price=toAmer(km[i].cost);if(P2[i]>=MINP&&verdict(P2[i],mids[i],price)==='pick'&&(!best||P2[i]-mids[i]>best.e))best={i,e:P2[i]-mids[i],price}});
-  board.push({when:m.d,ev,title,proj,rows,why,book:pair?'Kalshi':null,pick:best?rows[best.i].label:null});
+  board.push({gid:m.id,when:m.d,ev,title,proj,rows,why,book:pair?'Kalshi':null,pick:best?rows[best.i].label:null});
   if(best)picks.push({id:`${m.tour}${m.id}|${best.i}`,gid:m.tour+m.id,key:m.p[best.i],when:m.d,ev,title,pick:rows[best.i].label,price:best.price,book:'Kalshi',our:pct(P2[best.i]),mkt:pct(mids[best.i]),fair:toAmer(P2[best.i]),edge:Math.round(best.e*100),proj,why,logo:''})}
  const t=acc.n?`Scored on ${acc.n} tour matches in 2026 between players with 20+ matches on file, each predicted before it was played: the higher-rated player won ${pct(acc.fav/acc.n)}% (the ratings expected ${pct(acc.favP/acc.n)}%); players rated 70% or better won ${acc.hiN?pct(acc.hi/acc.hiN):0}% of ${acc.hiN} (expected ${acc.hiN?pct(acc.hiP/acc.hiN):0}%).`:'';
  picks.sort((a,b)=>b.edge-a.edge).splice(6);

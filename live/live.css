@@ -241,3 +241,8 @@ button.sc-g{cursor:pointer}
 .sc-tn .sc-tp b,.sc-tn .sc-sets i.w{color:#fff}
 .sc-tn .sc-tp{font-size:16px}
 @media (max-width:380px){.sc-g .sc-t img{width:44px;height:44px}.sc-g .sc-n{font-size:34px}.sc-g{grid-template-columns:auto 1fr minmax(70px,auto) 1fr auto}}
+/* our read on the game, the tile's bottom line; and the Today-to-Picks link */
+.sc-g .sc-read,.sc-tn .sc-read{color:#dfe6f7;font-size:13.5px;line-height:1.35;padding-top:8px;margin-top:6px;border-top:1px solid rgba(255,255,255,.12);text-align:center}
+.sc-read b{color:#3ef0a8;font-weight:700}
+.sc-tn .sc-read{text-align:left}
+.pk-link{width:100%;text-align:left;margin:0 0 12px;border-color:var(--accent)}

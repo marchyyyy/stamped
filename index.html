@@ -148,8 +148,9 @@ tr.dim td{color:var(--muted);text-decoration:line-through}
 tr.dim td:last-child{text-decoration:none}
 .tag{font-size:10px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;border-radius:4px;padding:1px 5px;margin-left:6px;vertical-align:middle}
 .t-best{background:var(--hit-bg);color:var(--hit)}.t-up{background:var(--warn-bg);color:var(--warn)}.t-main{background:var(--chip);color:var(--muted)}
-.mode{display:flex;border:1px solid var(--line);border-radius:10px;overflow:hidden;background:var(--surface)}
-.mode button{font-family:var(--f-disp);font-weight:800;font-size:clamp(12px,3.6vw,14px);letter-spacing:.03em;text-transform:uppercase;padding:9px 4px;flex:1 1 auto;white-space:nowrap;color:var(--muted);min-width:0;overflow:hidden}
+.mode{display:flex;border:1px solid var(--line);border-radius:10px;overflow-x:auto;scrollbar-width:none;background:var(--surface)}
+.mode::-webkit-scrollbar{display:none}
+.mode button{font-family:var(--f-disp);font-weight:800;font-size:clamp(12px,3.6vw,14px);letter-spacing:.03em;text-transform:uppercase;padding:9px 7px;flex:1 0 auto;white-space:nowrap;color:var(--muted)}
 .mode button[aria-pressed="true"]{background:var(--ink);color:var(--bg)}
 .chartbox{position:relative}
 .tip{position:absolute;z-index:5;pointer-events:none;background:var(--ink);color:var(--bg);border-radius:8px;padding:7px 10px;font-size:12px;line-height:1.4;white-space:nowrap;transform:translate(-50%,-100%);box-shadow:0 6px 18px rgba(0,0,0,.25)}
@@ -202,7 +203,7 @@ button.lucell{cursor:pointer}button.lucell:hover{outline:1px solid var(--line)}
 .srcs{font-size:12px;color:var(--muted);word-break:break-all;display:grid;gap:3px}
 .srcs a{color:var(--muted)}
 </style>
-<link rel="stylesheet" href="live/live.css?v=20261116b">
+<link rel="stylesheet" href="live/live.css?v=20261116c">
 </head>
 <body>
 
@@ -233,9 +234,9 @@ button.lucell{cursor:pointer}button.lucell:hover{outline:1px solid var(--line)}
 <script src="live/ui.js?v=20261106l"></script>
 <script src="live/dff.js?v=20261106i"></script>
 <script src="live/props-preview.js?v=20261115b"></script>
-<script src="live/scores.js?v=20261116b"></script>
+<script src="live/scores.js?v=20261116c"></script>
 <script src="live/plays.js?v=20261115a"></script>
-<script src="live/picks.js?v=20261116a"></script>
+<script src="live/picks.js?v=20261116c"></script>
 <script src="live/players.js?v=20261110c"></script>
 <script>
 fetch('./data.json?v='+Date.now()).then(r=>r.json()).then(DATA=>{
@@ -579,15 +580,34 @@ function stampChecked(){const l=lgOf(state.lg),B=$('#banner');
  B.className='pad demo'+(old?' stale':'');
  B.innerHTML=old?`<span class="ok">!</span> Last refreshed <span id="checked">${txt}</span>. That is older than it should be; lines and injuries may have changed.`
   :`<span class="ok">✓</span> Verified <span id="checked">${txt}</span> · prices move, so confirm in your book before betting.`}
+const esc=s=>String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+/* Today tab, one line at the top: how many picks there are and where they live. */
+function picksLink(l){let n=0,names=[];const now=Date.now();
+ if(l.x){const D=window.PICKS&&PICKS.data(l.id);if(!D)return '';const ps=(D.picks||[]).filter(r=>l.id==='golf'||new Date(r.when).getTime()>now);n=ps.length;names=ps.map(r=>/goals/.test(r.pick)&&r.title?r.pick+' ('+r.title.split(' at ').pop()+')':r.pick)}
+ else{const D=window.PLAYS&&PLAYS.data(l.id);if(!D)return '';const ps=(D.plays||[]).filter(r=>new Date(r.when+':00-05:00').getTime()>now);n=ps.length;names=ps.map(r=>r.label)}
+ return `<button class="card pk-link" data-mode="picks"><div class="row between"><span class="prop">${n?`${n} pick${n>1?'s':''} today`:'No pick passes today'}</span><span class="pill p-long">Picks →</span></div><div class="cap">${n?esc(names.slice(0,4).join(' · '))+(n>4?` · ${n-4} more`:''):l.x?`Every ${l.id==='golf'?'player':'match'} is still projected on the Picks tab, with the reason there is no bet.`:'The Picks tab shows why, and the closest practice props.'}</div></button>`}
+/* The line under each game tile: our pick or play for it, or the projection when there is no bet. */
+function gameStrip(lg,g){const fo=o=>o>0?'+'+o:String(o);if(g.state==='post')return '';
+ if(lg==='nba'||lg==='nfl'){const D=window.PLAYS&&PLAYS.data(lg);if(!D||g.state!=='pre')return '';const has=r=>[g.home.name,g.away.name].some(n=>n&&r.label&&r.label.indexOf(n)===0);
+  const p=(D.plays||[]).find(has);if(p)return `<b>Play: ${esc(p.label)} ${fo(p.now)}</b> · Stamped ${p.pct}%, market ${p.mkt}%`;
+  const n=(D.near||[]).find(has);if(n)return `Model likes ${esc(n.label.replace(' to win',''))} at ${n.pct}%, but ${fo(n.price)} is shorter than ${D.cap}`;
+  return lg==='nba'?'No play: our number is within 5 points of the opening line':''}
+ const D=window.PICKS&&PICKS.data(lg);if(!D)return '';const b=(D.board||[]).find(x=>x.gid===g.id);if(!b)return '';
+ if(b.pick){const r=(b.rows||[]).find(x=>x.label===b.pick);return `<b>Pick: ${esc(b.pick)}${r&&r.price!=null?' '+fo(r.price):''}</b>${r?` · Stamped ${r.our}%, market ${r.mkt}%`:''}`}
+ return esc(b.proj||b.note||'')}
 function renderMain(){stampChecked();
  const l=lgOf(state.lg),hasLive=l.id==='nba'&&!!window.LiveUI;
  /* NFL and NBA: the Parlays tab is the Cheatsheet (owner, 2026-11-06). Other sports keep Parlays. */
  const cheat=!!window.PREV&&!!PREV.cheatHTML&&['nfl','nba'].includes(l.id);
  if(state.mode==='live'&&!hasLive)state.mode='today';
- if(l.x){if(state.mode!=='props')state.mode='today';const full=state.mode==='props';
-  $('#main').innerHTML=`<div class="mode"><button data-mode="today" aria-pressed="${!full}">Today</button><button data-mode="props" aria-pressed="${full}">${l.x}</button></div>
-   <div class="slate"><h1>${l.name} · ${full?l.x:fmtD(todayET())}</h1></div>${!full&&window.PICKS?PICKS.todayHTML(l.id):''}${window.SCORES?SCORES.html(l.id,full):'<div class="empty"><h3>Scores did not load</h3>Reload the page to try again.</div>'}`;return}
- let html=`<div class="mode"><button data-mode="today" aria-pressed="${state.mode==='today'}">Today</button><button data-mode="props" aria-pressed="${state.mode==='props'}">Props</button><button data-mode="fantasy" aria-pressed="${state.mode==='fantasy'}">Fantasy</button><button data-mode="parlays" aria-pressed="${state.mode==='parlays'}">${cheat?'Cheatsheet':'Parlays'}</button>${hasLive?`<button data-mode="live" aria-pressed="${state.mode==='live'}">Live</button>`:''}<button data-mode="more" aria-pressed="${state.mode==='more'}">More</button></div>`;
+ /* Every sport, the same order (owner, 2026-11-16: "Today should be the games"): Today = the games with our read on each,
+    Picks = what to bet and why, then the sport's detail tabs. */
+ if(l.x){if(!['props','picks'].includes(state.mode))state.mode='today';const full=state.mode==='props',pk=state.mode==='picks';
+  const tabs=`<div class="mode"><button data-mode="today" aria-pressed="${state.mode==='today'}">Today</button><button data-mode="picks" aria-pressed="${pk}">Picks</button><button data-mode="props" aria-pressed="${full}">${l.x}</button></div>`;
+  if(pk){$('#main').innerHTML=tabs+`<div class="slate"><h1>${l.name} picks</h1></div>${window.PICKS?PICKS.todayHTML(l.id):''}`;return}
+  $('#main').innerHTML=tabs+`
+   <div class="slate"><h1>${l.name} · ${full?l.x:fmtD(todayET())}</h1></div>${full?'':picksLink(l)}${window.SCORES?SCORES.html(l.id,full):'<div class="empty"><h3>Scores did not load</h3>Reload the page to try again.</div>'}`;return}
+ let html=`<div class="mode"><button data-mode="today" aria-pressed="${state.mode==='today'}">Today</button><button data-mode="picks" aria-pressed="${state.mode==='picks'}">Picks</button><button data-mode="props" aria-pressed="${state.mode==='props'}">Props</button><button data-mode="fantasy" aria-pressed="${state.mode==='fantasy'}">Fantasy</button><button data-mode="parlays" aria-pressed="${state.mode==='parlays'}">${cheat?'Cheatsheet':'Parlays'}</button>${hasLive?`<button data-mode="live" aria-pressed="${state.mode==='live'}">Live</button>`:''}<button data-mode="more" aria-pressed="${state.mode==='more'}">More</button></div>`;
  if(state.mode==='live'){$('#main').innerHTML=html+'<div id="live-root"></div>';LiveUI.mount($('#live-root'));return}
  if(state.mode==='parlays'){$('#main').innerHTML=html+(cheat?PREV.cheatHTML(l.id):parlaysHTML());return}
  if(state.mode==='fantasy'){$('#main').innerHTML=html+fantasyHTML(l);return}
@@ -596,10 +616,15 @@ function renderMain(){stampChecked();
  const bad=ps.filter(p=>['killed','blocked'].includes(p.state)),none=ps.filter(p=>p.state==='noline');
  const gs=GAMES.filter(g=>g.lg===l.id&&gameOnSlate(g)),rs=gs.map(g=>[g,decide(g)]),tIs=([,r])=>['pick','spread','practice'].includes(r.status),tpicks=rs.filter(tIs).sort((a,b)=>b[1].edge-a[1].edge),tpass=rs.filter(x=>!tIs(x));
  if(state.mode==='today'){
-  html+=`<div class="slate"><h1>${slateTitle(l)}</h1><p>${ps.length||gs.length?`${good.filter(p=>p.state==='pick').length+tpicks.filter(([,r])=>r.status!=='practice').length} stamped${ps.length?` · ${ps.length} players`:''} · ${gs.length} games`:''}</p></div>`;
-  /* Plays first (rule 8: -200 or longer, tested source), then the scoreboard. */
-  if(window.PLAYS&&!l.off)html+=PLAYS.todayHTML(l.id,{leans:window.PREV&&PREV.leanCards?PREV.leanCards(l.id,-200):'',hasProps:true});
+  html+=`<div class="slate"><h1>${l.name} · ${fmtD(todayET())}</h1></div>${l.off?'':picksLink(l)}`;
   if(window.SCORES)html+=SCORES.html(l.id);
+  if(l.off)html+=`<div class="empty"><h3>MLB is in the offseason</h3>Picks return when the new season has games.</div>`;
+  $('#main').innerHTML=html;return;
+ }
+ if(state.mode==='picks'){
+  html+=`<div class="slate"><h1>${l.name} picks</h1><p>${ps.length||gs.length?`${good.filter(p=>p.state==='pick').length+tpicks.filter(([,r])=>r.status!=='practice').length} stamped${ps.length?` · ${ps.length} players`:''} · ${gs.length} games`:''}</p></div>`;
+  /* Plays first (rule 8: -200 or longer, tested source). */
+  if(window.PLAYS&&!l.off)html+=PLAYS.todayHTML(l.id,{leans:window.PREV&&PREV.leanCards?PREV.leanCards(l.id,-200):'',hasProps:true});
   if(l.off)html+=`<div class="empty"><h3>MLB is in the offseason</h3>Picks return when the new season has games.</div>`;
   else if(!ps.length&&!gs.length)html+=teamPreviewHTML(l)+((window.PREV&&PREV.moreHTML(l.id,[],true))||noSlate(l)+upcomingHTML(l));
   else{const picks=good.filter(p=>p.state==='pick'),longs=good.filter(p=>p.state==='longshot');
@@ -629,8 +654,8 @@ function renderMain(){stampChecked();
   if(l.off)html+=`<div class="empty"><h3>MLB is in the offseason</h3>Team predictions return when the new season has games.</div>`;
   else if(l.id==='golf'||l.id==='tennis')html+=`<div class="empty"><h3>No teams in ${l.name}</h3>Head-to-head matchups use this same model once lines are posted.</div>`;
   else if(!gs.length)html+=noSlate(l)+teamPreviewHTML(l)+(window.PREV&&PREV.teamsHTML(l.id)?`<h2 class="sec">Current lines</h2>${PREV.teamsHTML(l.id)}`:upcomingHTML(l));
-  /* Pick cards already sit on Today; point there instead of repeating them. */
-  else{html+=teamCap;html+=tpicks.length?`<button class="card" data-mode="today"><div class="row between"><span class="prop">${tpicks.length} ${tpicks.every(([,r])=>r.status==='practice')?'practice pick':'pick'}${tpicks.length>1?'s':''}</span><span class="pill p-long">Today →</span></div><div class="cap">${tpicks.map(([g])=>g.away.n+' at '+g.home.n).join(' · ')}</div></button>${window.PREV&&PREV.practiceHTML?PREV.practiceHTML(l.id):''}`:`<div class="empty"><h3>No team picks</h3>${l.id==='nba'?'No game differs from its opening line by 5+ points in the tested model.':`${l.name} team picks are paused until a signal beats the market in testing.`}</div>`;
+  /* Pick cards already sit on Picks; point there instead of repeating them. */
+  else{html+=teamCap;html+=tpicks.length?`<button class="card" data-mode="picks"><div class="row between"><span class="prop">${tpicks.length} ${tpicks.every(([,r])=>r.status==='practice')?'practice pick':'pick'}${tpicks.length>1?'s':''}</span><span class="pill p-long">Picks →</span></div><div class="cap">${tpicks.map(([g])=>g.away.n+' at '+g.home.n).join(' · ')}</div></button>${window.PREV&&PREV.practiceHTML?PREV.practiceHTML(l.id):''}`:`<div class="empty"><h3>No team picks</h3>${l.id==='nba'?'No game differs from its opening line by 5+ points in the tested model.':`${l.name} team picks are paused until a signal beats the market in testing.`}</div>`;
    if(tpass.length)html+=`<h2 class="sec">${tpicks.length?'Other games':'Games'}</h2><div class="list">${tpass.map(([g])=>gameCard(g)).join('')}</div>`}
  }else if(state.view==='alts'){
   html+=altsHTML(l);
@@ -945,7 +970,7 @@ const drawResults=()=>{const t=q.value.trim().toLowerCase();if(!t){res.hidden=tr
 q.addEventListener('input',()=>{drawResults();if(window.PLAYERS){const t=q.value;PLAYERS.warm().then(()=>{if(q.value===t&&document.activeElement===q)drawResults()})}});
 res.addEventListener('click',e=>{const b=e.target.closest('[data-pick]');const bg=e.target.closest('[data-g]'),bs=e.target.closest('[data-stat]');
  if(bs){const [lg,id]=bs.dataset.stat.split('|');PLAYERS.open(lg,id)}
- else if(b){const p=P.find(x=>x.id===b.dataset.pick);state.lg=p.lg;state.mode='today';render();openSheet(p.id)}
+ else if(b){const p=P.find(x=>x.id===b.dataset.pick);state.lg=p.lg;state.mode='picks';render();openSheet(p.id)}
  else if(bg){const g=GAMES.find(x=>x.id===bg.dataset.g);state.lg=g.lg;state.mode='today';render();openGame(g.id)}
  else return;res.hidden=true;q.value=''});
 document.addEventListener('click',e=>{if(!e.target.closest('.search'))res.hidden=true});
@@ -953,7 +978,7 @@ render();
 /* The ESPN-fed boards repaint themselves; a full redraw would close an opened leaderboard. */
 setInterval(()=>{if(state.mode!=='live'&&!lgOf(state.lg).x)renderMain()},60000);
 if(window.LiveUI)LiveUI.start(DATA,{showSheet});
-if(window.SCORES)SCORES.start({onUpdate:lg=>{if(lg===state.lg&&lgOf(lg).x)stampChecked()}});
+if(window.SCORES)SCORES.start({strip:gameStrip,onUpdate:lg=>{if(lg===state.lg&&lgOf(lg).x)stampChecked()}});
 if(window.PLAYERS)PLAYERS.start({showSheet});
 if(window.PLAYS)PLAYS.start({onChange:lg=>{if(lg===state.lg&&state.mode!=='live'&&$('#scrim').hidden)renderMain()}});
 if(window.PICKS)PICKS.start({onChange:lg=>{if(lg===state.lg&&$('#scrim').hidden)renderMain()}});
