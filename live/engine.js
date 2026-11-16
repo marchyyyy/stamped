@@ -306,7 +306,8 @@ function alertsFor(prev,next,ctx,cfg,seen){
   if(a.homeSpread!=null&&b.homeSpread!=null&&Math.abs(b.homeSpread-a.homeSpread)>=cfg.lineDelta)push(`${id}|spr|${b.homeSpread}`,'line',`${nm}: ${st.home.abbr} spread ${a.homeSpread} → ${b.homeSpread}.`);
   if(!a.suspended&&b.suspended)push(`${id}|susp|${st.period}|${Math.round(st.clock)}`,'line',`${nm}: live market suspended.`)}
  if(cfg.opportunity)(next.opps||[]).filter(o=>o.qualifies).forEach(o=>push(`${id}|opp|${o.market}|${o.side}|${o.stat||''}|${o.line}`,'opportunity',o.alert||`${nm}: Paper pick ${o.side} ${o.line!=null?o.line:''} ${o.market} at ${o.price>0?'+':''}${o.price}, edge ${(o.edge*100).toFixed(1)} pts.`));
- if(cfg.player){(st.players||[]).forEach(pl=>{
+ /* Live games only: a finished game's box score raised "fouled out" the next morning on a fresh page (2026-11-16). */
+ if(cfg.player&&st.status==='in'){(st.players||[]).forEach(pl=>{
   if(pl.pf>=6)push(`${id}|fo|${pl.id}`,'player',`${nm}: ${pl.name} fouled out.`);
   /* Quarters 1-4 only: with no period yet (0) the threshold is 0 and every starter would be flagged. */
   else if(st.period>=1&&st.period<=4&&pl.pf>=FOUL_TROUBLE[st.period]&&pl.starter)push(`${id}|ft|${pl.id}|${pl.pf}`,'player',`${nm}: ${pl.name} in foul trouble (${pl.pf} fouls, ${periodName(st.period)}).`);

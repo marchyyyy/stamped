@@ -10,8 +10,11 @@ const tz={timeZone:'America/New_York'};
 const ymd=d=>d.toLocaleDateString('en-CA',tz);
 const side=c=>({abbr:c.team.abbreviation,name:c.team.name||c.team.shortDisplayName,color:'#'+(c.team.color||'5a6478'),logo:c.team.logo||'',
  score:c.score!=null&&c.score!==''?+c.score:null,win:!!c.winner,rec:((c.records||[])[0]||{}).summary||''});
+/* last: the latest play of a live game (ESPN situation.lastPlay; soccer: the latest goal or card), shown under the score. */
+function lastPlay(c){const lp=c.situation&&c.situation.lastPlay&&c.situation.lastPlay.text;if(lp)return lp;const d=(c.details||[]).slice(-1)[0];
+ return d&&d.type&&d.type.text?((d.clock&&d.clock.displayValue?d.clock.displayValue+' ':'')+d.type.text+((d.athletesInvolved||[])[0]?': '+d.athletesInvolved[0].displayName:'')):''}
 function norm(e){const c=e.competitions[0],st=c.status||e.status,t=st.type;
- return{id:String(e.id),date:e.date,state:t.state,detail:t.shortDetail||t.detail||'',
+ return{id:String(e.id),date:e.date,state:t.state,detail:t.shortDetail||t.detail||'',last:t.state==='in'?lastPlay(c):'',
   home:side(c.competitors.find(x=>x.homeAway==='home')),away:side(c.competitors.find(x=>x.homeAway==='away'))}}
 /* A game still belongs on the board: not final, or final today (ET). Owner, 2026-11-09: Sunday's finals were still up on Monday. */
 const fresh=g=>g.state!=='post'||ymd(new Date(g.date))===ymd(new Date());
@@ -44,7 +47,7 @@ const sc=(t,g)=>g.state==='pre'||t.score==null?'<span class="sc-n"></span>':`<sp
 function stampedId(lg,g){const day=ymd(new Date(g.date));
  const m=(window.GAMES_ALL||[]).find(x=>x.lg===lg&&x.when.slice(0,10)===day&&x.home.n===g.home.name&&x.away.n===g.away.name);return m&&m.id}
 function tile(lg,g){const id=stampedId(lg,g),tag=id?'button':'div';
- return `<${tag} class="sc-g sc-${g.state}"${id?` data-game="${id}"`:''} style="--ca:${g.away.color};--ch:${g.home.color}">${team(g.away,g)}${sc(g.away,g)}<div class="sc-m">${mid(g)}</div>${sc(g.home,g)}${team(g.home,g)}</${tag}>`}
+ return `<${tag} class="sc-g sc-${g.state}"${id?` data-game="${id}"`:''} style="--ca:${g.away.color};--ch:${g.home.color}"><div class="sc-x sc-lg">${lg.toUpperCase()}</div>${team(g.away,g)}${sc(g.away,g)}<div class="sc-m">${mid(g)}</div>${sc(g.home,g)}${team(g.home,g)}${g.last?`<div class="sc-x sc-last">${esc(g.last)}</div>`:''}</${tag}>`}
 
 /* ---------- soccer, golf, tennis ---------- */
 const BASE='https://site.api.espn.com/apis/site/v2/sports/';
@@ -101,7 +104,7 @@ function socTile(g,withLg){const d=new Date(g.date);let m;
  else if(/postponed|canceled|delayed|abandoned/i.test(g.detail))m='<span class="sc-fin">'+esc(g.detail)+'</span>';
  else m='<span>'+dayLabel(d)+'</span><span>'+hm(d)+' ET</span>';
  /* Soccer lists the home side first. */
- return '<div class="sc-g sc-'+g.state+'" style="--ca:'+g.home.color+';--ch:'+g.away.color+'">'+(withLg?'<div class="sc-x sc-lg">'+esc(g.league)+'</div>':'')+team(g.home,g)+sc(g.home,g)+'<div class="sc-m">'+m+'</div>'+sc(g.away,g)+team(g.away,g)+socLine(g)+'</div>'}
+ return '<div class="sc-g sc-'+g.state+'" style="--ca:'+g.home.color+';--ch:'+g.away.color+'">'+'<div class="sc-x sc-lg">'+esc(g.league)+'</div>'+team(g.home,g)+sc(g.home,g)+'<div class="sc-m">'+m+'</div>'+sc(g.away,g)+team(g.away,g)+(g.last?'<div class="sc-x sc-last">'+esc(g.last)+'</div>':'')+socLine(g)+'</div>'}
 function socBody(full){const s=S.soccer;if(!s)return '<div class="cap">Loading matches…</div>';const gs=socGames(full);
  if(!gs.length)return '<div class="cap">No matches in the main leagues on ESPN\'s board this week.</div>';
  if(full){const by={};gs.forEach(g=>(by[g.league]=by[g.league]||[]).push(g));return SOC.filter(x=>by[x[1]]).map(x=>'<h3 class="sc-sub">'+esc(x[1])+' <span>'+by[x[1]].length+'</span></h3>'+by[x[1]].map(g=>socTile(g,false)).join('')).join('')}

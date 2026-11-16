@@ -215,3 +215,29 @@ button.sc-g{cursor:pointer}
 .pk-t td,.pk-t th{padding:5px 6px}
 .pk-more{margin-top:6px;font-size:12.5px}
 .pk-more summary{cursor:pointer;color:var(--accent)}
+
+/* Game tiles in the phone live-score look (owner, 2026-11-16): a dark card tinted with the left team's colour, league on top,
+   big white scores beside the logos, the clock in the middle, team codes under the logos and the latest play along the bottom.
+   The card is dark in both themes, so it always uses the logos drawn for dark backgrounds. */
+.sc-g,.sc-card.sc-tn{background:linear-gradient(100deg,color-mix(in srgb,var(--ca,#1d3a8a) 55%,#0a1226) 0%,#0a1226 46%,#05070c 100%);border:1px solid #1c2740;border-radius:26px;color:#fff;padding:12px 16px 14px;row-gap:2px;box-shadow:0 6px 18px rgba(4,8,20,.28)}
+.sc-g{grid-template-columns:auto 1fr minmax(84px,auto) 1fr auto}
+.sc-g .sc-lt{display:none!important}.sc-g .sc-dk{display:block!important}
+.sc-g .sc-t img{width:54px;height:54px}
+.sc-g .sc-t b{font-size:14px;font-weight:700;letter-spacing:.06em;color:#9db4ff}
+.sc-g .sc-t:last-of-type b{color:#8c93a3}
+.sc-g .sc-t small{color:#8c93a3}
+.sc-g .sc-n{font-family:var(--f-disp);font-weight:800;font-size:44px;line-height:1;color:#fff;letter-spacing:-.01em}
+.sc-g .sc-m{color:#c9d2e6;font-size:15px;font-weight:600}
+.sc-g .sc-clk{color:#fff;font-weight:800;font-size:19px}
+.sc-g .sc-fin{color:#fff}
+.sc-g .sc-lg{color:#8ea2d8;font-size:12px;margin:0 0 2px}
+.sc-g .sc-x{color:#aab4cc}
+.sc-g .sc-last{color:#fff;font-size:15px;line-height:1.3;padding-top:8px}
+.sc-g .sc-x:last-child{border-top-color:rgba(255,255,255,.12)}
+.sc-g .sc-out{opacity:.5}
+.sc-in{border-color:#1c2740}
+.sc-card.sc-tn{--ca:#1d3a8a}
+.sc-tn .sc-ch small,.sc-tn .sc-st,.sc-tn .sc-tp small,.sc-tn .sc-sets i{color:#aab4cc}
+.sc-tn .sc-tp b,.sc-tn .sc-sets i.w{color:#fff}
+.sc-tn .sc-tp{font-size:16px}
+@media (max-width:380px){.sc-g .sc-t img{width:44px;height:44px}.sc-g .sc-n{font-size:34px}.sc-g{grid-template-columns:auto 1fr minmax(70px,auto) 1fr auto}}
