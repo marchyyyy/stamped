@@ -1,7 +1,7 @@
 first_name,last_name,position,position_alt,injury_status,game_date,slate,team,opp,spread,over_under,implied_team_score,salary,L5_dvp_rank,L5_fppg_avg,L10_fppg_avg,szn_fppg_avg,ppg_projection,value_projection,ownership_projection
 Luka,Doncic,PG,,,2026-11-17,,LAL,CHA,-7.5,221.5,114.5,12200,21,64.0,69.5,65.6,64.8,5.31,
 Victor,Wembanyama,C,,,2026-11-17,,SA,DET,-9.5,221.5,115.5,11700,16,57.8,63.8,59.9,58.7,5.02,
-Cade,Cunningham,PG,,,2026-11-17,,DET,SA,+9.5,221.5,106,10000,12,52.2,50.6,48.5,48.3,4.83,
+Cade,Cunningham,PG,,,2026-11-17,,DET,SA,+9.5,221.5,106,10000,12,52.2,50.6,48.5,46.3,4.63,
 Karl-Anthony,Towns,PF,C,,2026-11-17,,NY,TOR,-4.5,214.5,109.5,9300,9,54.7,49.6,48.2,44.7,4.80,
 Deni,Avdija,PG,SF,,2026-11-17,,POR,MIN,+3.5,225.5,111,9000,11,43.2,43.8,43.7,43.4,4.82,
 Scottie,Barnes,PG,SF,,2026-11-17,,TOR,NY,+4.5,214.5,105,8600,6,50.4,46.1,46.2,41.8,4.86,
